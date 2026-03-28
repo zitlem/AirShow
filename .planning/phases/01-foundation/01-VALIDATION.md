@@ -19,16 +19,16 @@ created: 2026-03-28
 |----------|-------|
 | **Framework** | CTest (CMake's built-in test runner) + GStreamer pipeline probes |
 | **Config file** | CMakeLists.txt (enable_testing()) |
-| **Quick run command** | `ctest --test-dir build --output-on-failure -R quick` |
-| **Full suite command** | `ctest --test-dir build --output-on-failure` |
+| **Quick run command** | `ctest --test-dir build/linux-debug --output-on-failure -R quick` |
+| **Full suite command** | `ctest --test-dir build/linux-debug --output-on-failure` |
 | **Estimated runtime** | ~10 seconds |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cmake --build build && ctest --test-dir build --output-on-failure -R quick`
-- **After every plan wave:** Run `ctest --test-dir build --output-on-failure`
+- **After every task commit:** Run `cmake --build build/linux-debug && ctest --test-dir build/linux-debug --output-on-failure -R quick`
+- **After every plan wave:** Run `ctest --test-dir build/linux-debug --output-on-failure`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 15 seconds
 
@@ -38,11 +38,11 @@ created: 2026-03-28
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 01-01-01 | 01 | 1 | FOUND-01 | build | `cmake --build build` | ❌ W0 | ⬜ pending |
-| 01-02-01 | 02 | 1 | FOUND-02 | integration | `ctest --test-dir build -R pipeline_video` | ❌ W0 | ⬜ pending |
-| 01-02-02 | 02 | 1 | FOUND-03 | integration | `ctest --test-dir build -R pipeline_audio` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | FOUND-04 | integration | `ctest --test-dir build -R mute_toggle` | ❌ W0 | ⬜ pending |
-| 01-03-01 | 03 | 2 | FOUND-05 | integration | `ctest --test-dir build -R decoder_fallback` | ❌ W0 | ⬜ pending |
+| 01-01-01 | 01 | 1 | FOUND-01 | build | `cmake --build build/linux-debug` | ❌ W0 | ⬜ pending |
+| 01-02-01 | 02 | 1 | FOUND-02 | integration | `ctest --test-dir build/linux-debug -R test_video_pipeline` | ❌ W0 | ⬜ pending |
+| 01-02-02 | 02 | 1 | FOUND-03 | integration | `ctest --test-dir build/linux-debug -R test_audio_pipeline` | ❌ W0 | ⬜ pending |
+| 01-02-03 | 02 | 1 | FOUND-04 | integration | `ctest --test-dir build/linux-debug -R test_mute_toggle` | ❌ W0 | ⬜ pending |
+| 01-03-01 | 03 | 2 | FOUND-05 | integration | `ctest --test-dir build/linux-debug -R test_decoder_detection` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -53,7 +53,7 @@ created: 2026-03-28
 - [ ] `CMakeLists.txt` — enable_testing() and add_test() stubs
 - [ ] `tests/` directory created with test runner setup
 
-*Wave 0 is part of the build system plan (Plan 01).*
+*Wave 0 is part of the build system plan (Plan 01). After Plan 01 Task 2 smoke test passes, set `wave_0_complete: true` in this file's frontmatter.*
 
 ---
 
