@@ -62,6 +62,52 @@ bool AvahiAdvertiser::rename(const std::string& newName) {
     return true;
 }
 
+bool AvahiAdvertiser::updateTxtRecord(const std::string& serviceType,
+                                      const std::string& key,
+                                      const std::string& value) {
+    if (!m_poll || !m_client) return false;
+    avahi_threaded_poll_lock(m_poll);
+
+    // Find the service with the matching type and update the key in its TXT records.
+    // If the key is not present, it is added.
+    bool found = false;
+    for (auto& svc : m_services) {
+        if (svc.type == serviceType) {
+            found = true;
+            bool updated = false;
+            for (auto& rec : svc.txt) {
+                if (rec.key == key) {
+                    rec.value = value;
+                    updated = true;
+                    break;
+                }
+            }
+            if (!updated) {
+                svc.txt.push_back({key, value});
+            }
+        }
+    }
+
+    if (!found) {
+        avahi_threaded_poll_unlock(m_poll);
+        g_warning("AvahiAdvertiser::updateTxtRecord — service type '%s' not found",
+                  serviceType.c_str());
+        return false;
+    }
+
+    // Re-register ALL services with the updated TXT records.
+    // This is acceptable since TXT updates are rare (e.g., once at startup when pk is known).
+    if (m_group) {
+        avahi_entry_group_reset(m_group);
+    }
+    if (avahi_client_get_state(m_client) == AVAHI_CLIENT_S_RUNNING) {
+        createServices(m_client);
+    }
+
+    avahi_threaded_poll_unlock(m_poll);
+    return true;
+}
+
 void AvahiAdvertiser::stop() {
     if (m_poll) {
         avahi_threaded_poll_stop(m_poll);

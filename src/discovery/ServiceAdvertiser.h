@@ -33,6 +33,16 @@ public:
     // Stop all advertisements cleanly.
     virtual void stop() = 0;
 
+    // Update a single TXT record key for an already-advertised service.
+    // Used by AirPlayHandler to replace the placeholder pk value with the real Ed25519 public key.
+    // serviceType: e.g., "_airplay._tcp"
+    // key: TXT record key to update (e.g., "pk")
+    // value: new value for that key
+    // Returns false if the service type is not found or the update fails.
+    virtual bool updateTxtRecord(const std::string& serviceType,
+                                 const std::string& key,
+                                 const std::string& value) = 0;
+
     // Factory: returns the correct backend for the current platform.
     // Linux: AvahiAdvertiser, macOS: DnsSdAdvertiser, Windows: BonjourAdvertiser
     static std::unique_ptr<ServiceAdvertiser> create();

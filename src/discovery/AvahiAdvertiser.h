@@ -24,6 +24,9 @@ public:
 
     bool rename(const std::string& newName) override;
     void stop() override;
+    bool updateTxtRecord(const std::string& serviceType,
+                         const std::string& key,
+                         const std::string& value) override;
 
 private:
     // Avahi client callback — static, dispatches to instance methods.
