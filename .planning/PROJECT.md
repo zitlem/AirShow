@@ -12,7 +12,9 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Run on Linux, macOS, and Windows — Phase 1 (build system + cross-platform presets)
+- ✓ Display mirrored content in a fullscreen receiver window — Phase 1 (GStreamer + qml6glsink)
+- ✓ Play audio from mirrored devices with mute toggle — Phase 1 (autoaudiosink + AudioBridge)
 
 ### Active
 
@@ -20,10 +22,7 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 - [ ] Receive Google Cast screen mirroring from Android/Chrome devices
 - [ ] Receive Miracast screen mirroring from Windows/Android devices
 - [ ] Receive DLNA media streams
-- [ ] Display mirrored content in a fullscreen receiver window
-- [ ] Play audio from mirrored devices with mute toggle
 - [ ] Auto-discover and advertise as a receiver on the local network
-- [ ] Run on Linux, macOS, and Windows
 
 ### Out of Scope
 
@@ -72,4 +71,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after initialization*
+*Last updated: 2026-03-28 after Phase 1 completion*
