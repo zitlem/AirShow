@@ -78,7 +78,11 @@ Plans:
   2. A Mac can select MyAirShow from AirPlay and mirror its desktop to the receiver
   3. Audio from the mirroring device plays through the receiver's speakers in sync with the video — no persistent drift observable after 5 minutes
   4. A mirroring session lasting 30 minutes shows no A/V sync drift and no dropped-connection recovery needed
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 04-01-PLAN.md — UxPlay submodule + CMake integration + MediaPipeline appsrc mode + discovery TXT update API + test scaffold
+- [ ] 04-02-PLAN.md — AirPlayHandler implementation: RAOP lifecycle, raop_callbacks_t wiring, appsrc frame injection, session management
+- [ ] 04-03-PLAN.md — main.cpp wiring, plugin checks, real tests, end-to-end verification with Apple device
 
 ### Phase 5: DLNA
 **Goal**: Users with DLNA controller apps can push video and audio files to MyAirShow for playback
@@ -130,7 +134,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
-| 4. AirPlay | 0/? | Not started | - |
+| 4. AirPlay | 0/3 | Planning complete | - |
 | 5. DLNA | 0/? | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
 | 7. Security & Hardening | 0/? | Not started | - |

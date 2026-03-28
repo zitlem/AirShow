@@ -1,0 +1,10 @@
+prefix=/home/sanya/Desktop/MyAirShow/vendor/avahi
+exec_prefix=${prefix}
+libdir=${prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: avahi-common
+Description: Avahi Common Library
+Version: 0.8
+Libs: -L${libdir} -lavahi-common
+Cflags: -I${includedir}
