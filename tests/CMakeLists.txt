@@ -21,3 +21,21 @@ gtest_discover_tests(test_pipeline
   TEST_SUFFIX ""
   PROPERTIES TIMEOUT 30
 )
+
+add_executable(test_discovery
+  test_discovery.cpp
+)
+
+target_include_directories(test_discovery PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_discovery PRIVATE
+  GTest::gtest_main
+  GTest::gmock
+)
+
+gtest_discover_tests(test_discovery
+  TEST_SUFFIX ""
+  PROPERTIES TIMEOUT 30
+)
