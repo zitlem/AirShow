@@ -46,3 +46,25 @@ gtest_discover_tests(test_discovery
   TEST_SUFFIX ""
   PROPERTIES TIMEOUT 30
 )
+
+add_executable(test_display
+  test_display.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/SettingsBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+)
+
+target_include_directories(test_display PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_display PRIVATE
+  GTest::gtest_main
+  GTest::gmock
+  Qt6::Core
+)
+
+gtest_discover_tests(test_display
+  TEST_SUFFIX ""
+  PROPERTIES TIMEOUT 30
+)
