@@ -2,6 +2,10 @@
 #include <gst/gst.h>
 #include "pipeline/MediaPipeline.h"
 #include "ui/ReceiverWindow.h"
+#include "settings/AppSettings.h"
+#include "discovery/DiscoveryManager.h"
+#include "discovery/UpnpAdvertiser.h"
+#include "platform/WindowsFirewall.h"
 
 static void checkRequiredPlugins() {
     struct { const char* name; const char* pkg; } required[] = {
@@ -24,7 +28,21 @@ int main(int argc, char* argv[]) {
     gst_init(&argc, &argv);
     checkRequiredPlugins();
 
+    // Set organization/app name so QSettings uses correct native path
+    QCoreApplication::setOrganizationName("MyAirShow");
+    QCoreApplication::setApplicationName("MyAirShow");
+
     QGuiApplication app(argc, argv);
+
+    myairshow::AppSettings settings;
+
+    // Register firewall rules on Windows first launch (Plan 03 implements WindowsFirewall)
+    // Placeholder comment — wired in Plan 03
+
+    myairshow::DiscoveryManager discovery(&settings);
+    if (!discovery.start()) {
+        qWarning("Discovery failed to start — receiver will not appear in device pickers");
+    }
 
     myairshow::MediaPipeline pipeline;
     myairshow::ReceiverWindow window(pipeline);
