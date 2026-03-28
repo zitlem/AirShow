@@ -4,32 +4,10 @@
 #include <cstdint>
 #include <QObject>
 
-// Forward declarations — avoid including UxPlay headers in public header
+// Forward-declare UxPlay's opaque RAOP handle only — stream.h types are
+// anonymous structs and cannot be forward-declared; they stay in the .cpp.
 struct raop_s;
 typedef struct raop_s raop_t;
-struct raop_ntp_s;
-typedef struct raop_ntp_s raop_ntp_t;
-typedef struct {
-    bool is_h265;
-    int nal_count;
-    unsigned char *data;
-    int data_len;
-    uint64_t ntp_time_local;
-    uint64_t ntp_time_remote;
-} video_decode_struct;
-
-typedef struct {
-    unsigned char *data;
-    unsigned char ct;
-    int data_len;
-    int sync_status;
-    uint64_t ntp_time_local;
-    uint64_t ntp_time_remote;
-    uint32_t rtp_time;
-    unsigned short seqnum;
-} audio_decode_struct;
-
-struct GstElement;  // GStreamer forward decl
 
 namespace myairshow {
 
@@ -60,23 +38,14 @@ public:
     bool isRunning() const override { return m_running; }
     void setMediaPipeline(MediaPipeline* pipeline) override;
 
-private:
-    // Static C callback trampolines — cast cls to AirPlayHandler*
-    static void sVideoProcess(void* cls, raop_ntp_t* ntp, video_decode_struct* data);
-    static void sAudioProcess(void* cls, raop_ntp_t* ntp, audio_decode_struct* data);
-    static void sConnInit(void* cls);
-    static void sConnDestroy(void* cls);
-    static void sConnTeardown(void* cls, bool* teardown_96, bool* teardown_110);
-    static void sAudioGetFormat(void* cls, unsigned char* ct, unsigned short* spf,
-                                bool* usingScreen, bool* isMedia, uint64_t* audioFormat);
-    static void sReportClientRequest(void* cls, char* deviceid, char* model,
-                                     char* devicename, bool* admit);
-
-    // Instance methods called by trampolines
-    void onVideoFrame(video_decode_struct* data);
-    void onAudioFrame(audio_decode_struct* data);
+    // Internal callbacks invoked from C trampolines in AirPlayHandler.cpp.
+    // Public so the file-scope trampoline functions can call them without friend declarations.
+    // These are NOT part of the ProtocolHandler interface — do not call from application code.
+    void onVideoFrame(void* data);
+    void onAudioFrame(void* data);
     void onConnectionInit();
     void onConnectionDestroy();
+    void onConnTeardown(bool* teardown_96, bool* teardown_110);
     void onAudioGetFormat(unsigned char* ct, unsigned short* spf,
                           bool* usingScreen, bool* isMedia, uint64_t* audioFormat);
     void onReportClientRequest(char* deviceid, char* model, char* devicename, bool* admit);
@@ -85,17 +54,20 @@ private:
     // Returns 64-char lowercase hex string (32 bytes = ED25519_KEY_SIZE) or empty on failure.
     std::string readPublicKeyFromKeyfile() const;
 
+private:
     raop_t*           m_raop             = nullptr;
     MediaPipeline*    m_pipeline         = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;
     DiscoveryManager* m_discoveryManager = nullptr;
-    GstElement*       m_videoAppsrc      = nullptr;
-    GstElement*       m_audioAppsrc      = nullptr;
+    // GstElement pointers stored as void* to keep GStreamer headers out of this header.
+    // Cast to GstElement* in the .cpp where GStreamer headers are included.
+    void*             m_videoAppsrc      = nullptr;
+    void*             m_audioAppsrc      = nullptr;
     uint64_t          m_basetime         = 0;
     bool              m_basetimeSet      = false;
     std::string       m_deviceId;
     std::string       m_keyfilePath;
-    std::string       m_currentDeviceName;  // set by report_client_request
+    std::string       m_currentDeviceName;  // set by onReportClientRequest
     bool              m_running          = false;
     bool              m_audioCapsSet     = false;
 };

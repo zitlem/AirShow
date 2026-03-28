@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(MyAirShow LANGUAGES CXX)
+project(MyAirShow LANGUAGES CXX C)  # C required for UxPlay lib/ C sources
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,6 +57,7 @@ qt_add_executable(myairshow
   src/ui/ConnectionBridge.cpp
   src/ui/SettingsBridge.cpp
   src/protocol/ProtocolManager.cpp
+  src/protocol/AirPlayHandler.cpp
   src/settings/AppSettings.cpp
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
