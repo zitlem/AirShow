@@ -35,6 +35,19 @@ find_package(spdlog QUIET)
 # OpenSSL — link now to avoid header-change task in future phases (per RESEARCH.md Standard Stack)
 find_package(OpenSSL REQUIRED)
 
+# libplist — required by UxPlay lib/ for Apple plist parsing (D-07)
+pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
+
+# UxPlay lib/ — builds the 'airplay' static library target (D-01)
+# Include lib/ directly to skip uxplay's renderers/ and uxplay.cpp (D-03)
+# Must add llhttp and playfair subdirs first — airplay target links against them
+# (mirrors the order in vendor/uxplay/CMakeLists.txt: llhttp, playfair, lib)
+# Pre-set OPENSSL_FOUND so UxPlay's find_package(OpenSSL 1.1.1) uses already-found OpenSSL
+set(OPENSSL_FOUND TRUE)
+add_subdirectory(vendor/uxplay/lib/llhttp)
+add_subdirectory(vendor/uxplay/lib/playfair)
+add_subdirectory(vendor/uxplay/lib)
+
 # Main executable
 qt_add_executable(myairshow
   src/main.cpp
@@ -61,7 +74,7 @@ qt_add_qml_module(myairshow
     qml/IdleScreen.qml
 )
 
-target_include_directories(myairshow PRIVATE src)
+target_include_directories(myairshow PRIVATE src vendor/uxplay/lib)
 
 target_link_libraries(myairshow PRIVATE
   Qt6::Core
@@ -72,6 +85,8 @@ target_link_libraries(myairshow PRIVATE
   PkgConfig::UPNP
   OpenSSL::SSL
   OpenSSL::Crypto
+  airplay
+  PkgConfig::PLIST
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

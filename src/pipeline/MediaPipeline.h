@@ -35,10 +35,29 @@ public:
     // Returns nullptr if init() has not been called or pipeline has been stopped.
     GstElement* gstPipeline() const { return m_pipeline; }
 
+    // Phase 4: appsrc-based pipeline for live protocol data (D-03)
+    // Video branch: appsrc ! h264parse ! [vaapih264dec|avdec_h264] ! videoconvert ! glupload ! qml6glsink
+    // Audio branch: appsrc ! decodebin ! audioconvert ! audioresample ! autoaudiosink
+    // Uses decodebin for audio to handle AAC/ALAC codec negotiation automatically.
+    bool initAppsrcPipeline(void* qmlVideoItem);
+
+    // Accessors for protocol handlers to push encoded buffers into the pipeline.
+    // Valid after initAppsrcPipeline() returns true; null otherwise.
+    GstElement* videoAppsrc() const { return m_videoAppsrc; }
+    GstElement* audioAppsrc() const { return m_audioAppsrc; }
+
+    // Set audio caps dynamically when codec type is known (avoids caps negotiation delays).
+    // capsString examples:
+    //   "audio/mpeg,mpegversion=4,stream-format=raw,channels=2,rate=44100"  (AAC)
+    //   "audio/x-alac,channels=2,rate=44100,samplesize=16"                  (ALAC)
+    void setAudioCaps(const char* capsString);
+
 private:
     GstElement* m_pipeline        = nullptr;
     GstElement* m_decoderPipeline = nullptr;
     GstElement* m_audioSink       = nullptr;
+    GstElement* m_videoAppsrc     = nullptr;
+    GstElement* m_audioAppsrc     = nullptr;
     bool        m_muted           = false;
     std::optional<DecoderInfo> m_activeDecoder;
     DecoderSelectedCallback    m_decoderCallback;

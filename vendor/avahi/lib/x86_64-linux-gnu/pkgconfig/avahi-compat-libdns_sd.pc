@@ -1,0 +1,10 @@
+prefix=/home/sanya/Desktop/MyAirShow/vendor/avahi
+exec_prefix=${prefix}
+libdir=${prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include/avahi-compat-libdns_sd
+
+Name: avahi-compat-libdns_sd
+Description: Avahi Multicast DNS Responder (libdns_sd Compatibility)
+Version: 0.8
+Libs: -L${libdir} -ldns_sd
+Cflags: -D_REENTRANT -I${includedir}
