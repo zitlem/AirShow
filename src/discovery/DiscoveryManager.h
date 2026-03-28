@@ -39,6 +39,10 @@ public:
 
     bool isRunning() const;
 
+    // Device ID (MAC address) used in mDNS TXT records. Must match the value
+    // passed to AirPlayHandler so iOS pairing succeeds.
+    std::string deviceId() const;
+
 private:
     AppSettings*                     m_settings;
     std::unique_ptr<ServiceAdvertiser> m_advertiser;

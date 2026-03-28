@@ -69,9 +69,35 @@ gtest_discover_tests(test_display
   PROPERTIES TIMEOUT 30
 )
 
-add_executable(test_airplay test_airplay.cpp)
-target_link_libraries(test_airplay PRIVATE GTest::GTest GTest::Main)
-target_include_directories(test_airplay PRIVATE ${PROJECT_SOURCE_DIR}/src)
+add_executable(test_airplay
+  test_airplay.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/AirPlayHandler.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/DiscoveryManager.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/AvahiAdvertiser.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+)
+
+target_include_directories(test_airplay PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_SOURCE_DIR}/vendor/uxplay/lib
+)
+
+target_link_libraries(test_airplay PRIVATE
+  GTest::GTest GTest::Main
+  Qt6::Core
+  PkgConfig::GST
+  airplay
+  PkgConfig::PLIST
+  OpenSSL::SSL OpenSSL::Crypto
+)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(test_airplay PRIVATE PkgConfig::AVAHI)
+endif()
+
 add_test(NAME test_airplay COMMAND test_airplay)
 
 gtest_discover_tests(test_airplay

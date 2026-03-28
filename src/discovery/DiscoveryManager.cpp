@@ -127,6 +127,10 @@ bool DiscoveryManager::isRunning() const {
     return m_running;
 }
 
+std::string DiscoveryManager::deviceId() const {
+    return readMacAddress();
+}
+
 // static
 std::string DiscoveryManager::readMacAddress() {
 #ifdef __linux__

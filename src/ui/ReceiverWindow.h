@@ -5,6 +5,7 @@
 
 namespace myairshow {
 class MediaPipeline;
+class ConnectionBridge;
 
 class ReceiverWindow {
 public:
@@ -14,10 +15,15 @@ public:
     // Load QML, retrieve GstGLVideoItem, wire pipeline
     bool load();
 
+    // Public accessor for ConnectionBridge — needed by AirPlayHandler for HUD updates.
+    // Returns nullptr if load() has not been called yet.
+    ConnectionBridge* connectionBridge() { return m_connectionBridge; }
+
 private:
     QQmlApplicationEngine m_engine;
     MediaPipeline&        m_pipeline;
     AppSettings&          m_settings;
+    ConnectionBridge*     m_connectionBridge = nullptr;
 };
 
 } // namespace myairshow

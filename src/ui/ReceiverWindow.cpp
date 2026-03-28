@@ -32,6 +32,7 @@ bool ReceiverWindow::load() {
     // Per D-05: ConnectionBridge exposes connected/deviceName/protocol to QML.
     // Phase 4 protocol handlers will call connBridge->setConnected() to drive UI state.
     auto* connBridge = new ConnectionBridge(&m_engine);
+    m_connectionBridge = connBridge;  // Store for connectionBridge() accessor
     m_engine.rootContext()->setContextProperty("connectionBridge", connBridge);
 
     // Per D-10: SettingsBridge exposes receiverName to QML for the idle screen.
