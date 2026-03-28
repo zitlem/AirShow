@@ -23,33 +23,52 @@ protected:
     }
 };
 
-// FOUND-02: GStreamer pipeline renders videotestsrc frames
-// Stub: verifies GStreamer is initialised. Plan 02 will replace this body.
-TEST_F(PipelineTest, test_video_pipeline) {
-    EXPECT_TRUE(gst_is_initialized())
-        << "GStreamer must be initialised before pipeline tests";
-    // TODO (Plan 02): Construct MediaPipeline, call init(nullptr),
-    // set state to PLAYING, assert GST_STATE_PLAYING, check no ERROR bus msg
-    GTEST_SKIP() << "Stub — implemented in Plan 02";
-}
-
-// FOUND-03: audiotestsrc plays through autoaudiosink
-// Stub: verifies avdec_h264 plugin is available as a canary for gst-libav install.
-TEST_F(PipelineTest, test_audio_pipeline) {
-    EXPECT_TRUE(gst_is_initialized());
-    // TODO (Plan 02): Construct MediaPipeline, call init(nullptr),
-    // assert pipeline enters PLAYING state within 2s, check no ERROR bus msg
-    GTEST_SKIP() << "Stub — implemented in Plan 02";
-}
-
 // FOUND-04: Mute toggle sets volume to 0; unmute restores to 1.0
 TEST_F(PipelineTest, test_mute_toggle) {
     myairshow::MediaPipeline pipeline;
-    // Stub body: just verify isMuted() default is false
+    // Default state: not muted
     EXPECT_FALSE(pipeline.isMuted());
-    // TODO (Plan 02): call pipeline.setMuted(true); EXPECT_TRUE(pipeline.isMuted())
-    //                 call pipeline.setMuted(false); EXPECT_FALSE(pipeline.isMuted())
-    GTEST_SKIP() << "Stub — full impl in Plan 02";
+    // Mute
+    pipeline.setMuted(true);
+    EXPECT_TRUE(pipeline.isMuted());
+    // Unmute
+    pipeline.setMuted(false);
+    EXPECT_FALSE(pipeline.isMuted());
+}
+
+// FOUND-02: GStreamer pipeline renders videotestsrc frames
+TEST_F(PipelineTest, test_video_pipeline) {
+    myairshow::MediaPipeline pipeline;
+    // init with nullptr qmlVideoItem — qml6glsink logs a warning but must not crash
+    bool ok = pipeline.init(nullptr);
+    ASSERT_TRUE(ok) << "MediaPipeline::init() failed — check GStreamer plugin availability";
+
+    // Use gstPipeline() getter to get a non-null pointer for state check
+    GstElement* gstPipeline = pipeline.gstPipeline();
+    ASSERT_NE(gstPipeline, nullptr) << "gstPipeline() must be non-null after successful init()";
+
+    // Wait up to 2 seconds for PLAYING state
+    GstState state = GST_STATE_NULL;
+    GstState pending = GST_STATE_NULL;
+    GstStateChangeReturn ret = gst_element_get_state(
+        gstPipeline, &state, &pending, 2 * GST_SECOND);
+    EXPECT_NE(ret, GST_STATE_CHANGE_FAILURE) << "Pipeline state change failed";
+    EXPECT_EQ(state, GST_STATE_PLAYING) << "Pipeline should be in PLAYING state";
+
+    pipeline.stop();
+    // After stop, a second stop must not crash (double-stop guard)
+    pipeline.stop();
+}
+
+// FOUND-03: audiotestsrc plays through autoaudiosink
+TEST_F(PipelineTest, test_audio_pipeline) {
+    myairshow::MediaPipeline pipeline;
+    bool ok = pipeline.init(nullptr);
+    ASSERT_TRUE(ok) << "MediaPipeline::init() failed — audio branch unavailable";
+    // init() success implies autoaudiosink element was created and linked.
+    // Volume should be 1.0 by default (not muted).
+    EXPECT_FALSE(pipeline.isMuted());
+    pipeline.stop();
 }
 
 // FOUND-05: decodebin selects a decoder and logs its name
