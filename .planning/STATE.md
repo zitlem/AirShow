@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-28T23:39:17.839Z"
+status: verifying
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-03-28T23:44:46.573Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 04 (airplay) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
@@ -63,6 +63,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-display-receiver-ui P03 | 1 | 3 tasks | 4 files |
 | Phase 04-airplay P01 | 7 | 2 tasks | 10 files |
 | Phase 04-airplay P02 | 15 | 2 tasks | 3 files |
+| Phase 04-airplay P03 | 5 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,8 @@ Recent decisions affecting current work:
 - [Phase 04-airplay]: File-scope C trampolines for raop_callbacks_t — avoids leaking UxPlay anonymous struct types into public header
 - [Phase 04-airplay]: LANGUAGES C added to project() — required for UxPlay lib/ C sources to compile under CMake LANGUAGES CXX-only was silently skipping C files
 - [Phase 04-airplay]: readPublicKeyFromKeyfile() uses OpenSSL PEM_read_PrivateKey + EVP_PKEY_get_raw_public_key — UxPlay writes PEM not 64-byte binary
+- [Phase 04-airplay]: DiscoveryManager::deviceId() added as public method - cleanest accessor for AirPlayHandler pairing without exposing internal readMacAddress static
+- [Phase 04-airplay]: test_airplay links full source chain including AvahiAdvertiser + PkgConfig::AVAHI on Linux - ServiceAdvertiser.cpp conditionally includes AvahiAdvertiser.h requiring avahi headers
 
 ### Pending Todos
 
@@ -118,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T23:39:17.836Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-28T23:44:46.570Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None

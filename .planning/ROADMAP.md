@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Build system, GStreamer pipeline, Qt receiver window, audio output, and hardware decode (completed 2026-03-28)
 - [x] **Phase 2: Discovery & Protocol Abstraction** - mDNS/SSDP advertisement for all protocols, protocol interfaces, receiver name, firewall rules (completed 2026-03-28)
 - [x] **Phase 3: Display & Receiver UI** - Fullscreen mirroring window with correct aspect ratio, connection status HUD, and idle screen (completed 2026-03-28)
-- [ ] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management
+- [x] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management (completed 2026-03-28)
 - [ ] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps
 - [ ] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend
 - [ ] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability
@@ -82,7 +82,7 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md — UxPlay submodule + CMake integration + MediaPipeline appsrc mode + discovery TXT update API + test scaffold
 - [x] 04-02-PLAN.md — AirPlayHandler implementation: RAOP lifecycle, raop_callbacks_t wiring, appsrc frame injection, session management
-- [ ] 04-03-PLAN.md — main.cpp wiring, plugin checks, real tests, end-to-end verification with Apple device
+- [x] 04-03-PLAN.md — main.cpp wiring, plugin checks, real tests, end-to-end verification with Apple device
 
 ### Phase 5: DLNA
 **Goal**: Users with DLNA controller apps can push video and audio files to MyAirShow for playback
@@ -134,7 +134,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
-| 4. AirPlay | 2/3 | In Progress|  |
+| 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 0/? | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
 | 7. Security & Hardening | 0/? | Not started | - |
