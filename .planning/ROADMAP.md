@@ -33,7 +33,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Audio from a GStreamer test audio source plays through system speakers
   4. The mute/unmute toggle silences and restores audio during playback
   5. When hardware H.264 decode is unavailable, the application falls back to software decode and logs which decoder is active
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — CMake build system, project skeleton, test scaffold, GitHub Actions CI
+- [ ] 01-02-PLAN.md — Two-branch GStreamer pipeline, Qt QML fullscreen window, audio mute toggle
+- [ ] 01-03-PLAN.md — Hardware H.264 decoder detection with software fallback logging
 
 ### Phase 2: Discovery & Protocol Abstraction
 **Goal**: The receiver is visible in device pickers on sender devices and protocol handler interfaces are defined before any protocol code is written
@@ -117,7 +121,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Discovery & Protocol Abstraction | 0/? | Not started | - |
 | 3. Display & Receiver UI | 0/? | Not started | - |
 | 4. AirPlay | 0/? | Not started | - |
