@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 #include <gst/gst.h>
+#include <set>
+#include <string>
 #include "pipeline/MediaPipeline.h"
 #include "pipeline/DecoderInfo.h"
 
@@ -73,11 +75,63 @@ TEST_F(PipelineTest, test_audio_pipeline) {
 
 // FOUND-05: decodebin selects a decoder and logs its name
 TEST_F(PipelineTest, test_decoder_detection) {
-    EXPECT_TRUE(gst_is_initialized());
-    // TODO (Plan 03): Build videotestsrc ! x264enc ! decodebin pipeline,
-    // register element-added callback, enter PLAYING state,
-    // assert activeDecoder() is populated with a name matching known decoders
-    GTEST_SKIP() << "Stub — implemented in Plan 03";
+    myairshow::MediaPipeline pipeline;
+
+    // Register callback to capture decoder name
+    std::string capturedDecoderName;
+    myairshow::DecoderType capturedType = myairshow::DecoderType::Software;
+    bool callbackFired = false;
+
+    pipeline.setDecoderSelectedCallback(
+        [&](const myairshow::DecoderInfo& info) {
+            capturedDecoderName = info.elementName;
+            capturedType        = info.type;
+            callbackFired       = true;
+        });
+
+    bool ok = pipeline.initDecoderPipeline();
+    ASSERT_TRUE(ok) << "initDecoderPipeline() failed — check x264enc and decodebin availability";
+
+    // Wait up to 3 seconds for the decoder element-added callback to fire
+    // (decodebin negotiates format asynchronously after GST_STATE_PLAYING)
+    int waited = 0;
+    while (!callbackFired && waited < 30) {
+        g_usleep(100000);  // 100ms
+        waited++;
+    }
+
+    // D-11 + D-12: Either hardware or software decoder must have been selected
+    ASSERT_TRUE(pipeline.activeDecoder().has_value())
+        << "activeDecoder() is empty — decodebin did not select a decoder within 3s";
+
+    const std::string& name = pipeline.activeDecoder()->elementName;
+    EXPECT_FALSE(name.empty()) << "Decoder element name must not be empty";
+
+    // Verify the name is a known decoder (D-11 list + software fallback D-12)
+    static const std::set<std::string> knownDecoders = {
+        "vaapih264dec",   // Linux VAAPI
+        "vaaph264dec",    // alternative VAAPI name
+        "nvh264dec",      // NVIDIA NVDEC
+        "nvdec",          // NVIDIA NVDEC (generic)
+        "vtdec",          // macOS VideoToolbox
+        "vtdec_hw",       // macOS VideoToolbox hardware
+        "d3d11h264dec",   // Windows D3D11
+        "mfh264dec",      // Windows Media Foundation
+        "avdec_h264",     // Software fallback (D-12)
+    };
+    EXPECT_TRUE(knownDecoders.count(name) > 0)
+        << "Unexpected decoder name: " << name
+        << " — add it to knownDecoders if it is a valid hardware decoder";
+
+    // Log which path was taken (informational)
+    if (pipeline.activeDecoder()->type == myairshow::DecoderType::Hardware) {
+        std::cout << "[INFO] Hardware decoder selected: " << name << std::endl;
+    } else {
+        std::cout << "[INFO] Software decoder selected: " << name
+                  << " (hardware unavailable on this machine — expected)" << std::endl;
+    }
+
+    pipeline.stop();
 }
 
 // Smoke test: verifies required GStreamer plugins are present
