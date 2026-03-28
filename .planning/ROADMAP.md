@@ -51,7 +51,7 @@ Plans:
   5. On Windows, discovery works without the user manually opening firewall ports after a fresh install
 **Plans**: 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — Wave 0 test scaffold + protocol/discovery/settings interface contracts
+- [x] 02-01-PLAN.md — Wave 0 test scaffold + protocol/discovery/settings interface contracts
 - [ ] 02-02-PLAN.md — mDNS advertisement: AvahiAdvertiser, DiscoveryManager (AirPlay + Cast), AppSettings wiring
 - [ ] 02-03-PLAN.md — DLNA SSDP: UpnpAdvertiser + MediaRenderer.xml; WindowsFirewall first-launch stub
 
@@ -125,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
-| 2. Discovery & Protocol Abstraction | 0/3 | Not started | - |
+| 2. Discovery & Protocol Abstraction | 1/3 | In Progress|  |
 | 3. Display & Receiver UI | 0/? | Not started | - |
 | 4. AirPlay | 0/? | Not started | - |
 | 5. DLNA | 0/? | Not started | - |
