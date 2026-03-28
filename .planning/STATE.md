@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-28T23:28:50.724Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-28T23:39:17.839Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 04 (airplay) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-28
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-display-receiver-ui PP02 | 2 | 2 tasks | 6 files |
 | Phase 03-display-receiver-ui P03 | 1 | 3 tasks | 4 files |
 | Phase 04-airplay P01 | 7 | 2 tasks | 10 files |
+| Phase 04-airplay P02 | 15 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 04-airplay]: UxPlay lib/ requires llhttp and playfair subdirs added before lib/ itself
 - [Phase 04-airplay]: libplist and avahi-compat-libdns_sd vendored via deb extraction — sudo unavailable; vendor/ tree with fixed .pc prefix paths
 - [Phase 04-airplay]: initAppsrcPipeline() starts in GST_STATE_PAUSED — AirPlayHandler transitions to PLAYING on first frame for A/V sync
+- [Phase 04-airplay]: File-scope C trampolines for raop_callbacks_t — avoids leaking UxPlay anonymous struct types into public header
+- [Phase 04-airplay]: LANGUAGES C added to project() — required for UxPlay lib/ C sources to compile under CMake LANGUAGES CXX-only was silently skipping C files
+- [Phase 04-airplay]: readPublicKeyFromKeyfile() uses OpenSSL PEM_read_PrivateKey + EVP_PKEY_get_raw_public_key — UxPlay writes PEM not 64-byte binary
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T23:28:50.721Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-28T23:39:17.836Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
