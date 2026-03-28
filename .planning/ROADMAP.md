@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. When hardware H.264 decode is unavailable, the application falls back to software decode and logs which decoder is active
 **Plans**: 3 plans
 Plans:
-- [ ] 01-01-PLAN.md — CMake build system, project skeleton, test scaffold, GitHub Actions CI
+- [x] 01-01-PLAN.md — CMake build system, project skeleton, test scaffold, GitHub Actions CI
 - [ ] 01-02-PLAN.md — Two-branch GStreamer pipeline, Qt QML fullscreen window, audio mute toggle
 - [ ] 01-03-PLAN.md — Hardware H.264 decoder detection with software fallback logging
 
