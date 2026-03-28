@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
     }
 
     myairshow::MediaPipeline pipeline;
-    myairshow::ReceiverWindow window(pipeline);
+    myairshow::ReceiverWindow window(pipeline, settings);
 
     if (!window.load()) {
         qCritical("Failed to start MyAirShow");
