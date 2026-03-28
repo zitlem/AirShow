@@ -30,6 +30,8 @@ qt_add_executable(myairshow
   src/pipeline/MediaPipeline.cpp
   src/ui/ReceiverWindow.cpp
   src/ui/AudioBridge.cpp
+  src/protocol/ProtocolManager.cpp
+  src/settings/AppSettings.cpp
 )
 
 qt_add_qml_module(myairshow
