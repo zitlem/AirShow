@@ -25,10 +25,15 @@ gtest_discover_tests(test_pipeline
 add_executable(test_discovery
   test_discovery.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+  ${CMAKE_SOURCE_DIR}/src/platform/WindowsFirewall.cpp
 )
 
 target_include_directories(test_discovery PRIVATE
   ${CMAKE_SOURCE_DIR}/src
+)
+
+target_compile_definitions(test_discovery PRIVATE
+  BUILD_DIR="${CMAKE_BINARY_DIR}"
 )
 
 target_link_libraries(test_discovery PRIVATE
