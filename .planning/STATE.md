@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-display-receiver-ui-03-01-PLAN.md
-last_updated: "2026-03-28T21:49:11.154Z"
+stopped_at: Completed 03-display-receiver-ui-03-02-PLAN.md
+last_updated: "2026-03-28T21:53:05.888Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 03 (display-receiver-ui) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-28
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-discovery-protocol-abstraction P02 | 15 | 2 tasks | 13 files |
 | Phase 02-discovery-protocol-abstraction P03 | 30 | 2 tasks | 9 files |
 | Phase 03-display-receiver-ui P01 | 3 | 2 tasks | 4 files |
+| Phase 03-display-receiver-ui PP02 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 03-display-receiver-ui]: ConnectionBridge.setConnected() declared in header only — .cpp implementation deferred to Plan 02 (expected RED link failure)
 - [Phase 03-display-receiver-ui]: SettingsBridge reads receiverName at startup only; NOTIFY signal is forward-compatible hook for Phase 7 settings panel
 - [Phase 03-display-receiver-ui]: test_display target links Qt6::Core only (no GStreamer) consistent with test_discovery isolation pattern
+- [Phase 03-display-receiver-ui]: ConnectionBridge::setConnected() clears deviceName and protocol unconditionally on disconnect — enforces invariant that disconnected state has no device info
+- [Phase 03-display-receiver-ui]: ConnectionBridge.cpp and SettingsBridge.cpp added to myairshow CMakeLists.txt qt_add_executable source list (fix: main target failed to link without them)
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T21:49:11.151Z
-Stopped at: Completed 03-display-receiver-ui-03-01-PLAN.md
+Last session: 2026-03-28T21:53:05.885Z
+Stopped at: Completed 03-display-receiver-ui-03-02-PLAN.md
 Resume file: None

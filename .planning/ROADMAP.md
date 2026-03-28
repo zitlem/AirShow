@@ -66,7 +66,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 03-01-PLAN.md — Interface contracts (ConnectionBridge.h, SettingsBridge.h) + test_display scaffold
-- [ ] 03-02-PLAN.md — ConnectionBridge.cpp + SettingsBridge.cpp implementations; wire context properties in ReceiverWindow
+- [x] 03-02-PLAN.md — ConnectionBridge.cpp + SettingsBridge.cpp implementations; wire context properties in ReceiverWindow
 - [ ] 03-03-PLAN.md — QML UI: HudOverlay.qml, IdleScreen.qml, main.qml updates, CMakeLists.txt QML_FILES
 
 ### Phase 4: AirPlay
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
-| 3. Display & Receiver UI | 1/3 | In Progress|  |
+| 3. Display & Receiver UI | 2/3 | In Progress|  |
 | 4. AirPlay | 0/? | Not started | - |
 | 5. DLNA | 0/? | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
