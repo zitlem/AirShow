@@ -36,12 +36,30 @@ int main(int argc, char* argv[]) {
 
     myairshow::AppSettings settings;
 
-    // Register firewall rules on Windows first launch (Plan 03 implements WindowsFirewall)
-    // Placeholder comment — wired in Plan 03
+    // Windows firewall rules — first launch only (D-12/D-13/D-14)
+    if (settings.isFirstLaunch()) {
+        if (!myairshow::WindowsFirewall::registerRules()) {
+            // D-13: permission denied — show actionable message
+            qCritical("Firewall rules could not be registered automatically. "
+                      "Please open the following ports manually:\n"
+                      "  UDP 5353 (mDNS), UDP 1900 (SSDP),\n"
+                      "  TCP 7000 (AirPlay), TCP 8009 (Google Cast)");
+        }
+        settings.setFirstLaunchComplete();
+    }
 
     myairshow::DiscoveryManager discovery(&settings);
     if (!discovery.start()) {
         qWarning("Discovery failed to start — receiver will not appear in device pickers");
+    }
+
+    // DLNA SSDP advertisement (DISC-03)
+    const std::string dlnaXmlPath =
+        QCoreApplication::applicationDirPath().toStdString()
+        + "/resources/dlna/MediaRenderer.xml";
+    myairshow::UpnpAdvertiser upnpAdvertiser(&settings, dlnaXmlPath);
+    if (!upnpAdvertiser.start()) {
+        qWarning("DLNA advertisement failed — renderer will not appear in DLNA controllers");
     }
 
     myairshow::MediaPipeline pipeline;
