@@ -5,6 +5,9 @@
       "name": "linux-debug",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-debug",
+      "environment": {
+        "PKG_CONFIG_PATH": "${sourceDir}/vendor/avahi/lib/x86_64-linux-gnu/pkgconfig:/tmp/libupnp-dev/usr/lib/x86_64-linux-gnu/pkgconfig:$penv{PKG_CONFIG_PATH}"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
