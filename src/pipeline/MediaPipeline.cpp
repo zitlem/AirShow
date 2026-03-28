@@ -103,8 +103,106 @@ bool MediaPipeline::init(void* qmlVideoItem) {
 }
 
 bool MediaPipeline::initDecoderPipeline() {
-    // Stub — implemented in Plan 03.
-    return false;
+    // Per RESEARCH.md Pitfall 5: videotestsrc produces uncompressed video.
+    // decodebin passes it through without adding a decoder element — the
+    // element-added callback never fires for raw video.
+    // Solution: videotestsrc ! x264enc ! decodebin ! videoconvert ! fakesink
+    // This encodes to H.264 first, then decodes via decodebin, which WILL
+    // trigger the decoder rank-based selection and fire element-added.
+    //
+    // x264enc lives in gstreamer1.0-plugins-ugly (Ubuntu) or plugins-bad.
+    // If unavailable, log an error and apply software fallback directly (D-12).
+
+    GstElement* pipeline     = gst_pipeline_new("decoder-detection-pipeline");
+    GstElement* videoSrc     = gst_element_factory_make("videotestsrc",  "dec-videosrc");
+    GstElement* encoder      = gst_element_factory_make("x264enc",       "dec-encoder");
+    GstElement* decodebin    = gst_element_factory_make("decodebin",     "dec-decodebin");
+    GstElement* videoConvert = gst_element_factory_make("videoconvert",  "dec-videoconvert");
+    GstElement* fakeSink     = gst_element_factory_make("fakesink",      "dec-fakesink");
+
+    if (!pipeline || !videoSrc || !decodebin || !videoConvert || !fakeSink) {
+        g_warning("initDecoderPipeline — failed to create core elements");
+        if (pipeline)     gst_object_unref(pipeline);
+        if (videoSrc)     gst_object_unref(videoSrc);
+        if (decodebin)    gst_object_unref(decodebin);
+        if (videoConvert) gst_object_unref(videoConvert);
+        if (fakeSink)     gst_object_unref(fakeSink);
+        if (encoder)      gst_object_unref(encoder);
+        return false;
+    }
+
+    if (!encoder) {
+        // D-12: x264enc not installed — apply software fallback directly.
+        g_warning("initDecoderPipeline — x264enc not available (install gstreamer1.0-plugins-ugly). "
+                  "Decoder detection will report software fallback.");
+
+        DecoderInfo fallback{"avdec_h264", DecoderType::Software};
+        m_activeDecoder = fallback;
+        g_warning("Software H.264 decoder selected: avdec_h264 (hardware unavailable)");
+        if (m_decoderCallback) m_decoderCallback(fallback);
+
+        gst_object_unref(pipeline);
+        if (videoSrc)     gst_object_unref(videoSrc);
+        if (decodebin)    gst_object_unref(decodebin);
+        if (videoConvert) gst_object_unref(videoConvert);
+        if (fakeSink)     gst_object_unref(fakeSink);
+        return true;  // D-12: Not a failure — software fallback is valid
+    }
+
+    // Connect the element-added signal BEFORE setting state.
+    // MediaPipeline::onElementAdded is a static member — cast to GCallback is valid
+    // and it receives `this` as the gpointer userdata, giving access to all private members.
+    g_signal_connect(decodebin, "element-added",
+                     G_CALLBACK(MediaPipeline::onElementAdded), this);
+
+    gst_bin_add_many(GST_BIN(pipeline),
+        videoSrc, encoder, decodebin, videoConvert, fakeSink, nullptr);
+
+    // Link videotestsrc ! x264enc ! decodebin (decodebin pads are dynamic —
+    // link up to decodebin; videoConvert and fakeSink are linked via pad-added signal)
+    if (!gst_element_link_many(videoSrc, encoder, decodebin, nullptr)) {
+        g_warning("initDecoderPipeline — failed to link src!encoder!decodebin");
+        gst_object_unref(pipeline);
+        return false;
+    }
+
+    // Handle dynamic src pad from decodebin.
+    // g_signal_connect is a macro that takes exactly 4 arguments; the callback
+    // must be a plain function pointer, not an inline lambda (the commas in the
+    // lambda body confuse the preprocessor).  Use a named static helper instead.
+    struct PadAddedHelper {
+        static void callback(GstElement* /*decodebin*/, GstPad* pad, gpointer data) {
+            auto* payload = static_cast<std::pair<GstElement*, GstElement*>*>(data);
+            GstElement* convert  = payload->first;
+            GstElement* fakesink = payload->second;
+
+            GstPad* sinkPad = gst_element_get_static_pad(convert, "sink");
+            if (!sinkPad || GST_PAD_IS_LINKED(sinkPad)) {
+                if (sinkPad) gst_object_unref(sinkPad);
+                return;
+            }
+            if (gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+                g_warning("initDecoderPipeline — pad-added link failed");
+            }
+            gst_object_unref(sinkPad);
+            gst_element_link(convert, fakesink);
+        }
+    };
+    auto* padData = new std::pair<GstElement*, GstElement*>(videoConvert, fakeSink);
+    g_signal_connect(decodebin, "pad-added", G_CALLBACK(PadAddedHelper::callback), padData);
+
+    m_decoderPipeline = pipeline;
+
+    GstStateChangeReturn ret = gst_element_set_state(m_decoderPipeline, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_warning("initDecoderPipeline — GST_STATE_CHANGE_FAILURE");
+        gst_element_set_state(m_decoderPipeline, GST_STATE_NULL);
+        gst_object_unref(m_decoderPipeline);
+        m_decoderPipeline = nullptr;
+        return false;
+    }
+
+    return true;
 }
 
 void MediaPipeline::setMuted(bool muted) {
