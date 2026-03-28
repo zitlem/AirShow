@@ -1,7 +1,10 @@
 find_package(GTest REQUIRED)
 include(GoogleTest)
 
-add_executable(test_pipeline test_pipeline.cpp)
+add_executable(test_pipeline
+  test_pipeline.cpp
+  ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+)
 
 target_include_directories(test_pipeline PRIVATE
   ${CMAKE_SOURCE_DIR}/src
