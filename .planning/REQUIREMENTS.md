@@ -91,13 +91,41 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| DISC-01 | Phase 2 | Pending |
+| DISC-02 | Phase 2 | Pending |
+| DISC-03 | Phase 2 | Pending |
+| DISC-04 | Phase 2 | Pending |
+| DISC-05 | Phase 2 | Pending |
+| DISP-01 | Phase 3 | Pending |
+| DISP-02 | Phase 3 | Pending |
+| DISP-03 | Phase 3 | Pending |
+| AIRP-01 | Phase 4 | Pending |
+| AIRP-02 | Phase 4 | Pending |
+| AIRP-03 | Phase 4 | Pending |
+| AIRP-04 | Phase 4 | Pending |
+| DLNA-01 | Phase 5 | Pending |
+| DLNA-02 | Phase 5 | Pending |
+| DLNA-03 | Phase 5 | Pending |
+| CAST-01 | Phase 6 | Pending |
+| CAST-02 | Phase 6 | Pending |
+| CAST-03 | Phase 6 | Pending |
+| SEC-01 | Phase 7 | Pending |
+| SEC-02 | Phase 7 | Pending |
+| SEC-03 | Phase 7 | Pending |
+| MIRA-01 | Phase 8 | Pending |
+| MIRA-02 | Phase 8 | Pending |
+| MIRA-03 | Phase 8 | Pending |
 
 **Coverage:**
-- v1 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27 (pending roadmap creation)
+- v1 requirements: 29 total
+- Mapped to phases: 29
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after initial definition*
+*Last updated: 2026-03-28 after roadmap creation*
