@@ -50,9 +50,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Display
 
-- [ ] **DISP-01**: Mirrored content displays fullscreen with correct aspect ratio (letterboxed if needed)
-- [ ] **DISP-02**: Application shows connection status (waiting/connected/device name/protocol)
-- [ ] **DISP-03**: Application shows an idle/waiting screen when no device is connected
+- [x] **DISP-01**: Mirrored content displays fullscreen with correct aspect ratio (letterboxed if needed)
+- [x] **DISP-02**: Application shows connection status (waiting/connected/device name/protocol)
+- [x] **DISP-03**: Application shows an idle/waiting screen when no device is connected
 
 ### Security
 
@@ -101,9 +101,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-03 | Phase 2 | Complete |
 | DISC-04 | Phase 2 | Complete |
 | DISC-05 | Phase 2 | Complete |
-| DISP-01 | Phase 3 | Pending |
-| DISP-02 | Phase 3 | Pending |
-| DISP-03 | Phase 3 | Pending |
+| DISP-01 | Phase 3 | Complete |
+| DISP-02 | Phase 3 | Complete |
+| DISP-03 | Phase 3 | Complete |
 | AIRP-01 | Phase 4 | Pending |
 | AIRP-02 | Phase 4 | Pending |
 | AIRP-03 | Phase 4 | Pending |

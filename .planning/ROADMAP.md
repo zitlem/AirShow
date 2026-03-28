@@ -63,8 +63,11 @@ Plans:
   1. Mirrored content fills the window fullscreen with letterboxing when the sender aspect ratio differs from the display
   2. The receiver window shows which device is connected and which protocol is in use while a session is active
   3. When no device is connected, the window displays an idle screen rather than a black frame
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 3 plans
+Plans:
+- [x] 03-01-PLAN.md — Interface contracts (ConnectionBridge.h, SettingsBridge.h) + test_display scaffold
+- [ ] 03-02-PLAN.md — ConnectionBridge.cpp + SettingsBridge.cpp implementations; wire context properties in ReceiverWindow
+- [ ] 03-03-PLAN.md — QML UI: HudOverlay.qml, IdleScreen.qml, main.qml updates, CMakeLists.txt QML_FILES
 
 ### Phase 4: AirPlay
 **Goal**: iPhone, iPad, and Mac users can mirror their screen to MyAirShow via AirPlay with stable, synchronized audio and video
@@ -126,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
-| 3. Display & Receiver UI | 0/? | Not started | - |
+| 3. Display & Receiver UI | 1/3 | In Progress|  |
 | 4. AirPlay | 0/? | Not started | - |
 | 5. DLNA | 0/? | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
