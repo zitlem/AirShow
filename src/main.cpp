@@ -1,4 +1,6 @@
 #include <QGuiApplication>
+#include <QDir>
+#include <QStandardPaths>
 #include <gst/gst.h>
 #include "pipeline/MediaPipeline.h"
 #include "ui/ReceiverWindow.h"
@@ -6,6 +8,8 @@
 #include "discovery/DiscoveryManager.h"
 #include "discovery/UpnpAdvertiser.h"
 #include "platform/WindowsFirewall.h"
+#include "protocol/AirPlayHandler.h"
+#include "protocol/ProtocolManager.h"
 
 static void checkRequiredPlugins() {
     struct { const char* name; const char* pkg; } required[] = {
@@ -14,6 +18,8 @@ static void checkRequiredPlugins() {
         {"audiotestsrc",  "gstreamer1.0-plugins-base"},
         {"autoaudiosink", "gstreamer1.0-plugins-good"},
         {"avdec_h264",    "gstreamer1.0-libav"},
+        {"h264parse",     "gstreamer1.0-plugins-bad"},
+        {"avdec_aac",     "gstreamer1.0-libav"},
     };
     for (auto& p : required) {
         if (!gst_registry_check_feature_version(
@@ -70,5 +76,36 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    return app.exec();
+    // Protocol manager owns all protocol handlers
+    myairshow::ProtocolManager protocolManager(&pipeline);
+
+    // AirPlay handler (Phase 4)
+    {
+        std::string deviceId = discovery.deviceId();
+        std::string keyfilePath = (QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                                   + "/airplay.key").toStdString();
+        // Ensure the directory exists
+        QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+
+        auto airplay = std::make_unique<myairshow::AirPlayHandler>(
+            window.connectionBridge(),   // ConnectionBridge* for HUD updates
+            &discovery,                  // DiscoveryManager* for pk TXT record update
+            deviceId,
+            keyfilePath);
+        protocolManager.addHandler(std::move(airplay));
+        // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
+        // This ensures AirPlayHandler::m_pipeline is non-null before start() is called.
+        // Verified in ProtocolManager.cpp. Without this, all frame injection
+        // via appsrc silently fails (AIRP-01, AIRP-02, AIRP-03 all break).
+    }
+
+    if (!protocolManager.startAll()) {
+        qWarning("One or more protocol handlers failed to start");
+    }
+
+    int result = app.exec();
+    protocolManager.stopAll();
+    discovery.stop();
+    upnpAdvertiser.stop();
+    return result;
 }
