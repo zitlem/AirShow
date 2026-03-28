@@ -13,7 +13,7 @@ MyAirShow is built from the ground up as a multi-protocol screen mirroring recei
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Build system, GStreamer pipeline, Qt receiver window, audio output, and hardware decode (completed 2026-03-28)
-- [ ] **Phase 2: Discovery & Protocol Abstraction** - mDNS/SSDP advertisement for all protocols, protocol interfaces, receiver name, firewall rules
+- [x] **Phase 2: Discovery & Protocol Abstraction** - mDNS/SSDP advertisement for all protocols, protocol interfaces, receiver name, firewall rules (completed 2026-03-28)
 - [ ] **Phase 3: Display & Receiver UI** - Fullscreen mirroring window with correct aspect ratio, connection status HUD, and idle screen
 - [ ] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management
 - [ ] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps
@@ -53,7 +53,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Wave 0 test scaffold + protocol/discovery/settings interface contracts
 - [x] 02-02-PLAN.md — mDNS advertisement: AvahiAdvertiser, DiscoveryManager (AirPlay + Cast), AppSettings wiring
-- [ ] 02-03-PLAN.md — DLNA SSDP: UpnpAdvertiser + MediaRenderer.xml; WindowsFirewall first-launch stub
+- [x] 02-03-PLAN.md — DLNA SSDP: UpnpAdvertiser + MediaRenderer.xml; WindowsFirewall first-launch stub
 
 ### Phase 3: Display & Receiver UI
 **Goal**: The receiver window displays mirrored content correctly at all aspect ratios and communicates connection state to the user
@@ -125,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
-| 2. Discovery & Protocol Abstraction | 2/3 | In Progress|  |
+| 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
 | 3. Display & Receiver UI | 0/? | Not started | - |
 | 4. AirPlay | 0/? | Not started | - |
 | 5. DLNA | 0/? | Not started | - |
