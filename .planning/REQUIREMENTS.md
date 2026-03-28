@@ -17,11 +17,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Discovery
 
-- [ ] **DISC-01**: Application advertises as an AirPlay receiver via mDNS (`_airplay._tcp.local`)
-- [ ] **DISC-02**: Application advertises as a Google Cast receiver via mDNS (`_googlecast._tcp.local`)
-- [ ] **DISC-03**: Application advertises as a DLNA Media Renderer via UPnP/SSDP
-- [ ] **DISC-04**: User can set a custom receiver name that appears in device pickers on sender devices
-- [ ] **DISC-05**: Application registers firewall rules during installation/first-run so discovery works without manual config
+- [x] **DISC-01**: Application advertises as an AirPlay receiver via mDNS (`_airplay._tcp.local`)
+- [x] **DISC-02**: Application advertises as a Google Cast receiver via mDNS (`_googlecast._tcp.local`)
+- [x] **DISC-03**: Application advertises as a DLNA Media Renderer via UPnP/SSDP
+- [x] **DISC-04**: User can set a custom receiver name that appears in device pickers on sender devices
+- [x] **DISC-05**: Application registers firewall rules during installation/first-run so discovery works without manual config
 
 ### AirPlay
 
@@ -96,11 +96,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-03 | Phase 1 | Complete |
 | FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
-| DISC-01 | Phase 2 | Pending |
-| DISC-02 | Phase 2 | Pending |
-| DISC-03 | Phase 2 | Pending |
-| DISC-04 | Phase 2 | Pending |
-| DISC-05 | Phase 2 | Pending |
+| DISC-01 | Phase 2 | Complete |
+| DISC-02 | Phase 2 | Complete |
+| DISC-03 | Phase 2 | Complete |
+| DISC-04 | Phase 2 | Complete |
+| DISC-05 | Phase 2 | Complete |
 | DISP-01 | Phase 3 | Pending |
 | DISP-02 | Phase 3 | Pending |
 | DISP-03 | Phase 3 | Pending |
