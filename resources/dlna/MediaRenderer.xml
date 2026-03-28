@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>MyAirShow</friendlyName>
+    <manufacturer>MyAirShow Project</manufacturer>
+    <manufacturerURL>https://github.com/myairshow</manufacturerURL>
+    <modelDescription>Multi-protocol screen mirroring receiver</modelDescription>
+    <modelName>MyAirShow</modelName>
+    <modelNumber>1.0</modelNumber>
+    <UDN>uuid:00000000-0000-0000-0000-000000000000</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <controlURL>/upnp/control/avt</controlURL>
+        <eventSubURL>/upnp/event/avt</eventSubURL>
+        <SCPDURL>/avt-scpd.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+        <controlURL>/upnp/control/rc</controlURL>
+        <eventSubURL>/upnp/event/rc</eventSubURL>
+        <SCPDURL>/rc-scpd.xml</SCPDURL>
+      </service>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+        <controlURL>/upnp/control/cm</controlURL>
+        <eventSubURL>/upnp/event/cm</eventSubURL>
+        <SCPDURL>/cm-scpd.xml</SCPDURL>
+      </service>
+    </serviceList>
+  </device>
+</root>

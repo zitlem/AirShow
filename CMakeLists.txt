@@ -18,6 +18,17 @@ pkg_check_modules(GST REQUIRED IMPORTED_TARGET
   gstreamer-audio-1.0>=1.20
 )
 
+# Avahi (mDNS advertisement on Linux, D-01)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  pkg_check_modules(AVAHI REQUIRED IMPORTED_TARGET
+    avahi-client
+    avahi-common
+  )
+endif()
+
+# libupnp (pupnp) — DLNA SSDP advertisement (DISC-03)
+pkg_check_modules(UPNP REQUIRED IMPORTED_TARGET libupnp)
+
 # spdlog — optional, fall back to GLib logging if absent
 find_package(spdlog QUIET)
 
@@ -32,6 +43,11 @@ qt_add_executable(myairshow
   src/ui/AudioBridge.cpp
   src/protocol/ProtocolManager.cpp
   src/settings/AppSettings.cpp
+  src/discovery/ServiceAdvertiser.cpp
+  src/discovery/AvahiAdvertiser.cpp
+  src/discovery/DiscoveryManager.cpp
+  src/discovery/UpnpAdvertiser.cpp
+  src/platform/WindowsFirewall.cpp
 )
 
 qt_add_qml_module(myairshow
@@ -48,14 +64,23 @@ target_link_libraries(myairshow PRIVATE
   Qt6::Quick
   Qt6::Qml
   PkgConfig::GST
+  PkgConfig::UPNP
   OpenSSL::SSL
   OpenSSL::Crypto
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(myairshow PRIVATE PkgConfig::AVAHI)
+endif()
 
 if(spdlog_FOUND)
   target_link_libraries(myairshow PRIVATE spdlog::spdlog)
   target_compile_definitions(myairshow PRIVATE HAVE_SPDLOG)
 endif()
+
+# Copy DLNA device description XML to build directory so UpnpAdvertiser can find it at runtime
+configure_file(resources/dlna/MediaRenderer.xml
+               ${CMAKE_BINARY_DIR}/resources/dlna/MediaRenderer.xml COPYONLY)
 
 # Tests
 enable_testing()
