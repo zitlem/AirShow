@@ -63,6 +63,10 @@ TEST_F(PipelineTest, test_decoder_detection) {
 
 // Smoke test: verifies required GStreamer plugins are present
 TEST(SmokeTest, required_plugins_available) {
+    // gst_registry_check_feature_version requires an initialised GStreamer
+    if (!gst_is_initialized()) {
+        gst_init(nullptr, nullptr);
+    }
     struct { const char* name; const char* pkg; } plugins[] = {
         {"qml6glsink",    "gstreamer1.0-qt6"},
         {"videotestsrc",  "gstreamer1.0-plugins-base"},
