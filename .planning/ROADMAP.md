@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Build system, GStreamer pipeline, Qt receiver window, audio output, and hardware decode (completed 2026-03-28)
 - [x] **Phase 2: Discovery & Protocol Abstraction** - mDNS/SSDP advertisement for all protocols, protocol interfaces, receiver name, firewall rules (completed 2026-03-28)
-- [ ] **Phase 3: Display & Receiver UI** - Fullscreen mirroring window with correct aspect ratio, connection status HUD, and idle screen
+- [x] **Phase 3: Display & Receiver UI** - Fullscreen mirroring window with correct aspect ratio, connection status HUD, and idle screen (completed 2026-03-28)
 - [ ] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management
 - [ ] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps
 - [ ] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend
@@ -67,7 +67,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — Interface contracts (ConnectionBridge.h, SettingsBridge.h) + test_display scaffold
 - [x] 03-02-PLAN.md — ConnectionBridge.cpp + SettingsBridge.cpp implementations; wire context properties in ReceiverWindow
-- [ ] 03-03-PLAN.md — QML UI: HudOverlay.qml, IdleScreen.qml, main.qml updates, CMakeLists.txt QML_FILES
+- [x] 03-03-PLAN.md — QML UI: HudOverlay.qml, IdleScreen.qml, main.qml updates, CMakeLists.txt QML_FILES
 
 ### Phase 4: AirPlay
 **Goal**: iPhone, iPad, and Mac users can mirror their screen to MyAirShow via AirPlay with stable, synchronized audio and video
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-28 |
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
-| 3. Display & Receiver UI | 2/3 | In Progress|  |
+| 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
 | 4. AirPlay | 0/? | Not started | - |
 | 5. DLNA | 0/? | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
