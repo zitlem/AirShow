@@ -24,6 +24,7 @@ gtest_discover_tests(test_pipeline
 
 add_executable(test_discovery
   test_discovery.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
 )
 
 target_include_directories(test_discovery PRIVATE
@@ -33,6 +34,7 @@ target_include_directories(test_discovery PRIVATE
 target_link_libraries(test_discovery PRIVATE
   GTest::gtest_main
   GTest::gmock
+  Qt6::Core
 )
 
 gtest_discover_tests(test_discovery
