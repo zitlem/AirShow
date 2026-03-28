@@ -10,9 +10,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Foundation
 
 - [x] **FOUND-01**: Application builds and runs on Linux, macOS, and Windows from a single codebase
-- [ ] **FOUND-02**: Application renders video frames from GStreamer pipeline in a Qt fullscreen window
-- [ ] **FOUND-03**: Application plays audio from mirrored device through system speakers
-- [ ] **FOUND-04**: User can mute/unmute audio with a toggle control
+- [x] **FOUND-02**: Application renders video frames from GStreamer pipeline in a Qt fullscreen window
+- [x] **FOUND-03**: Application plays audio from mirrored device through system speakers
+- [x] **FOUND-04**: User can mute/unmute audio with a toggle control
 - [ ] **FOUND-05**: Application detects and uses hardware H.264 decoder when available, falls back to software gracefully
 
 ### Discovery
@@ -92,9 +92,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FOUND-01 | Phase 1 | Complete |
-| FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Complete |
+| FOUND-03 | Phase 1 | Complete |
+| FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Pending |
 | DISC-01 | Phase 2 | Pending |
 | DISC-02 | Phase 2 | Pending |
