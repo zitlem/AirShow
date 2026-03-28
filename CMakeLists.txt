@@ -55,7 +55,10 @@ qt_add_executable(myairshow
 qt_add_qml_module(myairshow
   URI MyAirShow
   VERSION 1.0
-  QML_FILES qml/main.qml
+  QML_FILES
+    qml/main.qml
+    qml/HudOverlay.qml
+    qml/IdleScreen.qml
 )
 
 target_include_directories(myairshow PRIVATE src)
