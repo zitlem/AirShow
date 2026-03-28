@@ -113,6 +113,16 @@ void DiscoveryManager::rename(const std::string& newName) {
     }
 }
 
+bool DiscoveryManager::updateTxtRecord(const std::string& serviceType,
+                                       const std::string& key,
+                                       const std::string& value) {
+    if (!m_advertiser || !m_running) {
+        g_warning("DiscoveryManager::updateTxtRecord — advertiser not running");
+        return false;
+    }
+    return m_advertiser->updateTxtRecord(serviceType, key, value);
+}
+
 bool DiscoveryManager::isRunning() const {
     return m_running;
 }

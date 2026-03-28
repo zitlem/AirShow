@@ -68,3 +68,13 @@ gtest_discover_tests(test_display
   TEST_SUFFIX ""
   PROPERTIES TIMEOUT 30
 )
+
+add_executable(test_airplay test_airplay.cpp)
+target_link_libraries(test_airplay PRIVATE GTest::GTest GTest::Main)
+target_include_directories(test_airplay PRIVATE ${PROJECT_SOURCE_DIR}/src)
+add_test(NAME test_airplay COMMAND test_airplay)
+
+gtest_discover_tests(test_airplay
+  TEST_SUFFIX ""
+  PROPERTIES TIMEOUT 30
+)

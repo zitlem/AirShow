@@ -28,6 +28,15 @@ public:
     // Called after AppSettings::setReceiverName().
     void rename(const std::string& newName);
 
+    // Update a TXT record value for an already-running service (Pitfall 1).
+    // Called by AirPlayHandler after generating/loading the Ed25519 keypair.
+    // serviceType: e.g., "_airplay._tcp"
+    // key: TXT record key to update (e.g., "pk")
+    // value: new hex-encoded value
+    bool updateTxtRecord(const std::string& serviceType,
+                         const std::string& key,
+                         const std::string& value);
+
     bool isRunning() const;
 
 private:
