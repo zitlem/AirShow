@@ -25,10 +25,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### AirPlay
 
-- [ ] **AIRP-01**: User can mirror their iPhone/iPad screen to MyAirShow via AirPlay
-- [ ] **AIRP-02**: User can mirror their macOS screen to MyAirShow via AirPlay
-- [ ] **AIRP-03**: AirPlay mirroring includes synchronized audio and video
-- [ ] **AIRP-04**: AirPlay connection maintains stable A/V sync during extended sessions
+- [x] **AIRP-01**: User can mirror their iPhone/iPad screen to MyAirShow via AirPlay
+- [x] **AIRP-02**: User can mirror their macOS screen to MyAirShow via AirPlay
+- [x] **AIRP-03**: AirPlay mirroring includes synchronized audio and video
+- [x] **AIRP-04**: AirPlay connection maintains stable A/V sync during extended sessions
 
 ### Google Cast
 
@@ -104,10 +104,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISP-01 | Phase 3 | Complete |
 | DISP-02 | Phase 3 | Complete |
 | DISP-03 | Phase 3 | Complete |
-| AIRP-01 | Phase 4 | Pending |
-| AIRP-02 | Phase 4 | Pending |
-| AIRP-03 | Phase 4 | Pending |
-| AIRP-04 | Phase 4 | Pending |
+| AIRP-01 | Phase 4 | Complete |
+| AIRP-02 | Phase 4 | Complete |
+| AIRP-03 | Phase 4 | Complete |
+| AIRP-04 | Phase 4 | Complete |
 | DLNA-01 | Phase 5 | Pending |
 | DLNA-02 | Phase 5 | Pending |
 | DLNA-03 | Phase 5 | Pending |

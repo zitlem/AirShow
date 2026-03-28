@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-28T22:52:18.178Z"
+status: executing
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-28T23:28:50.724Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 12
+  completed_plans: 10
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 03 — display-receiver-ui
+**Current focus:** Phase 04 — airplay
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 04 (airplay) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-display-receiver-ui P01 | 3 | 2 tasks | 4 files |
 | Phase 03-display-receiver-ui PP02 | 2 | 2 tasks | 6 files |
 | Phase 03-display-receiver-ui P03 | 1 | 3 tasks | 4 files |
+| Phase 04-airplay P01 | 7 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 03-display-receiver-ui]: ConnectionBridge.cpp and SettingsBridge.cpp added to myairshow CMakeLists.txt qt_add_executable source list (fix: main target failed to link without them)
 - [Phase 03-display-receiver-ui]: HudOverlay uses visible:opacity>0 (not connectionBridge.connected) to prevent mouse-event blocking at opacity 0 (RESEARCH.md Pitfall 3)
 - [Phase 03-display-receiver-ui]: Mute button restyled as Item+Rectangle+Text+MouseArea to match dark overlay aesthetic without changing AudioBridge wiring
+- [Phase 04-airplay]: UxPlay lib/ requires llhttp and playfair subdirs added before lib/ itself
+- [Phase 04-airplay]: libplist and avahi-compat-libdns_sd vendored via deb extraction — sudo unavailable; vendor/ tree with fixed .pc prefix paths
+- [Phase 04-airplay]: initAppsrcPipeline() starts in GST_STATE_PAUSED — AirPlayHandler transitions to PLAYING on first frame for A/V sync
 
 ### Pending Todos
 
@@ -110,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T22:52:18.174Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-airplay/04-CONTEXT.md
+Last session: 2026-03-28T23:28:50.721Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
