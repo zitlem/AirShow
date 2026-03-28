@@ -41,6 +41,8 @@ qt_add_executable(myairshow
   src/pipeline/MediaPipeline.cpp
   src/ui/ReceiverWindow.cpp
   src/ui/AudioBridge.cpp
+  src/ui/ConnectionBridge.cpp
+  src/ui/SettingsBridge.cpp
   src/protocol/ProtocolManager.cpp
   src/settings/AppSettings.cpp
   src/discovery/ServiceAdvertiser.cpp

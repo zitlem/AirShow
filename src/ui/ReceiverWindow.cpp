@@ -1,6 +1,8 @@
 #include "ui/ReceiverWindow.h"
 #include "pipeline/MediaPipeline.h"
 #include "ui/AudioBridge.h"
+#include "ui/ConnectionBridge.h"
+#include "ui/SettingsBridge.h"
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QUrl>
@@ -9,8 +11,8 @@
 
 namespace myairshow {
 
-ReceiverWindow::ReceiverWindow(MediaPipeline& pipeline)
-    : m_pipeline(pipeline) {}
+ReceiverWindow::ReceiverWindow(MediaPipeline& pipeline, AppSettings& settings)
+    : m_pipeline(pipeline), m_settings(settings) {}
 
 bool ReceiverWindow::load() {
     // CRITICAL (Anti-Pattern from RESEARCH.md Pitfall 4):
@@ -22,12 +24,22 @@ bool ReceiverWindow::load() {
     }
     gst_object_unref(preload);  // Side effect (type registration) already done.
 
-    // Expose AudioBridge to QML as "audioBridge" context property
+    // Expose AudioBridge to QML as "audioBridge" context property.
     // AudioBridge is parented to the QML engine so it is destroyed with it.
     auto* audioBridge = new AudioBridge(m_pipeline, &m_engine);
     m_engine.rootContext()->setContextProperty("audioBridge", audioBridge);
 
-    // Load QML (GstGLQt6VideoItem is now registered)
+    // Per D-05: ConnectionBridge exposes connected/deviceName/protocol to QML.
+    // Phase 4 protocol handlers will call connBridge->setConnected() to drive UI state.
+    auto* connBridge = new ConnectionBridge(&m_engine);
+    m_engine.rootContext()->setContextProperty("connectionBridge", connBridge);
+
+    // Per D-10: SettingsBridge exposes receiverName to QML for the idle screen.
+    // Phase 7 will wire live updates; Phase 3 reads the name once at startup.
+    auto* settingsBridge = new SettingsBridge(m_settings, &m_engine);
+    m_engine.rootContext()->setContextProperty("appSettings", settingsBridge);
+
+    // Load QML (GstGLQt6VideoItem is now registered, all context properties set)
     m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/MyAirShow/qml/main.qml")));
 
     if (m_engine.rootObjects().isEmpty()) {
