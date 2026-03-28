@@ -30,7 +30,8 @@ int main(int argc, char* argv[]) {
     myairshow::ReceiverWindow window(pipeline);
 
     if (!window.load()) {
-        qWarning("ReceiverWindow::load() not yet implemented (stub)");
+        qCritical("Failed to start MyAirShow");
+        return 1;
     }
 
     return app.exec();
