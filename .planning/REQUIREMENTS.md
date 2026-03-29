@@ -44,8 +44,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### DLNA
 
-- [ ] **DLNA-01**: User can push video files from a DLNA controller to MyAirShow for playback
-- [ ] **DLNA-02**: User can push audio files from a DLNA controller to MyAirShow for playback
+- [x] **DLNA-01**: User can push video files from a DLNA controller to MyAirShow for playback
+- [x] **DLNA-02**: User can push audio files from a DLNA controller to MyAirShow for playback
 - [x] **DLNA-03**: MyAirShow appears as a DLNA Media Renderer (DMR) in DLNA controller apps
 
 ### Display
@@ -108,8 +108,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AIRP-02 | Phase 4 | Complete |
 | AIRP-03 | Phase 4 | Complete |
 | AIRP-04 | Phase 4 | Complete |
-| DLNA-01 | Phase 5 | Pending |
-| DLNA-02 | Phase 5 | Pending |
+| DLNA-01 | Phase 5 | Complete |
+| DLNA-02 | Phase 5 | Complete |
 | DLNA-03 | Phase 5 | Complete |
 | CAST-01 | Phase 6 | Pending |
 | CAST-02 | Phase 6 | Pending |
