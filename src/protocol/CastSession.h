@@ -2,7 +2,9 @@
 #include <QObject>
 #include <QByteArray>
 #include <QString>
+#include <QJsonObject>
 #include <cstdint>
+#include <string>
 
 // Forward declarations
 class QSslSocket;
@@ -81,6 +83,11 @@ private:
 
     // Build a RECEIVER_STATUS JSON payload for the given state.
     QByteArray buildReceiverStatus(int requestId) const;
+
+    // Phase 6: Translate Cast OFFER JSON to a standard SDP string for webrtcbin.
+    // Exposed as public static for unit testing in test_cast.cpp.
+    // offer: the JSON object value of offer.supportedStreams from the OFFER message.
+    static std::string buildSdpFromOffer(const QJsonObject& offerJson);
 
     QSslSocket*       m_socket       = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;

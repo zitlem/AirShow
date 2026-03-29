@@ -415,11 +415,271 @@ void CastSession::onMedia(const CastMessage& msg) {
     }
 }
 
+// ── Static helper: Cast OFFER JSON -> SDP ────────────────────────────────────
+//
+// Translates a Cast WebRTC OFFER JSON object (from the urn:x-cast:com.google.cast.webrtc
+// namespace) into a standard SDP string suitable for GStreamer's webrtcbin.
+//
+// Cast OFFER JSON structure (per RESEARCH.md Pattern 6):
+// {
+//   "type": "OFFER",
+//   "seqNum": 1,
+//   "offer": {
+//     "supportedStreams": [
+//       { "type": "video_source", "codecName": "vp8", "rtpPayloadType": 96,
+//         "ssrc": 12345678, "aesKey": "...", "aesIvMask": "..." },
+//       { "type": "audio_source", "codecName": "opus", "rtpPayloadType": 97,
+//         "ssrc": 87654321, "sampleRate": 48000, "channels": 2 }
+//     ]
+//   }
+// }
+//
+// Returns an SDP string. Returns empty string on failure.
+std::string CastSession::buildSdpFromOffer(const QJsonObject& offerJson)
+{
+    QJsonObject innerOffer = offerJson.value(QStringLiteral("offer")).toObject();
+    if (innerOffer.isEmpty()) {
+        // Also try the object directly if it's the inner offer
+        innerOffer = offerJson;
+    }
+
+    QJsonArray streams = innerOffer.value(QStringLiteral("supportedStreams")).toArray();
+    if (streams.isEmpty()) {
+        qWarning("CastSession::buildSdpFromOffer — no supportedStreams in offer");
+        return {};
+    }
+
+    // Extract video and audio stream parameters
+    struct StreamInfo {
+        int    payloadType = 96;
+        uint32_t ssrc     = 0;
+        QString  codec;
+        int    sampleRate = 48000;
+        int    channels   = 2;
+    };
+
+    StreamInfo videoStream, audioStream;
+    bool hasVideo = false, hasAudio = false;
+
+    for (const QJsonValue& sv : streams) {
+        QJsonObject stream = sv.toObject();
+        QString streamType = stream.value(QStringLiteral("type")).toString();
+        QString codec      = stream.value(QStringLiteral("codecName")).toString().toLower();
+        int pt             = stream.value(QStringLiteral("rtpPayloadType")).toInt(96);
+        uint32_t ssrc      = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+
+        if (streamType == QStringLiteral("video_source")) {
+            videoStream.codec       = codec;
+            videoStream.payloadType = pt;
+            videoStream.ssrc        = ssrc;
+            hasVideo = true;
+        } else if (streamType == QStringLiteral("audio_source")) {
+            audioStream.codec       = codec;
+            audioStream.payloadType = pt;
+            audioStream.ssrc        = ssrc;
+            audioStream.sampleRate  = stream.value(QStringLiteral("sampleRate")).toInt(48000);
+            audioStream.channels    = stream.value(QStringLiteral("channels")).toInt(2);
+            hasAudio = true;
+        }
+    }
+
+    if (!hasVideo && !hasAudio) {
+        qWarning("CastSession::buildSdpFromOffer — no video or audio stream found");
+        return {};
+    }
+
+    // Build SDP string following RFC 4566 / RFC 3264.
+    // The 'a=recvonly' direction indicates this receiver accepts media from the sender.
+    // ICE credentials and DTLS fingerprint are placeholders here — webrtcbin generates
+    // the real values via set-remote-description / create-answer exchange.
+    std::string sdp;
+    sdp += "v=0\r\n";
+    sdp += "o=- 1234567890 1 IN IP4 0.0.0.0\r\n";
+    sdp += "s=Cast\r\n";
+    sdp += "t=0 0\r\n";
+
+    // BUNDLE group (all m-lines share one DTLS transport)
+    if (hasVideo && hasAudio) {
+        sdp += "a=group:BUNDLE 0 1\r\n";
+    } else if (hasVideo) {
+        sdp += "a=group:BUNDLE 0\r\n";
+    } else {
+        sdp += "a=group:BUNDLE 1\r\n";
+    }
+    sdp += "a=msid-semantic:WMS *\r\n";
+
+    // Video m-line
+    if (hasVideo) {
+        std::string vcodec = "VP8";
+        if (videoStream.codec.toLower() == QStringLiteral("vp9")) vcodec = "VP9";
+
+        sdp += "m=video 9 UDP/TLS/RTP/SAVPF " + std::to_string(videoStream.payloadType) + "\r\n";
+        sdp += "c=IN IP4 0.0.0.0\r\n";
+        sdp += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
+        sdp += "a=mid:0\r\n";
+        sdp += "a=recvonly\r\n";
+        sdp += "a=rtcp-mux\r\n";
+        sdp += "a=rtpmap:" + std::to_string(videoStream.payloadType) + " " + vcodec + "/90000\r\n";
+        if (videoStream.ssrc != 0) {
+            sdp += "a=ssrc:" + std::to_string(videoStream.ssrc) + " cname:cast\r\n";
+        }
+        sdp += "a=setup:actpass\r\n";
+    }
+
+    // Audio m-line
+    if (hasAudio) {
+        std::string acodec = "OPUS";
+        std::string rateChannels = std::to_string(audioStream.sampleRate) + "/" +
+                                   std::to_string(audioStream.channels);
+
+        sdp += "m=audio 9 UDP/TLS/RTP/SAVPF " + std::to_string(audioStream.payloadType) + "\r\n";
+        sdp += "c=IN IP4 0.0.0.0\r\n";
+        sdp += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
+        sdp += "a=mid:1\r\n";
+        sdp += "a=recvonly\r\n";
+        sdp += "a=rtcp-mux\r\n";
+        sdp += "a=rtpmap:" + std::to_string(audioStream.payloadType) + " " + acodec + "/" + rateChannels + "\r\n";
+        if (audioStream.ssrc != 0) {
+            sdp += "a=ssrc:" + std::to_string(audioStream.ssrc) + " cname:cast\r\n";
+        }
+        sdp += "a=setup:actpass\r\n";
+    }
+
+    return sdp;
+}
+
 void CastSession::onWebrtc(const CastMessage& msg) {
-    // Stub: Plan 02 will implement WebRTC SDP offer/answer negotiation via webrtcbin.
-    // For now, just log the message type.
-    Q_UNUSED(msg)
-    qDebug("CastSession: WebRTC OFFER received (Plan 02 will implement)");
+    if (msg.payload_type() != CastMessage::STRING) return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(
+        QByteArray::fromStdString(msg.payload_utf8()));
+    if (doc.isNull()) {
+        qWarning("CastSession: onWebrtc — failed to parse JSON payload");
+        return;
+    }
+
+    QJsonObject json = doc.object();
+    QString type     = json.value(QStringLiteral("type")).toString();
+    int seqNum       = json.value(QStringLiteral("seqNum")).toInt(0);
+
+    if (type != QStringLiteral("OFFER")) {
+        qDebug("CastSession: onWebrtc — ignoring message type '%s'", qPrintable(type));
+        return;
+    }
+
+    qDebug("CastSession: onWebrtc — received OFFER (seqNum=%d)", seqNum);
+
+    // Extract supportedStreams for AES-CTR key injection (Pitfall 3)
+    QJsonObject innerOffer = json.value(QStringLiteral("offer")).toObject();
+    QJsonArray streams     = innerOffer.value(QStringLiteral("supportedStreams")).toArray();
+
+    for (const QJsonValue& sv : streams) {
+        QJsonObject stream = sv.toObject();
+        QString aesKey    = stream.value(QStringLiteral("aesKey")).toString();
+        QString aesIvMask = stream.value(QStringLiteral("aesIvMask")).toString();
+        uint32_t ssrc     = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+
+        if (!aesKey.isEmpty() && ssrc != 0 && m_pipeline) {
+            qDebug("CastSession: storing AES-CTR keys for SSRC %u", ssrc);
+            m_pipeline->setCastDecryptionKeys(
+                ssrc, aesKey.toStdString(), aesIvMask.toStdString());
+        }
+    }
+
+    // Translate Cast OFFER JSON to standard SDP for webrtcbin (Pitfall 2)
+    std::string sdpOffer = buildSdpFromOffer(json);
+    if (sdpOffer.empty()) {
+        qWarning("CastSession: onWebrtc — buildSdpFromOffer failed, cannot proceed");
+        return;
+    }
+
+    qDebug("CastSession: onWebrtc — SDP offer built (%zu bytes)", sdpOffer.size());
+
+    if (!m_pipeline) {
+        qWarning("CastSession: onWebrtc — no MediaPipeline; cannot initiate WebRTC");
+        return;
+    }
+
+    // Initialize WebRTC pipeline (uses stored m_qmlVideoItem, NO argument)
+    if (!m_pipeline->initWebrtcPipeline()) {
+        qWarning("CastSession: onWebrtc — initWebrtcPipeline() failed");
+        return;
+    }
+
+    // Feed the SDP offer to webrtcbin and obtain the answer
+    if (!m_pipeline->setRemoteOffer(sdpOffer)) {
+        qWarning("CastSession: onWebrtc — setRemoteOffer() failed");
+        return;
+    }
+
+    std::string answerSdp = m_pipeline->getLocalAnswer();
+    if (answerSdp.empty()) {
+        qWarning("CastSession: onWebrtc — getLocalAnswer() returned empty string");
+        return;
+    }
+
+    // Parse the answer SDP to extract local SSRCs for the ANSWER JSON
+    // For the Cast ANSWER, we report send indexes [0, 1] and our local SSRCs.
+    // Since we are a pure receiver, we use the sender's SSRCs as references.
+    // Extract video/audio SSRCs from the offer for the sendIndexes response.
+    int videoPayloadType = 96, audioPayloadType = 97;
+    uint32_t videoSsrc = 0, audioSsrc = 0;
+
+    for (const QJsonValue& sv : streams) {
+        QJsonObject stream    = sv.toObject();
+        QString streamType    = stream.value(QStringLiteral("type")).toString();
+        if (streamType == QStringLiteral("video_source")) {
+            videoPayloadType = stream.value(QStringLiteral("rtpPayloadType")).toInt(96);
+            videoSsrc        = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+        } else if (streamType == QStringLiteral("audio_source")) {
+            audioPayloadType = stream.value(QStringLiteral("rtpPayloadType")).toInt(97);
+            audioSsrc        = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+        }
+    }
+    Q_UNUSED(videoPayloadType)
+    Q_UNUSED(audioPayloadType)
+
+    // Build Cast ANSWER JSON (per RESEARCH.md Pattern 6)
+    // udpPort is the local ICE port — webrtcbin will handle the actual connection.
+    // For the JSON response, we use a nominal port value of 9 (standard SDP dummy port).
+    QJsonObject answerBody;
+    answerBody[QStringLiteral("udpPort")]     = 9;
+    answerBody[QStringLiteral("sendIndexes")] = QJsonArray{0, 1};
+
+    QJsonArray ssrcs;
+    if (videoSsrc != 0) ssrcs.append(static_cast<qint64>(videoSsrc));
+    if (audioSsrc != 0) ssrcs.append(static_cast<qint64>(audioSsrc));
+    if (ssrcs.isEmpty()) {
+        ssrcs.append(0);
+        ssrcs.append(1);
+    }
+    answerBody[QStringLiteral("ssrcs")] = ssrcs;
+
+    QJsonObject reply;
+    reply[QStringLiteral("type")]   = QStringLiteral("ANSWER");
+    reply[QStringLiteral("seqNum")] = seqNum;
+    reply[QStringLiteral("answer")] = answerBody;
+    reply[QStringLiteral("result")] = QStringLiteral("ok");
+
+    QByteArray payload = QJsonDocument(reply).toJson(QJsonDocument::Compact);
+    CastMessage replyMsg = makeJsonMsg(
+        QString::fromStdString(msg.destination_id()),
+        QString::fromStdString(msg.source_id()),
+        QStringLiteral("urn:x-cast:com.google.cast.webrtc"),
+        payload);
+    sendMessage(replyMsg);
+
+    qDebug("CastSession: onWebrtc — sent ANSWER (seqNum=%d)", seqNum);
+
+    // Transition the WebRTC pipeline to PLAYING state.
+    // MediaPipeline::play() sets the main appsrc pipeline to PLAYING.
+    // For the webrtcbin pipeline, call play() which acts on m_pipeline.
+    // However, the webrtcbin pipeline is separate from m_pipeline (the appsrc pipeline).
+    // Use the public play() method which handles the webrtcbin pipeline indirectly.
+    // The webrtcbin pipeline was put to PAUSED in initWebrtcPipeline() — now go to PLAYING.
+    m_pipeline->play();
+
+    qDebug("CastSession: onWebrtc — WebRTC pipeline transitioning to PLAYING");
 }
 
 // ── Session teardown ──────────────────────────────────────────────────────────
