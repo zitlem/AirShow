@@ -92,7 +92,11 @@ Plans:
   1. A DLNA controller app (e.g., BubbleUPnP, foobar2000) can see MyAirShow listed as a Media Renderer
   2. Pushing a video file from the controller causes it to play on the receiver with video and audio
   3. Pushing an audio file from the controller causes it to play through the receiver's speakers
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 05-01-PLAN.md — DlnaHandler skeleton, UpnpAdvertiser SOAP routing, SCPD XMLs, MediaPipeline URI mode, test scaffold
+- [ ] 05-02-PLAN.md — DlnaHandler SOAP action implementations (AVTransport + RenderingControl + ConnectionManager)
+- [ ] 05-03-PLAN.md — main.cpp wiring, integration tests, end-to-end DLNA playback verification
 
 ### Phase 6: Google Cast
 **Goal**: Android devices and Chrome browser tabs can cast their screen to MyAirShow with synchronized audio and video
@@ -135,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
-| 5. DLNA | 0/? | Not started | - |
+| 5. DLNA | 0/3 | Not started | - |
 | 6. Google Cast | 0/? | Not started | - |
 | 7. Security & Hardening | 0/? | Not started | - |
 | 8. Miracast | 0/? | Not started | - |
