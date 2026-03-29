@@ -3,6 +3,7 @@
 // UxPlay RAOP headers (defines raop_callbacks_t, video_decode_struct, audio_decode_struct)
 // Must be included before GStreamer to avoid type redefinition conflicts.
 #include <raop.h>
+#include <dnssd.h>
 #include <stream.h>
 
 // GStreamer
@@ -126,6 +127,39 @@ bool AirPlayHandler::start() {
         g_warning("AirPlayHandler::start — raop_init() returned nullptr");
         return false;
     }
+
+    // 2b. Set logger callback — UxPlay's logger asserts if no callback is set,
+    //     causing a crash on the first HTTP request (e.g., /info from iOS/macOS).
+    raop_set_log_callback(m_raop, [](void* /*cls*/, int level, const char* msg) {
+        if (level <= 3) {  // LOGGER_ERR=0..LOGGER_WARNING=3
+            g_warning("UxPlay: %s", msg);
+        } else {
+            g_debug("UxPlay: %s", msg);
+        }
+    }, nullptr);
+    raop_set_log_level(m_raop, 5);  // LOGGER_DEBUG
+
+    // 2c. Initialize UxPlay's dnssd object — the /info handler reads features and
+    //     TXT records from raop->dnssd. We don't use UxPlay's mDNS (our DiscoveryManager
+    //     handles that), but dnssd_t must exist for the HTTP handler to work.
+    {
+        int dnssd_err = 0;
+        dnssd_t* dnssd = dnssd_init(m_deviceId.c_str(),
+                                     static_cast<int>(m_deviceId.size()),
+                                     m_deviceId.c_str(),
+                                     static_cast<int>(m_deviceId.size()),
+                                     &dnssd_err, 0);
+        if (!dnssd) {
+            g_warning("AirPlayHandler::start — dnssd_init failed (err=%d)", dnssd_err);
+        } else {
+            raop_set_dnssd(m_raop, dnssd);
+        }
+    }
+
+    // 2d. Enable HLS support — without this, UxPlay drops all requests that lack
+    //     a CSeq header (including macOS's initial /info probe), preventing the
+    //     device from appearing in Screen Mirroring UI.
+    raop_set_plist(m_raop, "hls", 1);
 
     // 3. Generate/load Ed25519 keypair and write PEM keyfile.
     //    nohold=0 → normal (non-hold) mode.

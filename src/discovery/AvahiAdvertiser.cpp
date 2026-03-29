@@ -194,25 +194,65 @@ void AvahiAdvertiser::createServices(AvahiClient* client) {
         }
     }
 
+    // Reset the group before re-adding all services. Without this, calling
+    // createServices() a second time (e.g., from a second advertise() call
+    // while the client is already running) tries to add to an already-committed
+    // group, which returns AVAHI_ERR_BAD_STATE.
+    if (!avahi_entry_group_is_empty(m_group)) {
+        avahi_entry_group_reset(m_group);
+    }
+
+    // Register each service on every non-loopback interface individually.
+    // Using AVAHI_IF_UNSPEC with a multi-homed host causes LVMS.local to
+    // resolve to whichever address Avahi picks (often the wrong NIC),
+    // making the service unreachable from other subnets.
+    std::vector<AvahiIfIndex> ifaces;
+    {
+        // Enumerate non-loopback interfaces via /sys/class/net
+        GDir* dir = g_dir_open("/sys/class/net", 0, nullptr);
+        if (dir) {
+            const gchar* name;
+            while ((name = g_dir_read_name(dir))) {
+                if (!strcmp(name, "lo")) continue;
+                gchar* path = g_strdup_printf("/sys/class/net/%s/ifindex", name);
+                gchar* contents = nullptr;
+                gsize len = 0;
+                if (g_file_get_contents(path, &contents, &len, nullptr)) {
+                    int idx = atoi(contents);
+                    if (idx > 0) ifaces.push_back(static_cast<AvahiIfIndex>(idx));
+                    g_free(contents);
+                }
+                g_free(path);
+            }
+            g_dir_close(dir);
+        }
+        if (ifaces.empty()) {
+            // Fallback to AVAHI_IF_UNSPEC if enumeration fails
+            ifaces.push_back(AVAHI_IF_UNSPEC);
+        }
+    }
+
     for (const auto& svc : m_services) {
-        AvahiStringList* txtList = buildTxtList(svc.txt);
-        int ret = avahi_entry_group_add_service_strlst(
-            m_group,
-            AVAHI_IF_UNSPEC,
-            AVAHI_PROTO_UNSPEC,
-            static_cast<AvahiPublishFlags>(0),
-            svc.name.c_str(),
-            svc.type.c_str(),
-            nullptr,   // domain (nullptr = .local)
-            nullptr,   // host (nullptr = local hostname)
-            svc.port,
-            txtList
-        );
-        avahi_string_list_free(txtList);
-        if (ret < 0) {
-            g_critical("AvahiAdvertiser: failed to add service '%s' type '%s': %s",
-                       svc.name.c_str(), svc.type.c_str(), avahi_strerror(ret));
-            return;
+        for (AvahiIfIndex iface : ifaces) {
+            AvahiStringList* txtList = buildTxtList(svc.txt);
+            int ret = avahi_entry_group_add_service_strlst(
+                m_group,
+                iface,
+                AVAHI_PROTO_UNSPEC,
+                static_cast<AvahiPublishFlags>(0),
+                svc.name.c_str(),
+                svc.type.c_str(),
+                nullptr,   // domain (nullptr = .local)
+                nullptr,   // host (nullptr = local hostname)
+                svc.port,
+                txtList
+            );
+            avahi_string_list_free(txtList);
+            if (ret < 0) {
+                g_critical("AvahiAdvertiser: failed to add service '%s' type '%s' iface %d: %s",
+                           svc.name.c_str(), svc.type.c_str(), iface, avahi_strerror(ret));
+                // Continue with other interfaces — don't abort
+            }
         }
     }
 

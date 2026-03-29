@@ -101,6 +101,13 @@ None — no external service configuration required.
 - Real end-to-end verification with a DLNA controller app (BubbleUPnP on Android, VLC on desktop) should be performed before marking requirements validated in PROJECT.md
 - Phase 06 (Google Cast) can begin — the DLNA implementation validates the ProtocolHandler abstraction pattern at a second protocol
 
+## Self-Check: PASSED
+
+- FOUND: src/main.cpp
+- FOUND: tests/test_dlna.cpp
+- FOUND: .planning/phases/05-dlna/05-03-SUMMARY.md
+- FOUND commit: df52799 feat(05-dlna-03): wire DlnaHandler into main.cpp and add integration tests
+
 ---
 *Phase: 05-dlna*
 *Completed: 2026-03-29*

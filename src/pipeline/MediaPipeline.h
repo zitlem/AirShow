@@ -31,6 +31,13 @@ public:
 
     void stop();
 
+    // Transition from PAUSED to PLAYING. Call after QML scene has rendered
+    // at least one frame so the GL context is available for qml6glsink.
+    void play();
+
+    // True if init() succeeded but play() hasn't been called yet.
+    bool needsPlay() const { return m_needsPlay; }
+
     // White-box accessor for tests — allows gst_element_get_state on a real pointer.
     // Returns nullptr if init() has not been called or pipeline has been stopped.
     GstElement* gstPipeline() const { return m_pipeline; }
@@ -73,6 +80,7 @@ private:
     GstElement* m_videoAppsrc     = nullptr;
     GstElement* m_audioAppsrc     = nullptr;
     bool        m_muted           = false;
+    bool        m_needsPlay       = false;
     std::optional<DecoderInfo> m_activeDecoder;
     DecoderSelectedCallback    m_decoderCallback;
 
