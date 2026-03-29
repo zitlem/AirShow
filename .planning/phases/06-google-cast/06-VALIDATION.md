@@ -2,8 +2,8 @@
 phase: 6
 slug: google-cast
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-29
 ---
 
@@ -38,17 +38,21 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 06-01-00 | 01 | 0 | CAST-01 | scaffold | `ctest -R test_cast` | creates it | pending |
-| 06-01-01 | 01 | 1 | CAST-01 | unit | `ctest -R test_cast` | W0 | pending |
-| 06-02-01 | 02 | 2 | CAST-01, CAST-02 | integration | `ctest -R test_cast` | W0 | pending |
-| 06-03-01 | 03 | 3 | CAST-01, CAST-02, CAST-03 | e2e | `ctest -R test_cast` | W0 | pending |
+| 06-01-T1 | 01 | 1 | CAST-01, CAST-02 | build | `ninja myairshow` | creates src | pending |
+| 06-01-T2 | 01 | 1 | CAST-01, CAST-02 | unit | `ninja test_cast && ctest -R test_cast` | creates tests | pending |
+| 06-02-T1 | 02 | 2 | CAST-01, CAST-02, CAST-03 | build | `ninja myairshow` | exists | pending |
+| 06-02-T2 | 02 | 2 | CAST-01, CAST-02 | unit | `ninja test_cast && ctest -R test_cast` | exists | pending |
+| 06-03-T1 | 03 | 3 | CAST-01, CAST-02, CAST-03 | integration | `ninja myairshow && ctest -R test_cast` | exists | pending |
+| 06-03-T2 | 03 | 3 | CAST-01, CAST-02, CAST-03 | human-verify | `./myairshow --help` | exists | pending |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_cast.cpp` — stubs for CAST-01, CAST-02, CAST-03
-- [ ] test_cast target in CMakeLists.txt — links GTest, Qt6::Core, protobuf
+- [x] `tests/test_cast.cpp` — created by Plan 01 Task 2 with stub tests
+- [x] test_cast target in CMakeLists.txt — created by Plan 01 Task 2
+
+*Wave 0 is absorbed into Plan 01 Task 2 (Wave 1). Test scaffold is created before any subsequent plan runs.*
 
 ---
 
@@ -64,11 +68,11 @@ created: 2026-03-29
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 10s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 10s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-29
