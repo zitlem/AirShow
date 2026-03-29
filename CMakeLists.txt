@@ -127,6 +127,7 @@ endif()
 
 if(GST_WEBRTC_FOUND)
   target_link_libraries(myairshow PRIVATE PkgConfig::GST_WEBRTC)
+  target_compile_definitions(myairshow PRIVATE GST_USE_UNSTABLE_API)
 endif()
 
 if(spdlog_FOUND)

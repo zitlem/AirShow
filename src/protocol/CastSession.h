@@ -46,6 +46,11 @@ public:
                          QObject* parent = nullptr);
     ~CastSession() override;
 
+    // Phase 6: Translate Cast OFFER JSON to a standard SDP string for webrtcbin.
+    // Exposed as public static for unit testing in test_cast.cpp.
+    // offerJson: the top-level JSON object of the OFFER message (containing "offer" sub-object).
+    static std::string buildSdpFromOffer(const QJsonObject& offerJson);
+
 signals:
     // Emitted when the session ends (socket disconnected or CLOSE received).
     // CastHandler connects this to its onSessionFinished slot.
@@ -83,11 +88,6 @@ private:
 
     // Build a RECEIVER_STATUS JSON payload for the given state.
     QByteArray buildReceiverStatus(int requestId) const;
-
-    // Phase 6: Translate Cast OFFER JSON to a standard SDP string for webrtcbin.
-    // Exposed as public static for unit testing in test_cast.cpp.
-    // offer: the JSON object value of offer.supportedStreams from the OFFER message.
-    static std::string buildSdpFromOffer(const QJsonObject& offerJson);
 
     QSslSocket*       m_socket       = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;
