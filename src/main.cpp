@@ -9,6 +9,7 @@
 #include "discovery/UpnpAdvertiser.h"
 #include "platform/WindowsFirewall.h"
 #include "protocol/AirPlayHandler.h"
+#include "protocol/DlnaHandler.h"
 #include "protocol/ProtocolManager.h"
 
 static void checkRequiredPlugins() {
@@ -59,14 +60,11 @@ int main(int argc, char* argv[]) {
         qWarning("Discovery failed to start — receiver will not appear in device pickers");
     }
 
-    // DLNA SSDP advertisement (DISC-03)
+    // DLNA SSDP advertisement (DISC-03) — construct only, start AFTER DlnaHandler wired
     const std::string dlnaXmlPath =
         QCoreApplication::applicationDirPath().toStdString()
         + "/resources/dlna/MediaRenderer.xml";
     myairshow::UpnpAdvertiser upnpAdvertiser(&settings, dlnaXmlPath);
-    if (!upnpAdvertiser.start()) {
-        qWarning("DLNA advertisement failed — renderer will not appear in DLNA controllers");
-    }
 
     myairshow::MediaPipeline pipeline;
     myairshow::ReceiverWindow window(pipeline, settings);
@@ -78,6 +76,18 @@ int main(int argc, char* argv[]) {
 
     // Protocol manager owns all protocol handlers
     myairshow::ProtocolManager protocolManager(&pipeline);
+
+    // DLNA handler (Phase 5) — must be created before upnpAdvertiser.start()
+    // so the SOAP callback cookie points to a live handler.
+    {
+        auto dlnaHandler = std::make_unique<myairshow::DlnaHandler>(window.connectionBridge());
+        auto* dlnaRawPtr = dlnaHandler.get(); // raw ptr for UpnpAdvertiser before ownership transfer
+
+        // Route SOAP actions from UpnpAdvertiser to DlnaHandler (D-02)
+        upnpAdvertiser.setDlnaHandler(dlnaRawPtr);
+
+        protocolManager.addHandler(std::move(dlnaHandler));
+    }
 
     // AirPlay handler (Phase 4)
     {
@@ -97,6 +107,11 @@ int main(int argc, char* argv[]) {
         // This ensures AirPlayHandler::m_pipeline is non-null before start() is called.
         // Verified in ProtocolManager.cpp. Without this, all frame injection
         // via appsrc silently fails (AIRP-01, AIRP-02, AIRP-03 all break).
+    }
+
+    // Start DLNA advertisement now that DlnaHandler is wired via setDlnaHandler (D-02)
+    if (!upnpAdvertiser.start()) {
+        qWarning("DLNA advertisement failed — renderer will not appear in DLNA controllers");
     }
 
     if (!protocolManager.startAll()) {
