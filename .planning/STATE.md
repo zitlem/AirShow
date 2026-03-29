@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-29T01:31:04.094Z"
+status: verifying
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-29T01:34:46.925Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 05 (dlna) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -66,6 +66,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 04-airplay P03 | 5 | 2 tasks | 7 files |
 | Phase 05-dlna P01 | 35 | 3 tasks | 12 files |
 | Phase 05-dlna P02 | 2 | 2 tasks | 1 files |
+| Phase 05-dlna P03 | 10 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Recent decisions affecting current work:
 - [Phase 05-dlna]: Volume conversion: std::stoi with try/catch fallback and std::max/min clamp, then divide by 100.0 for GStreamer
 - [Phase 05-dlna]: GetCurrentTransportActions returns empty string when STOPPED with no URI, full action list otherwise
 - [Phase 05-dlna]: SinkProtocolInfo expanded to 14 MIME types including video/x-msvideo, audio/L16, video/x-flv, video/3gpp
+- [Phase 05-dlna]: upnpAdvertiser.start() deferred until after DlnaHandler wiring — SOAP callback cookie must point to live handler (D-02)
+- [Phase 05-dlna]: DlnaHandler wiring uses scoped block with raw ptr capture before ownership transfer to ProtocolManager
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T01:31:04.090Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-29T01:34:46.922Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
