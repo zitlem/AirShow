@@ -7,6 +7,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTcpSocket>
+#include <QHostAddress>
+#include <QAbstractSocket>
 #include <QtEndian>
 #include <gst/gst.h>
 
@@ -447,4 +450,63 @@ TEST(CastSdpTest, OfferJsonToSdp_EmptyOffer) {
     std::string sdp = myairshow::CastSession::buildSdpFromOffer(emptyOffer);
     EXPECT_TRUE(sdp.empty())
         << "buildSdpFromOffer() should return empty string for an empty offer";
+}
+
+// ── Test 15: Integration — CastHandler_IntegrationStartStop ──────────────────
+// Integration test: start CastHandler, verify isRunning()==true and name()=="cast",
+// verify port 8009 is bound by attempting a QTcpSocket connection to localhost:8009,
+// then stop and verify isRunning()==false.
+
+TEST(CastHandlerIntegrationTest, CastHandler_IntegrationStartStop) {
+    myairshow::ConnectionBridge bridge;
+    myairshow::MediaPipeline pipeline;
+
+    myairshow::CastHandler handler(&bridge);
+    handler.setMediaPipeline(&pipeline);
+
+    EXPECT_FALSE(handler.isRunning());
+    EXPECT_EQ(handler.name(), "cast");
+
+    bool started = handler.start();
+    ASSERT_TRUE(started) << "CastHandler::start() must return true";
+    EXPECT_TRUE(handler.isRunning());
+    EXPECT_EQ(handler.name(), "cast");
+
+    // Verify port 8009 is bound: QTcpSocket should connect successfully
+    {
+        QTcpSocket socket;
+        socket.connectToHost(QHostAddress::LocalHost, 8009);
+        bool connected = socket.waitForConnected(2000);  // 2 second timeout
+        // The socket connects to the TLS port; TLS handshake is not required for
+        // TCP-layer port availability check. Either a connected state or an SSL
+        // error (which only fires after connect) confirms the port is open.
+        bool portBound = connected || (socket.state() == QAbstractSocket::ConnectedState)
+                         || (socket.error() == QAbstractSocket::SslHandshakeFailedError)
+                         || (socket.error() == QAbstractSocket::RemoteHostClosedError);
+        EXPECT_TRUE(portBound) << "Port 8009 should be bound after start(). Socket error: "
+                               << socket.errorString().toStdString();
+        socket.disconnectFromHost();
+    }
+
+    handler.stop();
+    EXPECT_FALSE(handler.isRunning());
+}
+
+// ── Test 16: Integration — CastHandler_RejectsDoubleStart ────────────────────
+// Calling start() twice must be idempotent: both calls return true,
+// isRunning() remains true, and there is no crash or resource leak.
+
+TEST(CastHandlerIntegrationTest, CastHandler_RejectsDoubleStart) {
+    myairshow::ConnectionBridge bridge;
+    myairshow::CastHandler handler(&bridge);
+
+    bool first  = handler.start();
+    bool second = handler.start();  // idempotent — should return true, not crash
+
+    EXPECT_TRUE(first)  << "First start() call must return true";
+    EXPECT_TRUE(second) << "Second start() call must return true (idempotent)";
+    EXPECT_TRUE(handler.isRunning()) << "isRunning() must be true after double start";
+
+    handler.stop();
+    EXPECT_FALSE(handler.isRunning());
 }

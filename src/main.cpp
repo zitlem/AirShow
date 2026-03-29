@@ -9,6 +9,7 @@
 #include "discovery/UpnpAdvertiser.h"
 #include "platform/WindowsFirewall.h"
 #include "protocol/AirPlayHandler.h"
+#include "protocol/CastHandler.h"
 #include "protocol/DlnaHandler.h"
 #include "protocol/ProtocolManager.h"
 
@@ -21,6 +22,11 @@ static void checkRequiredPlugins() {
         {"avdec_h264",    "gstreamer1.0-libav"},
         {"h264parse",     "gstreamer1.0-plugins-bad"},
         {"avdec_aac",     "gstreamer1.0-libav"},
+        // Cast-specific plugins (Phase 6)
+        {"webrtcbin",     "gstreamer1.0-plugins-bad"},
+        {"rtpvp8depay",   "gstreamer1.0-plugins-good"},
+        {"rtpopusdepay",  "gstreamer1.0-plugins-good"},
+        {"opusdec",       "gstreamer1.0-plugins-base"},
     };
     for (auto& p : required) {
         if (!gst_registry_check_feature_version(
@@ -28,6 +34,16 @@ static void checkRequiredPlugins() {
             qFatal("Missing GStreamer plugin '%s'. Install package: %s",
                    p.name, p.pkg);
         }
+    }
+
+    // Non-fatal warning: vp8dec (Cast VP8 hardware/software decode, avdec_vp8 is the fallback)
+    if (!gst_registry_check_feature_version(gst_registry_get(), "vp8dec", 1, 20, 0)) {
+        qWarning("GStreamer plugin 'vp8dec' not found — Cast VP8 will use avdec_vp8 fallback (gst-libav)");
+    }
+
+    // Non-fatal warning: nicesrc (ICE for webrtcbin, Pitfall 4)
+    if (!gst_registry_check_feature_version(gst_registry_get(), "nicesrc", 0, 1, 14)) {
+        qWarning("GStreamer plugin 'nicesrc' not found — Cast WebRTC may fail. Install: gstreamer1.0-nice");
     }
 }
 
@@ -113,6 +129,14 @@ int main(int argc, char* argv[]) {
         // This ensures AirPlayHandler::m_pipeline is non-null before start() is called.
         // Verified in ProtocolManager.cpp. Without this, all frame injection
         // via appsrc silently fails (AIRP-01, AIRP-02, AIRP-03 all break).
+    }
+
+    // Google Cast handler (Phase 6)
+    {
+        auto castHandler = std::make_unique<myairshow::CastHandler>(
+            window.connectionBridge());
+        protocolManager.addHandler(std::move(castHandler));
+        // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
     }
 
     // Start DLNA advertisement now that DlnaHandler is wired via setDlnaHandler (D-02)
