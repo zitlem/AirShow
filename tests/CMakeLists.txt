@@ -104,3 +104,8 @@ gtest_discover_tests(test_airplay
   TEST_SUFFIX ""
   PROPERTIES TIMEOUT 30
 )
+
+add_executable(test_dlna test_dlna.cpp)
+target_include_directories(test_dlna PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_dlna PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
