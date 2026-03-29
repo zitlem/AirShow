@@ -15,6 +15,9 @@ target_link_libraries(test_pipeline PRIVATE
   GTest::gmock
   PkgConfig::GST
 )
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(test_pipeline PRIVATE PkgConfig::GST_WEBRTC)
+endif()
 
 # Register test filters matching VALIDATION.md per-task verification map
 gtest_discover_tests(test_pipeline
@@ -97,6 +100,9 @@ target_link_libraries(test_airplay PRIVATE
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(test_airplay PRIVATE PkgConfig::AVAHI)
 endif()
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(test_airplay PRIVATE PkgConfig::GST_WEBRTC)
+endif()
 
 add_test(NAME test_airplay COMMAND test_airplay)
 
@@ -116,6 +122,9 @@ target_link_libraries(test_dlna PRIVATE
   GTest::gtest_main GTest::gmock
   Qt6::Core PkgConfig::GST PkgConfig::UPNP
 )
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(test_dlna PRIVATE PkgConfig::GST_WEBRTC)
+endif()
 gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
 # Cast CASTV2 unit tests (Phase 06 Plan 01)

@@ -121,13 +121,13 @@ target_link_libraries(myairshow PRIVATE
   ${Protobuf_LIBRARIES}
 )
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(myairshow PRIVATE PkgConfig::AVAHI)
-endif()
-
 if(GST_WEBRTC_FOUND)
   target_link_libraries(myairshow PRIVATE PkgConfig::GST_WEBRTC)
   target_compile_definitions(myairshow PRIVATE GST_USE_UNSTABLE_API)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(myairshow PRIVATE PkgConfig::AVAHI)
 endif()
 
 if(spdlog_FOUND)
