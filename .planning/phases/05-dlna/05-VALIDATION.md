@@ -2,8 +2,8 @@
 phase: 5
 slug: dlna
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-28
 ---
 
@@ -38,9 +38,11 @@ created: 2026-03-28
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | 01 | 1 | DLNA-03 | unit | `ctest -R test_dlna` | ❌ W0 | ⬜ pending |
-| 05-02-01 | 02 | 2 | DLNA-01, DLNA-02 | integration | `ctest -R test_dlna` | ❌ W0 | ⬜ pending |
-| 05-03-01 | 03 | 3 | DLNA-01, DLNA-02, DLNA-03 | e2e | `ctest -R test_dlna` | ❌ W0 | ⬜ pending |
+| 05-01-00 | 01 | 0 | DLNA-03 | scaffold | `ctest -R test_dlna` | creates it | ⬜ pending |
+| 05-01-01 | 01 | 1 | DLNA-03 | unit | `ctest -R test_dlna` | ✅ W0 | ⬜ pending |
+| 05-01-02 | 01 | 1 | DLNA-03 | unit | `ctest -R test_dlna` | ✅ W0 | ⬜ pending |
+| 05-02-01 | 02 | 2 | DLNA-01, DLNA-02 | integration | `ctest -R test_dlna` | ✅ W0 | ⬜ pending |
+| 05-03-01 | 03 | 3 | DLNA-01, DLNA-02, DLNA-03 | e2e | `ctest -R test_dlna` | ✅ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -48,10 +50,10 @@ created: 2026-03-28
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_dlna.cpp` — stubs for DLNA-01, DLNA-02, DLNA-03
-- [ ] test_dlna target in CMakeLists.txt — link Qt6::Core, libupnp
+- [x] `tests/test_dlna.cpp` — created by Plan 05-01 Task 0 with GTEST_SKIP stubs
+- [x] test_dlna target in CMakeLists.txt — links GTest, builds and runs (all skipped) before production code
 
-*If none: "Existing infrastructure covers all phase requirements."*
+*Wave 0 is Task 0 of Plan 05-01. It creates the test scaffold with stub bodies that skip, ensuring the test target exists and passes before any production DLNA code is written. Task 1 then replaces stubs with real assertions.*
 
 ---
 
@@ -67,11 +69,11 @@ created: 2026-03-28
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 10s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 10s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved
