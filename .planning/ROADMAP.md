@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Discovery & Protocol Abstraction** - mDNS/SSDP advertisement for all protocols, protocol interfaces, receiver name, firewall rules (completed 2026-03-28)
 - [x] **Phase 3: Display & Receiver UI** - Fullscreen mirroring window with correct aspect ratio, connection status HUD, and idle screen (completed 2026-03-28)
 - [x] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management (completed 2026-03-28)
-- [ ] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps
+- [x] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps (completed 2026-03-29)
 - [ ] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend
 - [ ] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability
 - [ ] **Phase 8: Miracast** - Windows and Android screen mirroring via Miracast over Infrastructure
@@ -96,7 +96,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — DlnaHandler skeleton, UpnpAdvertiser SOAP routing, SCPD XMLs, MediaPipeline URI mode, test scaffold
 - [x] 05-02-PLAN.md — DlnaHandler SOAP action implementations (AVTransport + RenderingControl + ConnectionManager)
-- [ ] 05-03-PLAN.md — main.cpp wiring, integration tests, end-to-end DLNA playback verification
+- [x] 05-03-PLAN.md — main.cpp wiring, integration tests, end-to-end DLNA playback verification
 
 ### Phase 6: Google Cast
 **Goal**: Android devices and Chrome browser tabs can cast their screen to MyAirShow with synchronized audio and video
@@ -139,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
-| 5. DLNA | 2/3 | In Progress|  |
+| 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 0/? | Not started | - |
 | 7. Security & Hardening | 0/? | Not started | - |
 | 8. Miracast | 0/? | Not started | - |
