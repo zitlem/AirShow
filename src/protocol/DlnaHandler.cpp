@@ -15,11 +15,22 @@
 // Qt
 #include <QMetaObject>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 
 namespace myairshow {
+
+// ── File-scope service type constants ─────────────────────────────────────────
+
+static constexpr const char* kAvtServiceType =
+    "urn:schemas-upnp-org:service:AVTransport:1";
+static constexpr const char* kRcServiceType =
+    "urn:schemas-upnp-org:service:RenderingControl:1";
+static constexpr const char* kCmServiceType =
+    "urn:schemas-upnp-org:service:ConnectionManager:1";
 
 // ── File-scope helper ──────────────────────────────────────────────────────────
 
@@ -62,11 +73,17 @@ void DlnaHandler::stop() {
     // Stop URI pipeline if a DLNA session is active
     QMetaObject::invokeMethod(this, [this]() {
         if (m_pipeline) {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
-            // Plan 02 will call: if (m_transportState != TransportState::STOPPED) m_pipeline->stopUri();
-            m_transportState = TransportState::STOPPED;
-            m_currentUri.clear();
-            m_currentMetadata.clear();
+            bool wasPlaying = false;
+            {
+                std::lock_guard<std::mutex> lock(m_stateMutex);
+                wasPlaying = (m_transportState != TransportState::STOPPED);
+                m_transportState = TransportState::STOPPED;
+                m_currentUri.clear();
+                m_currentMetadata.clear();
+            }
+            if (wasPlaying) {
+                m_pipeline->stopUri();
+            }
         }
         // Clear connection bridge state
         if (m_connectionBridge) {
@@ -89,13 +106,11 @@ int DlnaHandler::handleSoapAction(const void* event) {
 
     const char* actionName =
         UpnpString_get_String(UpnpActionRequest_get_ActionName(req));
-    // serviceId available for future multi-service disambiguation if needed
-    // const char* serviceId =
-    //     UpnpString_get_String(UpnpActionRequest_get_ServiceID(req));
 
     IXML_Document* result = nullptr;
     int errCode = UPNP_E_SUCCESS;
 
+    // AVTransport actions
     if (strcmp(actionName, "SetAVTransportURI") == 0) {
         errCode = onSetAVTransportURI(req, reinterpret_cast<void**>(&result));
     } else if (strcmp(actionName, "Play") == 0) {
@@ -112,6 +127,40 @@ int DlnaHandler::handleSoapAction(const void* event) {
         errCode = onGetPositionInfo(req, reinterpret_cast<void**>(&result));
     } else if (strcmp(actionName, "GetMediaInfo") == 0) {
         errCode = onGetMediaInfo(req, reinterpret_cast<void**>(&result));
+    // Spec-required minimal AVTransport actions
+    } else if (strcmp(actionName, "GetDeviceCapabilities") == 0) {
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "GetDeviceCapabilitiesResponse",
+            kAvtServiceType, "PlayMedia", "NETWORK");
+        UpnpAddToActionResponse(doc, "GetDeviceCapabilitiesResponse",
+            kAvtServiceType, "RecMedia", "NOT_IMPLEMENTED");
+        UpnpAddToActionResponse(doc, "GetDeviceCapabilitiesResponse",
+            kAvtServiceType, "RecQualityModes", "NOT_IMPLEMENTED");
+    } else if (strcmp(actionName, "GetTransportSettings") == 0) {
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "GetTransportSettingsResponse",
+            kAvtServiceType, "PlayMode", "NORMAL");
+        UpnpAddToActionResponse(doc, "GetTransportSettingsResponse",
+            kAvtServiceType, "RecQualityMode", "NOT_IMPLEMENTED");
+    } else if (strcmp(actionName, "GetCurrentTransportActions") == 0) {
+        TransportState state;
+        std::string uri;
+        {
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            state = m_transportState;
+            uri   = m_currentUri;
+        }
+        const char* actions = "Play,Stop,Pause,Seek";
+        if (state == TransportState::STOPPED && uri.empty()) {
+            actions = "";
+        }
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "GetCurrentTransportActionsResponse",
+            kAvtServiceType, "Actions", actions);
+    // RenderingControl actions
     } else if (strcmp(actionName, "SetVolume") == 0) {
         errCode = onSetVolume(req, reinterpret_cast<void**>(&result));
     } else if (strcmp(actionName, "GetVolume") == 0) {
@@ -120,8 +169,43 @@ int DlnaHandler::handleSoapAction(const void* event) {
         errCode = onSetMute(req, reinterpret_cast<void**>(&result));
     } else if (strcmp(actionName, "GetMute") == 0) {
         errCode = onGetMute(req, reinterpret_cast<void**>(&result));
+    // Spec-required minimal RenderingControl actions
+    } else if (strcmp(actionName, "ListPresets") == 0) {
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "ListPresetsResponse",
+            kRcServiceType, "CurrentPresetNameList", "FactoryDefaults");
+    } else if (strcmp(actionName, "SelectPreset") == 0) {
+        // Accept any preset name — no-op renderer
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "SelectPresetResponse",
+            kRcServiceType, nullptr, nullptr);
+    // ConnectionManager actions
     } else if (strcmp(actionName, "GetProtocolInfo") == 0) {
         errCode = onGetProtocolInfo(req, reinterpret_cast<void**>(&result));
+    } else if (strcmp(actionName, "GetCurrentConnectionIDs") == 0) {
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionIDsResponse",
+            kCmServiceType, "ConnectionIDs", "0");
+    } else if (strcmp(actionName, "GetCurrentConnectionInfo") == 0) {
+        auto** doc = reinterpret_cast<IXML_Document**>(&result);
+        *doc = nullptr;
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "RcsID", "0");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "AVTransportID", "0");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "ProtocolInfo", "");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "PeerConnectionManager", "");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "PeerConnectionID", "-1");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "Direction", "Input");
+        UpnpAddToActionResponse(doc, "GetCurrentConnectionInfoResponse",
+            kCmServiceType, "Status", "OK");
     } else {
         // Unknown action — return 401 Invalid Action
         UpnpActionRequest_set_ErrCode(
@@ -173,10 +257,7 @@ std::string DlnaHandler::formatGstTime(gint64 ns) {
     return buf;
 }
 
-// ── AVTransport action stubs ───────────────────────────────────────────────────
-// These stubs return valid empty SOAP responses. Plan 02 replaces them with
-// real pipeline calls. The QMetaObject::invokeMethod pattern MUST be present
-// now so Plan 02 only fills in the lambda bodies.
+// ── AVTransport actions ────────────────────────────────────────────────────────
 
 int DlnaHandler::onSetAVTransportURI(const void* req, void** result) {
     auto* actionReq = static_cast<const UpnpActionRequest*>(req);
@@ -184,61 +265,93 @@ int DlnaHandler::onSetAVTransportURI(const void* req, void** result) {
     std::string uri      = getArgValue(actionDoc, "CurrentURI");
     std::string metadata = getArgValue(actionDoc, "CurrentURIMetaData");
 
-    // CRITICAL threading rule (Pitfall 1 from RESEARCH.md): queue onto Qt main thread
-    QMetaObject::invokeMethod(this, [this, uri, metadata]() {
+    // Store URI and state under mutex before queuing pipeline work
+    {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_currentUri      = uri;
         m_currentMetadata = metadata;
         m_transportState  = TransportState::STOPPED;
-        // Plan 02 will: m_pipeline->stopUri(); m_pipeline->setUri(uri);
+    }
+
+    // CRITICAL threading rule (Pitfall 1 from RESEARCH.md): queue onto Qt main thread.
+    // setUri() stops any current playback (GST_STATE_NULL) then sets the new URI
+    // and prerolls (GST_STATE_PAUSED). Single-session model (D-12).
+    QMetaObject::invokeMethod(this, [this, uri]() {
+        if (m_pipeline) {
+            m_pipeline->setUri(uri);
+        }
     }, Qt::QueuedConnection);
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "SetAVTransportURIResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", nullptr, nullptr);
+        kAvtServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onPlay(const void* /*req*/, void** result) {
+    // Queue pipeline and HUD updates on main thread (Pitfall 1 from RESEARCH.md)
     QMetaObject::invokeMethod(this, [this]() {
+        if (m_pipeline) {
+            m_pipeline->playUri();
+        }
+        if (m_connectionBridge) {
+            m_connectionBridge->setConnected(true, "DLNA Controller", "DLNA");
+        }
+    }, Qt::QueuedConnection);
+
+    {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_transportState = TransportState::PLAYING;
-        // Plan 02 will: m_pipeline->playUri(); m_connectionBridge->setConnected(true, ..., "DLNA");
-    }, Qt::QueuedConnection);
+    }
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "PlayResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", nullptr, nullptr);
+        kAvtServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onStop(const void* /*req*/, void** result) {
+    // Queue pipeline and HUD updates on main thread (Pitfall 1 from RESEARCH.md)
     QMetaObject::invokeMethod(this, [this]() {
+        if (m_pipeline) {
+            m_pipeline->stopUri();
+        }
+        if (m_connectionBridge) {
+            m_connectionBridge->setConnected(false);
+        }
+    }, Qt::QueuedConnection);
+
+    {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_transportState = TransportState::STOPPED;
-        // Plan 02 will: m_pipeline->stopUri(); m_connectionBridge->setConnected(false);
-    }, Qt::QueuedConnection);
+    }
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "StopResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", nullptr, nullptr);
+        kAvtServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onPause(const void* /*req*/, void** result) {
+    // Queue pipeline pause on main thread (Pitfall 1 from RESEARCH.md)
     QMetaObject::invokeMethod(this, [this]() {
+        if (m_pipeline) {
+            m_pipeline->pauseUri();
+        }
+    }, Qt::QueuedConnection);
+
+    {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_transportState = TransportState::PAUSED;
-        // Plan 02 will: m_pipeline->pauseUri();
-    }, Qt::QueuedConnection);
+    }
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "PauseResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", nullptr, nullptr);
+        kAvtServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
@@ -248,107 +361,164 @@ int DlnaHandler::onSeek(const void* req, void** result) {
     std::string unit   = getArgValue(actionDoc, "Unit");
     std::string target = getArgValue(actionDoc, "Target");
 
-    QMetaObject::invokeMethod(this, [this, unit, target]() {
-        // Plan 02 will: if (unit == "REL_TIME") m_pipeline->seekUri(parseTimeString(target));
-        (void)unit; (void)target;
+    // Only REL_TIME seeks supported (Pitfall 5 from RESEARCH.md)
+    if (unit != "REL_TIME") {
+        UpnpActionRequest_set_ErrCode(
+            const_cast<UpnpActionRequest*>(actionReq), 710);  // Seek mode not supported
+        return UPNP_E_SUCCESS;
+    }
+
+    gint64 posNs = parseTimeString(target);
+
+    // Queue seek on main thread (Pitfall 1 from RESEARCH.md)
+    QMetaObject::invokeMethod(this, [this, posNs]() {
+        if (m_pipeline) {
+            m_pipeline->seekUri(posNs);
+        }
     }, Qt::QueuedConnection);
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "SeekResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", nullptr, nullptr);
+        kAvtServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onGetTransportInfo(const void* /*req*/, void** result) {
-    const char* state = transportStateString();
+    const char* state;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        state = transportStateString();
+    }
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetTransportInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1",
-        "CurrentTransportState", state);
+        kAvtServiceType, "CurrentTransportState", state);
     UpnpAddToActionResponse(doc, "GetTransportInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1",
-        "CurrentTransportStatus", "OK");
+        kAvtServiceType, "CurrentTransportStatus", "OK");
     UpnpAddToActionResponse(doc, "GetTransportInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1",
-        "CurrentSpeed", "1");
+        kAvtServiceType, "CurrentSpeed", "1");
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onGetPositionInfo(const void* /*req*/, void** result) {
-    // Plan 02 will query m_pipeline->queryPosition() / queryDuration()
+    // Query position and duration from pipeline (Pitfall 6: duration may be -1 for streams)
+    gint64 pos = (m_pipeline) ? m_pipeline->queryPosition() : -1;
+    gint64 dur = (m_pipeline) ? m_pipeline->queryDuration() : -1;
+
+    std::string posStr = (pos >= 0) ? formatGstTime(pos) : "0:00:00";
+    std::string durStr = (dur >= 0) ? formatGstTime(dur) : "NOT_IMPLEMENTED";
+
+    std::string trackUri;
+    std::string trackMeta;
+    bool stopped = false;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        trackUri  = m_currentUri;
+        trackMeta = m_currentMetadata;
+        stopped   = (m_transportState == TransportState::STOPPED);
+    }
+
+    const char* trackNum = (stopped && trackUri.empty()) ? "0" : "1";
+
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "Track", "0");
+        kAvtServiceType, "Track", trackNum);
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "TrackDuration", "0:00:00");
+        kAvtServiceType, "TrackDuration", durStr.c_str());
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "TrackMetaData", "");
+        kAvtServiceType, "TrackMetaData", trackMeta.c_str());
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "TrackURI", "");
+        kAvtServiceType, "TrackURI", trackUri.c_str());
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "RelTime", "0:00:00");
+        kAvtServiceType, "RelTime", posStr.c_str());
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "AbsTime", "NOT_IMPLEMENTED");
+        kAvtServiceType, "AbsTime", "NOT_IMPLEMENTED");
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "RelCount", "2147483647");
+        kAvtServiceType, "RelCount", "2147483647");
     UpnpAddToActionResponse(doc, "GetPositionInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "AbsCount", "2147483647");
+        kAvtServiceType, "AbsCount", "2147483647");
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onGetMediaInfo(const void* /*req*/, void** result) {
+    gint64 dur = (m_pipeline) ? m_pipeline->queryDuration() : -1;
+    std::string durStr = (dur >= 0) ? formatGstTime(dur) : "NOT_IMPLEMENTED";
+
+    std::string currentUri;
+    std::string currentMeta;
+    bool hasUri = false;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        currentUri  = m_currentUri;
+        currentMeta = m_currentMetadata;
+        hasUri      = !m_currentUri.empty();
+    }
+
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "NrTracks", "0");
+        kAvtServiceType, "NrTracks", hasUri ? "1" : "0");
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "MediaDuration", "0:00:00");
+        kAvtServiceType, "MediaDuration", durStr.c_str());
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "CurrentURI", m_currentUri.c_str());
+        kAvtServiceType, "CurrentURI", currentUri.c_str());
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "CurrentURIMetaData", m_currentMetadata.c_str());
+        kAvtServiceType, "CurrentURIMetaData", currentMeta.c_str());
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "NextURI", "");
+        kAvtServiceType, "NextURI", "");
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "NextURIMetaData", "");
+        kAvtServiceType, "NextURIMetaData", "");
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "PlayMedium", "NETWORK");
+        kAvtServiceType, "PlayMedium", "NETWORK");
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "RecordMedium", "NOT_IMPLEMENTED");
+        kAvtServiceType, "RecordMedium", "NOT_IMPLEMENTED");
     UpnpAddToActionResponse(doc, "GetMediaInfoResponse",
-        "urn:schemas-upnp-org:service:AVTransport:1", "WriteStatus", "NOT_IMPLEMENTED");
+        kAvtServiceType, "WriteStatus", "NOT_IMPLEMENTED");
     return UPNP_E_SUCCESS;
 }
 
-// ── RenderingControl action stubs ──────────────────────────────────────────────
+// ── RenderingControl actions ───────────────────────────────────────────────────
 
 int DlnaHandler::onSetVolume(const void* req, void** result) {
     auto* actionReq = static_cast<const UpnpActionRequest*>(req);
     IXML_Document* actionDoc = UpnpActionRequest_get_ActionRequest(actionReq);
     std::string volStr = getArgValue(actionDoc, "DesiredVolume");
 
-    QMetaObject::invokeMethod(this, [this, volStr]() {
-        // Plan 02 will: int vol = std::stoi(volStr); m_pipeline->setVolume(vol / 100.0);
-        (void)volStr;
+    // Parse and clamp the volume, converting UPnP 0-100 to GStreamer 0.0-1.0
+    int rawVol = 100;
+    try {
+        rawVol = std::stoi(volStr);
+    } catch (...) {
+        rawVol = 100;
+    }
+    int clamped = std::max(0, std::min(100, rawVol));
+    double vol = clamped / 100.0;
+
+    // Queue volume change on main thread (Pitfall 1 from RESEARCH.md)
+    QMetaObject::invokeMethod(this, [this, vol]() {
+        if (m_pipeline) {
+            m_pipeline->setVolume(vol);
+        }
     }, Qt::QueuedConnection);
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "SetVolumeResponse",
-        "urn:schemas-upnp-org:service:RenderingControl:1", nullptr, nullptr);
+        kRcServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onGetVolume(const void* /*req*/, void** result) {
-    // Plan 02 will: query m_pipeline->getVolume() and convert 0.0-1.0 to 0-100
+    double vol = (m_pipeline) ? m_pipeline->getVolume() : 1.0;
+    int upnpVol = static_cast<int>(vol * 100.0 + 0.5);
+    upnpVol = std::max(0, std::min(100, upnpVol));
+
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetVolumeResponse",
-        "urn:schemas-upnp-org:service:RenderingControl:1",
-        "CurrentVolume", "100");
+        kRcServiceType, "CurrentVolume", std::to_string(upnpVol).c_str());
     return UPNP_E_SUCCESS;
 }
 
@@ -357,29 +527,33 @@ int DlnaHandler::onSetMute(const void* req, void** result) {
     IXML_Document* actionDoc = UpnpActionRequest_get_ActionRequest(actionReq);
     std::string muteStr = getArgValue(actionDoc, "DesiredMute");
 
-    QMetaObject::invokeMethod(this, [this, muteStr]() {
-        // Plan 02 will: bool muted = (muteStr == "1" || muteStr == "true");
-        //               m_pipeline->setMuted(muted);
-        (void)muteStr;
+    bool mute = (muteStr == "1" || muteStr == "true" || muteStr == "True");
+
+    // Queue mute change on main thread (Pitfall 1 from RESEARCH.md)
+    QMetaObject::invokeMethod(this, [this, mute]() {
+        if (m_pipeline) {
+            m_pipeline->setMuted(mute);
+        }
     }, Qt::QueuedConnection);
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "SetMuteResponse",
-        "urn:schemas-upnp-org:service:RenderingControl:1", nullptr, nullptr);
+        kRcServiceType, nullptr, nullptr);
     return UPNP_E_SUCCESS;
 }
 
 int DlnaHandler::onGetMute(const void* /*req*/, void** result) {
+    bool muted = (m_pipeline) ? m_pipeline->isMuted() : false;
+
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetMuteResponse",
-        "urn:schemas-upnp-org:service:RenderingControl:1",
-        "CurrentMute", "0");
+        kRcServiceType, "CurrentMute", muted ? "1" : "0");
     return UPNP_E_SUCCESS;
 }
 
-// ── ConnectionManager action stubs ────────────────────────────────────────────
+// ── ConnectionManager actions ──────────────────────────────────────────────────
 
 int DlnaHandler::onGetProtocolInfo(const void* /*req*/, void** result) {
     // D-07: Broad format support list for SinkProtocolInfo
@@ -388,20 +562,23 @@ int DlnaHandler::onGetProtocolInfo(const void* /*req*/, void** result) {
         "http-get:*:video/mpeg:*,"
         "http-get:*:video/x-matroska:*,"
         "http-get:*:video/avi:*,"
+        "http-get:*:video/x-msvideo:*,"
         "http-get:*:audio/mpeg:*,"
         "http-get:*:audio/mp4:*,"
         "http-get:*:audio/flac:*,"
         "http-get:*:audio/wav:*,"
-        "http-get:*:audio/x-ms-wma:*";
+        "http-get:*:audio/x-wav:*,"
+        "http-get:*:audio/x-ms-wma:*,"
+        "http-get:*:audio/L16:*,"
+        "http-get:*:video/x-flv:*,"
+        "http-get:*:video/3gpp:*";
 
     auto** doc = reinterpret_cast<IXML_Document**>(result);
     *doc = nullptr;
     UpnpAddToActionResponse(doc, "GetProtocolInfoResponse",
-        "urn:schemas-upnp-org:service:ConnectionManager:1",
-        "Source", "");
+        kCmServiceType, "Source", "");
     UpnpAddToActionResponse(doc, "GetProtocolInfoResponse",
-        "urn:schemas-upnp-org:service:ConnectionManager:1",
-        "Sink", kSinkProtocolInfo);
+        kCmServiceType, "Sink", kSinkProtocolInfo);
     return UPNP_E_SUCCESS;
 }
 
