@@ -52,6 +52,20 @@ public:
     //   "audio/x-alac,channels=2,rate=44100,samplesize=16"                  (ALAC)
     void setAudioCaps(const char* capsString);
 
+    // Phase 5: URI-based pipeline for DLNA media playback (D-04, D-05)
+    // Pipeline: uridecodebin ! [video: videoconvert ! glupload ! qml6glsink]
+    //                          [audio: audioconvert ! audioresample ! volume ! autoaudiosink]
+    bool initUriPipeline(void* qmlVideoItem);
+    void setUri(const std::string& uri);
+    void playUri();
+    void pauseUri();
+    void stopUri();
+    gint64 queryPosition() const;   // nanoseconds, or -1
+    gint64 queryDuration() const;   // nanoseconds, or -1
+    void seekUri(gint64 positionNs);
+    void setVolume(double volume);  // 0.0-1.0; applied to uri volume element
+    double getVolume() const;       // returns current volume (0.0-1.0)
+
 private:
     GstElement* m_pipeline        = nullptr;
     GstElement* m_decoderPipeline = nullptr;
@@ -61,6 +75,12 @@ private:
     bool        m_muted           = false;
     std::optional<DecoderInfo> m_activeDecoder;
     DecoderSelectedCallback    m_decoderCallback;
+
+    // Phase 5: URI-based pipeline members (separate from appsrc pipeline)
+    GstElement* m_uriPipeline  = nullptr;  // separate pipeline for URI mode
+    GstElement* m_uriDecodebin = nullptr;  // kept for uri property access
+    GstElement* m_uriAudioSink = nullptr;  // for mute/volume control in URI mode
+    GstElement* m_uriVolume    = nullptr;  // volume element for SetVolume
 
     // Static member callback for decodebin "element-added" signal (Plan 03).
     // Declared here so it has natural access to private members via the
