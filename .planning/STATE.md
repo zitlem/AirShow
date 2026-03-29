@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-google-cast plan 01 (CASTV2 protocol layer)
-last_updated: "2026-03-29T04:23:06.651Z"
+stopped_at: Completed 06-google-cast plan 02 (WebRTC media pipeline for Cast)
+last_updated: "2026-03-29T04:33:59.599Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 06 (google-cast) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -68,6 +68,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05-dlna P02 | 2 | 2 tasks | 1 files |
 | Phase 05-dlna P03 | 10 | 2 tasks | 2 files |
 | Phase 06-google-cast P01 | 10 | 2 tasks | 9 files |
+| Phase 06-google-cast P02 | 8 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 - [Phase 06-google-cast]: libprotobuf vendored to /tmp/protobuf-dev via apt-get download + dpkg-deb; protoc wrapped in /tmp/protoc-wrapper.sh with LD_LIBRARY_PATH for libprotoc.so.32
 - [Phase 06-google-cast]: CastSession TCP framing uses accumulation buffer state machine (ReadState enum) — never blocking socket reads per Pitfall 6
 - [Phase 06-google-cast]: Cast auth bypass: (QDateTime::currentSecsSinceEpoch()/172800)%795 indexes into 795x256-byte precomputed RSA-2048 signature table from cast_auth_sigs.h; placeholder data pending AirReceiver APK extraction
+- [Phase 06-google-cast]: buildSdpFromOffer() made public static for unit test access without friend declarations
+- [Phase 06-google-cast]: AES-CTR decrypt chain not inserted in pipeline — keys stored but decrypt step deferred pending field testing (RESEARCH.md Open Question 1)
+- [Phase 06-google-cast]: play() extended to also transition m_webrtcPipeline to PLAYING — avoids adding playWebrtcPipeline() to public API
 
 ### Pending Todos
 
@@ -137,6 +141,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T04:23:06.647Z
-Stopped at: Completed 06-google-cast plan 01 (CASTV2 protocol layer)
+Last session: 2026-03-29T04:33:59.595Z
+Stopped at: Completed 06-google-cast plan 02 (WebRTC media pipeline for Cast)
 Resume file: None

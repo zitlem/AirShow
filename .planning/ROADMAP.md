@@ -109,7 +109,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 06-01-PLAN.md — Protobuf codegen, CastHandler TLS server, CastSession CASTV2 framing and namespace dispatch, test scaffold
-- [ ] 06-02-PLAN.md — MediaPipeline WebRTC mode (webrtcbin), Cast OFFER/ANSWER SDP translation, VP8/Opus decode, AES-CTR decrypt
+- [x] 06-02-PLAN.md — MediaPipeline WebRTC mode (webrtcbin), Cast OFFER/ANSWER SDP translation, VP8/Opus decode, AES-CTR decrypt
 - [ ] 06-03-PLAN.md — main.cpp wiring, plugin checks, integration tests, end-to-end Chrome tab cast verification
 
 ### Phase 7: Security & Hardening
@@ -144,6 +144,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
-| 6. Google Cast | 1/3 | In Progress|  |
+| 6. Google Cast | 2/3 | In Progress|  |
 | 7. Security & Hardening | 0/? | Not started | - |
 | 8. Miracast | 0/? | Not started | - |
