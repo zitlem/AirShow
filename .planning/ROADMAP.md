@@ -106,7 +106,11 @@ Plans:
   1. An Android device can select MyAirShow from the Cast menu and mirror its screen to the receiver
   2. Chrome browser's "Cast tab" option sends a browser tab to MyAirShow for display
   3. Audio from the casting device plays through the receiver's speakers in sync with the video
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 06-01-PLAN.md — Protobuf codegen, CastHandler TLS server, CastSession CASTV2 framing and namespace dispatch, test scaffold
+- [ ] 06-02-PLAN.md — MediaPipeline WebRTC mode (webrtcbin), Cast OFFER/ANSWER SDP translation, VP8/Opus decode, AES-CTR decrypt
+- [ ] 06-03-PLAN.md — main.cpp wiring, plugin checks, integration tests, end-to-end Chrome tab cast verification
 
 ### Phase 7: Security & Hardening
 **Goal**: Users control which devices can connect, credentials are stored safely, and the receiver is not exposed beyond the local network
@@ -131,7 +135,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -140,6 +144,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
-| 6. Google Cast | 0/? | Not started | - |
+| 6. Google Cast | 0/3 | Planning complete | - |
 | 7. Security & Hardening | 0/? | Not started | - |
 | 8. Miracast | 0/? | Not started | - |
