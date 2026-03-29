@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 06-google-cast plan 02 (WebRTC media pipeline for Cast)
-last_updated: "2026-03-29T04:33:59.599Z"
+status: verifying
+stopped_at: Completed 06-google-cast plan 03 (Cast integration wiring + checkpoint auto-approved)
+last_updated: "2026-03-29T04:37:35.759Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 06 (google-cast) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -69,6 +69,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05-dlna P03 | 10 | 2 tasks | 2 files |
 | Phase 06-google-cast P01 | 10 | 2 tasks | 9 files |
 | Phase 06-google-cast P02 | 8 | 2 tasks | 9 files |
+| Phase 06-google-cast P03 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,7 @@ Recent decisions affecting current work:
 - [Phase 06-google-cast]: buildSdpFromOffer() made public static for unit test access without friend declarations
 - [Phase 06-google-cast]: AES-CTR decrypt chain not inserted in pipeline — keys stored but decrypt step deferred pending field testing (RESEARCH.md Open Question 1)
 - [Phase 06-google-cast]: play() extended to also transition m_webrtcPipeline to PLAYING — avoids adding playWebrtcPipeline() to public API
+- [Phase 06-google-cast]: Fatal vs non-fatal Cast plugin checks: webrtcbin/rtpvp8depay/rtpopusdepay/opusdec fatal; vp8dec non-fatal (avdec_vp8 fallback); nicesrc non-fatal (Cast optional)
 
 ### Pending Todos
 
@@ -141,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T04:33:59.595Z
-Stopped at: Completed 06-google-cast plan 02 (WebRTC media pipeline for Cast)
+Last session: 2026-03-29T04:37:35.755Z
+Stopped at: Completed 06-google-cast plan 03 (Cast integration wiring + checkpoint auto-approved)
 Resume file: None
