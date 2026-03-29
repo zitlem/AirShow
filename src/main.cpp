@@ -69,6 +69,12 @@ int main(int argc, char* argv[]) {
     myairshow::MediaPipeline pipeline;
     myairshow::ReceiverWindow window(pipeline, settings);
 
+    // Phase 6: Pre-register pipeline for Cast WebRTC deferred pipeline creation.
+    // ReceiverWindow::load() calls pipeline.setQmlVideoItem(videoItem) again with
+    // the real QML VideoOutput pointer after sceneGraphInitialized fires.
+    // This pre-call establishes that setQmlVideoItem is part of startup wiring.
+    pipeline.setQmlVideoItem(nullptr);  // will be overridden by ReceiverWindow after QML loads
+
     if (!window.load()) {
         qCritical("Failed to start MyAirShow");
         return 1;

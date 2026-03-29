@@ -65,6 +65,11 @@ bool ReceiverWindow::load() {
                 qWarning("ReceiverWindow — could not find QML object named 'videoItem'");
             }
 
+            // Phase 6: store the QML video item pointer for deferred Cast WebRTC pipeline
+            // creation. CastSession::onWebrtc() calls initWebrtcPipeline() (no arg) which
+            // uses this stored pointer. Must be called before any Cast connection arrives.
+            m_pipeline.setQmlVideoItem(videoItem);
+
             if (!m_pipeline.init(videoItem)) {
                 qWarning("ReceiverWindow — MediaPipeline::init() failed");
                 return;

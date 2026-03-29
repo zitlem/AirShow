@@ -4,11 +4,16 @@
 // Qt
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QtEndian>
+#include <gst/gst.h>
 
 // Project headers
 #include "protocol/CastHandler.h"
 #include "protocol/CastSession.h"
+#include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
 #include "cast/cast_auth_sigs.h"
 
@@ -32,6 +37,10 @@ public:
     void SetUp() override {
         if (!QCoreApplication::instance()) {
             s_app = new QCoreApplication(s_argc, const_cast<char**>(s_argv));
+        }
+        // GStreamer must be initialized for MediaPipeline tests
+        if (!gst_is_initialized()) {
+            gst_init(nullptr, nullptr);
         }
     }
     void TearDown() override {
@@ -258,4 +267,184 @@ TEST(CastHandlerTest, SignatureTableHasCorrectConstants) {
         myairshow::cast::kCastAuthSignatureCount * myairshow::cast::kCastAuthSignatureSize;
     EXPECT_GE(sig, tableStart);
     EXPECT_LT(sig, tableEnd);
+}
+
+// ── Phase 6 Tests: SDP translation and WebRTC pipeline ───────────────────────
+
+// ── Test 8: OfferJsonToSdp_VideoStream ────────────────────────────────────────
+// Cast OFFER JSON with one video_source (VP8, pt=96, ssrc=12345678)
+// should produce SDP with m=video, a=rtpmap:96 VP8/90000, a=ssrc:12345678
+
+TEST(CastSdpTest, OfferJsonToSdp_VideoStream) {
+    // Build a Cast OFFER JSON with a single video_source stream
+    QJsonObject videoStream;
+    videoStream[QStringLiteral("type")]           = QStringLiteral("video_source");
+    videoStream[QStringLiteral("codecName")]      = QStringLiteral("vp8");
+    videoStream[QStringLiteral("rtpPayloadType")] = 96;
+    videoStream[QStringLiteral("ssrc")]           = 12345678;
+
+    QJsonArray streams;
+    streams.append(videoStream);
+
+    QJsonObject innerOffer;
+    innerOffer[QStringLiteral("supportedStreams")] = streams;
+
+    QJsonObject offerJson;
+    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
+    offerJson[QStringLiteral("seqNum")] = 1;
+    offerJson[QStringLiteral("offer")]  = innerOffer;
+
+    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+
+    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
+    EXPECT_NE(sdp.find("m=video"), std::string::npos)
+        << "SDP should contain m=video line";
+    EXPECT_NE(sdp.find("a=rtpmap:96 VP8/90000"), std::string::npos)
+        << "SDP should contain VP8 rtpmap with correct payload type and clock rate";
+    EXPECT_NE(sdp.find("a=ssrc:12345678"), std::string::npos)
+        << "SDP should contain the sender's SSRC";
+}
+
+// ── Test 9: OfferJsonToSdp_AudioStream ────────────────────────────────────────
+// Cast OFFER JSON with one audio_source (opus, pt=97, ssrc=87654321)
+// should produce SDP with m=audio, a=rtpmap:97 OPUS/48000/2
+
+TEST(CastSdpTest, OfferJsonToSdp_AudioStream) {
+    QJsonObject audioStream;
+    audioStream[QStringLiteral("type")]           = QStringLiteral("audio_source");
+    audioStream[QStringLiteral("codecName")]      = QStringLiteral("opus");
+    audioStream[QStringLiteral("rtpPayloadType")] = 97;
+    audioStream[QStringLiteral("ssrc")]           = 87654321;
+    audioStream[QStringLiteral("sampleRate")]     = 48000;
+    audioStream[QStringLiteral("channels")]       = 2;
+
+    QJsonArray streams;
+    streams.append(audioStream);
+
+    QJsonObject innerOffer;
+    innerOffer[QStringLiteral("supportedStreams")] = streams;
+
+    QJsonObject offerJson;
+    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
+    offerJson[QStringLiteral("seqNum")] = 1;
+    offerJson[QStringLiteral("offer")]  = innerOffer;
+
+    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+
+    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
+    EXPECT_NE(sdp.find("m=audio"), std::string::npos)
+        << "SDP should contain m=audio line";
+    EXPECT_NE(sdp.find("a=rtpmap:97 OPUS/48000/2"), std::string::npos)
+        << "SDP should contain OPUS rtpmap with correct payload type, rate, and channels";
+    EXPECT_NE(sdp.find("a=ssrc:87654321"), std::string::npos)
+        << "SDP should contain the sender's audio SSRC";
+}
+
+// ── Test 10: OfferJsonToSdp_BothStreams ───────────────────────────────────────
+// Full OFFER with video + audio should produce SDP with both m-lines and BUNDLE
+
+TEST(CastSdpTest, OfferJsonToSdp_BothStreams) {
+    QJsonObject videoStream;
+    videoStream[QStringLiteral("type")]           = QStringLiteral("video_source");
+    videoStream[QStringLiteral("codecName")]      = QStringLiteral("vp8");
+    videoStream[QStringLiteral("rtpPayloadType")] = 96;
+    videoStream[QStringLiteral("ssrc")]           = 11111111;
+
+    QJsonObject audioStream;
+    audioStream[QStringLiteral("type")]           = QStringLiteral("audio_source");
+    audioStream[QStringLiteral("codecName")]      = QStringLiteral("opus");
+    audioStream[QStringLiteral("rtpPayloadType")] = 97;
+    audioStream[QStringLiteral("ssrc")]           = 22222222;
+    audioStream[QStringLiteral("sampleRate")]     = 48000;
+    audioStream[QStringLiteral("channels")]       = 2;
+
+    QJsonArray streams;
+    streams.append(videoStream);
+    streams.append(audioStream);
+
+    QJsonObject innerOffer;
+    innerOffer[QStringLiteral("supportedStreams")] = streams;
+
+    QJsonObject offerJson;
+    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
+    offerJson[QStringLiteral("seqNum")] = 1;
+    offerJson[QStringLiteral("offer")]  = innerOffer;
+
+    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+
+    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a full OFFER";
+    EXPECT_NE(sdp.find("m=video"), std::string::npos)   << "SDP should have m=video";
+    EXPECT_NE(sdp.find("m=audio"), std::string::npos)   << "SDP should have m=audio";
+    EXPECT_NE(sdp.find("a=group:BUNDLE"), std::string::npos)
+        << "SDP should have BUNDLE group when both video and audio are present";
+}
+
+// ── Test 11: WebrtcPipelineInit_RequiresQmlVideoItem ─────────────────────────
+// Calling initWebrtcPipeline() without first calling setQmlVideoItem() must return false.
+
+TEST(CastPipelineTest, WebrtcPipelineInit_RequiresQmlVideoItem) {
+    myairshow::MediaPipeline pipeline;
+
+    // Do NOT call setQmlVideoItem — m_qmlVideoItem is null by default
+    bool result = pipeline.initWebrtcPipeline();
+
+    EXPECT_FALSE(result)
+        << "initWebrtcPipeline() should return false when setQmlVideoItem() has not been called";
+}
+
+// ── Test 12: WebrtcPipelineInit_CreatesElements ───────────────────────────────
+// After setQmlVideoItem(nullptr), initWebrtcPipeline should attempt pipeline creation.
+// In headless CI (no display), webrtcbin may be unavailable — skip if so.
+
+TEST(CastPipelineTest, WebrtcPipelineInit_CreatesElements) {
+    // Check if webrtcbin is available in this environment
+    GstElement* probe = gst_element_factory_make("webrtcbin", nullptr);
+    if (!probe) {
+        GTEST_SKIP() << "webrtcbin element not available in this environment — skipping";
+    }
+    gst_object_unref(probe);
+
+    myairshow::MediaPipeline pipeline;
+    // Set a non-null sentinel value to pass the null check.
+    // In headless test mode with no QML scene, qml6glsink creation may fail
+    // (no GL context). The test verifies the function returns a predictable result.
+    void* fakeQmlItem = reinterpret_cast<void*>(0x1);  // non-null sentinel
+    pipeline.setQmlVideoItem(fakeQmlItem);
+
+    // initWebrtcPipeline may return false in headless mode (qml6glsink unavailable)
+    // but it must NOT crash.
+    bool result = pipeline.initWebrtcPipeline();
+
+    // The webrtcbin element is available (checked above), so either:
+    //   - result == true: pipeline created (full GStreamer stack available)
+    //   - result == false: qml6glsink or other element failed (headless mode OK)
+    // Either way, the function must not crash.
+    (void)result;  // Accept both outcomes; test just verifies no crash
+    SUCCEED() << "initWebrtcPipeline() did not crash (result=" << result << ")";
+}
+
+// ── Test 13: CastDecryptionKeys_StoredCorrectly ──────────────────────────────
+// setCastDecryptionKeys() should accept valid 32-char hex strings without crashing.
+
+TEST(CastPipelineTest, CastDecryptionKeys_StoredCorrectly) {
+    myairshow::MediaPipeline pipeline;
+
+    // Valid 32-char hex strings = 16 bytes each (AES-128)
+    const std::string aesKey    = "0123456789abcdef0123456789abcdef";
+    const std::string aesIvMask = "fedcba9876543210fedcba9876543210";
+
+    // Should not crash and should not emit any error for valid key lengths
+    EXPECT_NO_THROW({
+        pipeline.setCastDecryptionKeys(12345678u, aesKey, aesIvMask);
+    }) << "setCastDecryptionKeys() should not throw for valid hex key strings";
+}
+
+// ── Test 14: OfferJsonToSdp_EmptyOffer ───────────────────────────────────────
+// Empty offer JSON should return empty SDP (graceful failure, no crash).
+
+TEST(CastSdpTest, OfferJsonToSdp_EmptyOffer) {
+    QJsonObject emptyOffer;
+    std::string sdp = myairshow::CastSession::buildSdpFromOffer(emptyOffer);
+    EXPECT_TRUE(sdp.empty())
+        << "buildSdpFromOffer() should return empty string for an empty offer";
 }

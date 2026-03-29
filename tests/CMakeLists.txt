@@ -147,4 +147,10 @@ target_link_libraries(test_cast PRIVATE
   ${Protobuf_LIBRARIES}
 )
 
+# Phase 6: Link GStreamer WebRTC/SDP for MediaPipeline::initWebrtcPipeline (Plan 02)
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(test_cast PRIVATE PkgConfig::GST_WEBRTC)
+  target_compile_definitions(test_cast PRIVATE GST_USE_UNSTABLE_API)
+endif()
+
 gtest_discover_tests(test_cast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
