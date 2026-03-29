@@ -3,6 +3,10 @@
 #include <gst/gst.h>
 #include <optional>
 #include <functional>
+#include <cstdint>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace myairshow {
 
@@ -73,6 +77,37 @@ public:
     void setVolume(double volume);  // 0.0-1.0; applied to uri volume element
     double getVolume() const;       // returns current volume (0.0-1.0)
 
+    // Phase 6: WebRTC pipeline for Cast mirroring (VP8/Opus via DTLS-SRTP)
+    //
+    // Store the QML VideoOutput item pointer for later pipeline creation.
+    // Called once at startup from ReceiverWindow/main.cpp before any Cast connection.
+    // This is needed because CastSession::onWebrtc() creates the pipeline at
+    // message-receive time but has no direct access to the QML scene graph item.
+    void setQmlVideoItem(void* qmlVideoItem);
+
+    // Creates a webrtcbin element in a new pipeline with VP8 video and Opus audio
+    // decode chains, using the stored m_qmlVideoItem set via setQmlVideoItem().
+    // Returns false if m_qmlVideoItem is null (setQmlVideoItem not called).
+    bool initWebrtcPipeline();
+
+    // Feed a remote SDP offer to webrtcbin. Returns false if webrtcbin rejects it.
+    // sdpOffer: standard SDP string (translated from Cast OFFER JSON by CastSession).
+    bool setRemoteOffer(const std::string& sdpOffer);
+
+    // Get the local SDP answer from webrtcbin after setRemoteOffer succeeds.
+    // Returns empty string on failure. CastSession translates this back to Cast ANSWER JSON.
+    std::string getLocalAnswer();
+
+    // Set Cast AES-CTR decryption keys for a given SSRC stream.
+    // Called by CastSession after parsing OFFER JSON aesKey/aesIvMask fields.
+    // Keys are stored and conditionally applied during pad-added decryption.
+    void setCastDecryptionKeys(uint32_t ssrc,
+                               const std::string& aesKeyHex,
+                               const std::string& aesIvMaskHex);
+
+    // Get the webrtcbin element (for external ICE candidate injection if needed).
+    GstElement* webrtcbin() const { return m_webrtcbin; }
+
 private:
     GstElement* m_pipeline        = nullptr;
     GstElement* m_decoderPipeline = nullptr;
@@ -89,6 +124,21 @@ private:
     GstElement* m_uriDecodebin = nullptr;  // kept for uri property access
     GstElement* m_uriAudioSink = nullptr;  // for mute/volume control in URI mode
     GstElement* m_uriVolume    = nullptr;  // volume element for SetVolume
+
+    // Phase 6: WebRTC pipeline members (separate pipeline for Cast mirroring)
+    void*       m_qmlVideoItem   = nullptr;  // stored by setQmlVideoItem()
+    GstElement* m_webrtcPipeline = nullptr;  // pipeline for webrtcbin
+    GstElement* m_webrtcbin      = nullptr;  // the webrtcbin element
+
+    // Cast AES-CTR decryption keys per SSRC (conditional: only applied when key is present)
+    struct CastCryptoKeys {
+        std::vector<uint8_t> aesKey;     // 16 bytes (128-bit)
+        std::vector<uint8_t> aesIvMask;  // 16 bytes (128-bit)
+    };
+    std::map<uint32_t, CastCryptoKeys> m_castCryptoKeys;
+
+    // Stored SDP answer from webrtcbin after setRemoteOffer()
+    std::string m_localAnswerSdp;
 
     // Static member callback for decodebin "element-added" signal (Plan 03).
     // Declared here so it has natural access to private members via the
