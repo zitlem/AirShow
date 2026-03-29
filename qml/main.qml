@@ -5,8 +5,12 @@ import org.freedesktop.gstreamer.Qt6GLVideoItem 1.0
 
 Window {
     id: root
-    // D-10: Application launches fullscreen by default on the primary display
-    visibility: Window.FullScreen
+    // D-10: Application launches fullscreen by default on the primary display.
+    // Pass --windowed on the command line to run in a normal window instead.
+    visibility: Qt.application.arguments.indexOf("--windowed") !== -1
+                ? Window.Windowed : Window.FullScreen
+    width: 1280
+    height: 720
     color: "black"
     title: "MyAirShow"
     visible: true
@@ -35,6 +39,69 @@ Window {
         anchors.horizontalCenter: parent.horizontalCenter
     }
 
+    // Track mouse movement to show/hide controls overlay
+    MouseArea {
+        id: mouseTracker
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+
+        property bool controlsVisible: false
+
+        onPositionChanged: {
+            controlsVisible = true
+            hideTimer.restart()
+        }
+
+        Timer {
+            id: hideTimer
+            interval: 3000
+            onTriggered: mouseTracker.controlsVisible = false
+        }
+    }
+
+    // Close button — appears top-right when mouse moves
+    Item {
+        id: closeButton
+        anchors {
+            top: parent.top
+            right: parent.right
+            topMargin: 16
+            rightMargin: 16
+        }
+        width: 40
+        height: 40
+        opacity: mouseTracker.controlsVisible ? 0.9 : 0
+        visible: opacity > 0
+
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+        Rectangle {
+            anchors.fill: parent
+            color: hovered ? "#E0FF4444" : "#B3000000"
+            radius: 20
+
+            property bool hovered: closeMouseArea.containsMouse
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "\u2715"
+            color: "white"
+            font.pixelSize: 20
+            font.family: "sans-serif"
+        }
+
+        MouseArea {
+            id: closeMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Qt.quit()
+        }
+    }
+
     // Mute toggle button — D-08 / FOUND-04
     // Styled to match overlay aesthetic (D-15): dark semi-transparent background, white text.
     // Wires to AudioBridge QObject exposed as audioBridge context property.
@@ -47,7 +114,10 @@ Window {
         }
         width: muteLabel.width + 32
         height: muteLabel.height + 16
-        opacity: 0.8
+        opacity: mouseTracker.controlsVisible ? 0.8 : 0
+        visible: opacity > 0
+
+        Behavior on opacity { NumberAnimation { duration: 200 } }
 
         Rectangle {
             anchors.fill: parent

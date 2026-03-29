@@ -23,7 +23,8 @@ private:
     QQmlApplicationEngine m_engine;
     MediaPipeline&        m_pipeline;
     AppSettings&          m_settings;
-    ConnectionBridge*     m_connectionBridge = nullptr;
+    ConnectionBridge*     m_connectionBridge    = nullptr;
+    bool                  m_pipelineInitialized = false;
 };
 
 } // namespace myairshow

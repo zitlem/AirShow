@@ -6,6 +6,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QUrl>
+#include <QQuickWindow>
 #include <gst/gst.h>
 #include <QDebug>
 
@@ -41,25 +42,37 @@ bool ReceiverWindow::load() {
     m_engine.rootContext()->setContextProperty("appSettings", settingsBridge);
 
     // Load QML (GstGLQt6VideoItem is now registered, all context properties set)
-    m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/MyAirShow/qml/main.qml")));
+    m_engine.load(QUrl(QStringLiteral("qrc:/MyAirShow/qml/main.qml")));
 
     if (m_engine.rootObjects().isEmpty()) {
         qWarning("ReceiverWindow::load — QML engine failed to load main.qml");
         return false;
     }
 
-    // Retrieve GstGLVideoItem by objectName "videoItem" (set in main.qml)
+    // qml6glsink needs the QQuickWindow's OpenGL context, which doesn't exist
+    // until the scene graph is initialized. Connect to that signal and defer
+    // pipeline init until the GL context is ready.
     QObject* rootObject = m_engine.rootObjects().first();
-    QObject* videoItem  = rootObject->findChild<QObject*>("videoItem");
+    auto* window = qobject_cast<QQuickWindow*>(rootObject);
+    if (window) {
+        QObject::connect(window, &QQuickWindow::sceneGraphInitialized,
+                         [this, rootObject]() {
+            if (m_pipelineInitialized) return;
+            m_pipelineInitialized = true;
 
-    if (!videoItem) {
-        qWarning("ReceiverWindow::load — could not find QML object named 'videoItem'");
-        // Still proceed: pipeline will run without video sink widget (audio-only mode)
-    }
+            QObject* videoItem = rootObject->findChild<QObject*>("videoItem");
+            if (!videoItem) {
+                qWarning("ReceiverWindow — could not find QML object named 'videoItem'");
+            }
 
-    // Initialise the pipeline with the QML item (D-04)
-    if (!m_pipeline.init(videoItem)) {
-        qWarning("ReceiverWindow::load — MediaPipeline::init() failed");
+            if (!m_pipeline.init(videoItem)) {
+                qWarning("ReceiverWindow — MediaPipeline::init() failed");
+                return;
+            }
+            m_pipeline.play();
+        });
+    } else {
+        qWarning("ReceiverWindow::load — root object is not a QQuickWindow");
         return false;
     }
 

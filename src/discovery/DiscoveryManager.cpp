@@ -45,7 +45,7 @@ bool DiscoveryManager::start() {
     // --- _airplay._tcp (DISC-01) ---
     std::vector<TxtRecord> airplayTxt = {
         {"deviceid", mac},
-        {"features", "0x5A7FFFF7,0x1E"},
+        {"features", "0x5A7FFEE6,0x1E"},
         {"model",    "AppleTV3,2"},
         {"srcvers",  "220.68"},
         {"pk",       pkPlaceholder},
@@ -71,7 +71,7 @@ bool DiscoveryManager::start() {
         {"vs",      "220.68"},
         {"am",      "AppleTV3,2"},
         {"pk",      pkPlaceholder},
-        {"ft",      "0x5A7FFFF7,0x1E"},
+        {"ft",      "0x5A7FFEE6,0x1E"},
     };
     m_advertiser->advertise("_raop._tcp", raopName, kAirPlayPort, raopTxt);
 

@@ -91,16 +91,29 @@ bool MediaPipeline::init(void* qmlVideoItem) {
     m_pipeline  = pipeline;
     m_audioSink = audioSink;
 
-    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+    // Start in PAUSED first — qml6glsink needs the QML scene to render at least
+    // one frame before the GL context is available. Going straight to PLAYING fails
+    // with "Could not initialize window system" if the context isn't ready yet.
+    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        g_warning("MediaPipeline::init — GST_STATE_CHANGE_FAILURE");
+        g_warning("MediaPipeline::init — GST_STATE_CHANGE_FAILURE (PAUSED)");
         gst_object_unref(m_pipeline);
         m_pipeline  = nullptr;
         m_audioSink = nullptr;
         return false;
     }
 
+    m_needsPlay = true;
     return true;
+}
+
+void MediaPipeline::play() {
+    if (!m_pipeline) return;
+    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_warning("MediaPipeline::play — GST_STATE_CHANGE_FAILURE");
+    }
+    m_needsPlay = false;
 }
 
 bool MediaPipeline::initDecoderPipeline() {
