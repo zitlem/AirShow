@@ -58,6 +58,7 @@ qt_add_executable(myairshow
   src/ui/SettingsBridge.cpp
   src/protocol/ProtocolManager.cpp
   src/protocol/AirPlayHandler.cpp
+  src/protocol/DlnaHandler.cpp
   src/settings/AppSettings.cpp
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
@@ -102,6 +103,12 @@ endif()
 # Copy DLNA device description XML to build directory so UpnpAdvertiser can find it at runtime
 configure_file(resources/dlna/MediaRenderer.xml
                ${CMAKE_BINARY_DIR}/resources/dlna/MediaRenderer.xml COPYONLY)
+configure_file(resources/dlna/avt-scpd.xml
+               ${CMAKE_BINARY_DIR}/resources/dlna/avt-scpd.xml COPYONLY)
+configure_file(resources/dlna/rc-scpd.xml
+               ${CMAKE_BINARY_DIR}/resources/dlna/rc-scpd.xml COPYONLY)
+configure_file(resources/dlna/cm-scpd.xml
+               ${CMAKE_BINARY_DIR}/resources/dlna/cm-scpd.xml COPYONLY)
 
 # Tests
 enable_testing()

@@ -5,11 +5,11 @@
 namespace myairshow {
 
 class AppSettings;
+class DlnaHandler;  // forward declaration for SOAP routing (D-02)
 
 // DLNA SSDP advertisement using libupnp (pupnp).
 // Implements UPnP MediaRenderer:1 device advertisement.
-// In Phase 2, all SOAP actions return 501 Not Implemented.
-// Phase 5 will replace the SOAP callback with real AVTransport logic.
+// Phase 5: Routes SOAP action events to DlnaHandler via cookie pointer (D-02).
 class UpnpAdvertiser {
 public:
     // deviceXmlTemplatePath: path to resources/dlna/MediaRenderer.xml
@@ -17,6 +17,7 @@ public:
     ~UpnpAdvertiser();
 
     // Start SSDP advertisement. Returns false if libupnp unavailable or init fails.
+    // Writes SCPD XML files to temp dir before registering root device (Pitfall 2).
     bool start();
 
     // Stop SSDP advertisement and clean up libupnp.
@@ -24,8 +25,16 @@ public:
 
     bool isRunning() const;
 
+    // Set DlnaHandler for SOAP action routing. Must be called before start().
+    // DlnaHandler pointer is threaded as cookie into UpnpRegisterRootDevice (Pattern 1).
+    void setDlnaHandler(DlnaHandler* handler);
+
+    // Write SCPD XML files to temp dir so libupnp's HTTP server serves them.
+    // Called by start() — also callable independently for testing.
+    void writeScpdFiles() const;
+
 private:
-    // SOAP action callback — all actions return 501 Not Implemented in Phase 2.
+    // SOAP action callback — routes UPNP_CONTROL_ACTION_REQUEST to DlnaHandler.
     // Signature matches Upnp_FunPtr exactly (libupnp/Callback.h).
     static int upnpCallback(Upnp_EventType_e eventType,
                             const void* event,
@@ -38,9 +47,10 @@ private:
 
     AppSettings*  m_settings;
     std::string   m_templatePath;
-    int           m_deviceHandle = -1;
-    bool          m_running      = false;
+    int           m_deviceHandle  = -1;
+    bool          m_running       = false;
     std::string   m_runtimeXmlPath;  // path to temp XML written at start()
+    DlnaHandler*  m_dlnaHandler   = nullptr;  // for SOAP routing via cookie (D-02)
 };
 
 } // namespace myairshow
