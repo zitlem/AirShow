@@ -32,8 +32,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Google Cast
 
-- [ ] **CAST-01**: User can cast their Android device screen to MyAirShow via Google Cast
-- [ ] **CAST-02**: User can cast a Chrome browser tab to MyAirShow via Google Cast
+- [x] **CAST-01**: User can cast their Android device screen to MyAirShow via Google Cast
+- [x] **CAST-02**: User can cast a Chrome browser tab to MyAirShow via Google Cast
 - [ ] **CAST-03**: Google Cast mirroring includes synchronized audio and video
 
 ### Miracast
@@ -111,8 +111,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DLNA-01 | Phase 5 | Complete |
 | DLNA-02 | Phase 5 | Complete |
 | DLNA-03 | Phase 5 | Complete |
-| CAST-01 | Phase 6 | Pending |
-| CAST-02 | Phase 6 | Pending |
+| CAST-01 | Phase 6 | Complete |
+| CAST-02 | Phase 6 | Complete |
 | CAST-03 | Phase 6 | Pending |
 | SEC-01 | Phase 7 | Pending |
 | SEC-02 | Phase 7 | Pending |

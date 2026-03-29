@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-29T03:24:34.940Z"
+status: executing
+stopped_at: Completed 06-google-cast plan 01 (CASTV2 protocol layer)
+last_updated: "2026-03-29T04:23:06.651Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 18
+  completed_plans: 16
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 05 — dlna
+**Current focus:** Phase 06 — google-cast
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 06 (google-cast) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -67,6 +67,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05-dlna P01 | 35 | 3 tasks | 12 files |
 | Phase 05-dlna P02 | 2 | 2 tasks | 1 files |
 | Phase 05-dlna P03 | 10 | 2 tasks | 2 files |
+| Phase 06-google-cast P01 | 10 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,9 @@ Recent decisions affecting current work:
 - [Phase 05-dlna]: SinkProtocolInfo expanded to 14 MIME types including video/x-msvideo, audio/L16, video/x-flv, video/3gpp
 - [Phase 05-dlna]: upnpAdvertiser.start() deferred until after DlnaHandler wiring — SOAP callback cookie must point to live handler (D-02)
 - [Phase 05-dlna]: DlnaHandler wiring uses scoped block with raw ptr capture before ownership transfer to ProtocolManager
+- [Phase 06-google-cast]: libprotobuf vendored to /tmp/protobuf-dev via apt-get download + dpkg-deb; protoc wrapped in /tmp/protoc-wrapper.sh with LD_LIBRARY_PATH for libprotoc.so.32
+- [Phase 06-google-cast]: CastSession TCP framing uses accumulation buffer state machine (ReadState enum) — never blocking socket reads per Pitfall 6
+- [Phase 06-google-cast]: Cast auth bypass: (QDateTime::currentSecsSinceEpoch()/172800)%795 indexes into 795x256-byte precomputed RSA-2048 signature table from cast_auth_sigs.h; placeholder data pending AirReceiver APK extraction
 
 ### Pending Todos
 
@@ -133,6 +137,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T03:24:34.930Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-google-cast/06-CONTEXT.md
+Last session: 2026-03-29T04:23:06.647Z
+Stopped at: Completed 06-google-cast plan 01 (CASTV2 protocol layer)
+Resume file: None
