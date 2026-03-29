@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-29T00:47:55.560Z"
-last_activity: 2026-03-28
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-29T01:26:32.062Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 04 — airplay
+**Current focus:** Phase 05 — dlna
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-28
+Phase: 05 (dlna) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -64,6 +64,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 04-airplay P01 | 7 | 2 tasks | 10 files |
 | Phase 04-airplay P02 | 15 | 2 tasks | 3 files |
 | Phase 04-airplay P03 | 5 | 2 tasks | 7 files |
+| Phase 05-dlna P01 | 35 | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,10 @@ Recent decisions affecting current work:
 - [Phase 04-airplay]: readPublicKeyFromKeyfile() uses OpenSSL PEM_read_PrivateKey + EVP_PKEY_get_raw_public_key — UxPlay writes PEM not 64-byte binary
 - [Phase 04-airplay]: DiscoveryManager::deviceId() added as public method - cleanest accessor for AirPlayHandler pairing without exposing internal readMacAddress static
 - [Phase 04-airplay]: test_airplay links full source chain including AvahiAdvertiser + PkgConfig::AVAHI on Linux - ServiceAdvertiser.cpp conditionally includes AvahiAdvertiser.h requiring avahi headers
+- [Phase 05-dlna]: DlnaHandler header uses glib.h for gint64 type (avoids full GStreamer pull in header)
+- [Phase 05-dlna]: parseTimeString/formatGstTime made public static for direct unit testing without friend declarations
+- [Phase 05-dlna]: writeScpdFiles uses inline static string literals for runtime SCPD content (simpler, no applicationDirPath dependency)
+- [Phase 05-dlna]: URI pipeline pre-links static audio/video chains before pad-added fires — uridecodebin pads connect via type-checked pad-added callback
 
 ### Pending Todos
 
@@ -121,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T00:47:55.557Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-dlna/05-CONTEXT.md
+Last session: 2026-03-29T01:26:32.059Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
