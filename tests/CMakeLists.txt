@@ -105,7 +105,15 @@ gtest_discover_tests(test_airplay
   PROPERTIES TIMEOUT 30
 )
 
-add_executable(test_dlna test_dlna.cpp)
+add_executable(test_dlna
+  test_dlna.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/DlnaHandler.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+)
 target_include_directories(test_dlna PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_dlna PRIVATE GTest::gtest_main)
+target_link_libraries(test_dlna PRIVATE
+  GTest::gtest_main GTest::gmock
+  Qt6::Core PkgConfig::GST PkgConfig::UPNP
+)
 gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
