@@ -213,6 +213,10 @@ void MediaPipeline::setMuted(bool muted) {
     if (m_audioSink) {
         g_object_set(m_audioSink, "volume", muted ? 0.0 : 1.0, nullptr);
     }
+    // Phase 5: Also mute the URI pipeline volume element if active
+    if (m_uriVolume) {
+        g_object_set(m_uriVolume, "volume", muted ? 0.0 : 1.0, nullptr);
+    }
 }
 
 bool MediaPipeline::isMuted() const {
@@ -240,6 +244,15 @@ void MediaPipeline::stop() {
         gst_element_set_state(m_decoderPipeline, GST_STATE_NULL);
         gst_object_unref(m_decoderPipeline);
         m_decoderPipeline = nullptr;
+    }
+    // Phase 5: clean up URI pipeline
+    if (m_uriPipeline) {
+        gst_element_set_state(m_uriPipeline, GST_STATE_NULL);
+        gst_object_unref(m_uriPipeline);
+        m_uriPipeline  = nullptr;
+        m_uriDecodebin = nullptr;
+        m_uriAudioSink = nullptr;
+        m_uriVolume    = nullptr;
     }
 }
 
@@ -417,6 +430,208 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     }
 
     return true;
+}
+
+// ── Phase 5: URI-based pipeline (uridecodebin) ────────────────────────────────
+
+bool MediaPipeline::initUriPipeline(void* qmlVideoItem) {
+    // D-04, D-05: URI-based pipeline for DLNA media playback.
+    // Pipeline: uridecodebin ! [video: videoconvert ! glupload ! qml6glsink (or fakesink)]
+    //                          [audio: audioconvert ! audioresample ! volume ! autoaudiosink]
+    // uridecodebin emits pad-added for each decoded stream — pads are connected
+    // dynamically via the same pattern as initAppsrcPipeline.
+
+    GstElement* pipeline      = gst_pipeline_new("uri-pipeline");
+    GstElement* uridecodebin  = gst_element_factory_make("uridecodebin",   "urisrc");
+    GstElement* audioConvert  = gst_element_factory_make("audioconvert",   "uri-audioconvert");
+    GstElement* audioResample = gst_element_factory_make("audioresample",  "uri-audioresample");
+    GstElement* volume        = gst_element_factory_make("volume",         "uri-volume");
+    GstElement* audioSink     = gst_element_factory_make("autoaudiosink",  "uri-audiosink");
+
+    const bool useGlSink  = (qmlVideoItem != nullptr);
+    GstElement* videoConvert = gst_element_factory_make("videoconvert",  "uri-videoconvert");
+    GstElement* glUpload     = useGlSink ? gst_element_factory_make("glupload",   "uri-glupload") : nullptr;
+    GstElement* videoSink    = useGlSink
+        ? gst_element_factory_make("qml6glsink", "uri-videosink")
+        : gst_element_factory_make("fakesink",   "uri-videosink");
+
+    if (!pipeline || !uridecodebin || !audioConvert || !audioResample || !volume || !audioSink ||
+        !videoConvert || !videoSink || (useGlSink && !glUpload)) {
+        g_warning("MediaPipeline::initUriPipeline — failed to create one or more GStreamer elements");
+        if (pipeline)      gst_object_unref(pipeline);
+        if (uridecodebin)  gst_object_unref(uridecodebin);
+        if (audioConvert)  gst_object_unref(audioConvert);
+        if (audioResample) gst_object_unref(audioResample);
+        if (volume)        gst_object_unref(volume);
+        if (audioSink)     gst_object_unref(audioSink);
+        if (videoConvert)  gst_object_unref(videoConvert);
+        if (glUpload)      gst_object_unref(glUpload);
+        if (videoSink)     gst_object_unref(videoSink);
+        return false;
+    }
+
+    // Configure qml6glsink widget before state change
+    if (useGlSink) {
+        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
+    }
+
+    // Add all elements to pipeline — uridecodebin is not linked to sinks yet;
+    // dynamic pads will be linked via pad-added callback
+    if (useGlSink) {
+        gst_bin_add_many(GST_BIN(pipeline),
+            uridecodebin, videoConvert, glUpload, videoSink,
+            audioConvert, audioResample, volume, audioSink,
+            nullptr);
+    } else {
+        gst_bin_add_many(GST_BIN(pipeline),
+            uridecodebin, videoConvert, videoSink,
+            audioConvert, audioResample, volume, audioSink,
+            nullptr);
+    }
+
+    // Pre-link the static parts of audio chain: audioconvert ! audioresample ! volume ! autoaudiosink
+    // These are linked now; uridecodebin audio pad will link to audioconvert's sink in pad-added
+    if (!gst_element_link_many(audioConvert, audioResample, volume, audioSink, nullptr)) {
+        g_warning("MediaPipeline::initUriPipeline — failed to pre-link audio chain");
+        gst_object_unref(pipeline);
+        return false;
+    }
+
+    // Pre-link video chain: videoconvert [! glupload] ! videosink
+    if (useGlSink) {
+        if (!gst_element_link_many(videoConvert, glUpload, videoSink, nullptr)) {
+            g_warning("MediaPipeline::initUriPipeline — failed to pre-link video chain (GL)");
+            gst_object_unref(pipeline);
+            return false;
+        }
+    } else {
+        if (!gst_element_link(videoConvert, videoSink)) {
+            g_warning("MediaPipeline::initUriPipeline — failed to pre-link video chain (fake)");
+            gst_object_unref(pipeline);
+            return false;
+        }
+    }
+
+    // Connect pad-added signal on uridecodebin to link audio/video pads dynamically.
+    // Payload carries the first elements of each branch's pre-linked chain.
+    struct UriPadHelper {
+        GstElement* videoConvert;
+        GstElement* audioConvert;
+    };
+    auto* padData = new UriPadHelper{videoConvert, audioConvert};
+
+    struct UriPadAddedCallback {
+        static void callback(GstElement* /*decodebin*/, GstPad* pad, gpointer data) {
+            auto* payload = static_cast<UriPadHelper*>(data);
+
+            // Determine pad type from caps
+            GstCaps* padCaps = gst_pad_get_current_caps(pad);
+            if (!padCaps) padCaps = gst_pad_query_caps(pad, nullptr);
+            if (!padCaps) return;
+
+            const GstStructure* s = gst_caps_get_structure(padCaps, 0);
+            const gchar* mediaType = gst_structure_get_name(s);
+            gst_caps_unref(padCaps);
+
+            if (g_str_has_prefix(mediaType, "video/")) {
+                GstPad* sinkPad = gst_element_get_static_pad(payload->videoConvert, "sink");
+                if (sinkPad && !GST_PAD_IS_LINKED(sinkPad)) {
+                    if (gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+                        g_warning("MediaPipeline::initUriPipeline — video pad-added link failed");
+                    }
+                }
+                if (sinkPad) gst_object_unref(sinkPad);
+            } else if (g_str_has_prefix(mediaType, "audio/")) {
+                GstPad* sinkPad = gst_element_get_static_pad(payload->audioConvert, "sink");
+                if (sinkPad && !GST_PAD_IS_LINKED(sinkPad)) {
+                    if (gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+                        g_warning("MediaPipeline::initUriPipeline — audio pad-added link failed");
+                    }
+                }
+                if (sinkPad) gst_object_unref(sinkPad);
+            }
+        }
+    };
+
+    g_signal_connect(uridecodebin, "pad-added",
+                     G_CALLBACK(UriPadAddedCallback::callback), padData);
+
+    m_uriPipeline  = pipeline;
+    m_uriDecodebin = uridecodebin;
+    m_uriAudioSink = audioSink;
+    m_uriVolume    = volume;
+
+    return true;
+}
+
+void MediaPipeline::setUri(const std::string& uri) {
+    if (!m_uriPipeline || !m_uriDecodebin) {
+        g_warning("MediaPipeline::setUri — URI pipeline not initialized");
+        return;
+    }
+    // Stop to NULL before changing URI (Pitfall 4 from RESEARCH.md)
+    gst_element_set_state(m_uriPipeline, GST_STATE_NULL);
+    g_object_set(m_uriDecodebin, "uri", uri.c_str(), nullptr);
+    // PAUSED prerolls the pipeline (buffers, but does not play)
+    gst_element_set_state(m_uriPipeline, GST_STATE_PAUSED);
+}
+
+void MediaPipeline::playUri() {
+    if (m_uriPipeline) {
+        gst_element_set_state(m_uriPipeline, GST_STATE_PLAYING);
+    }
+}
+
+void MediaPipeline::pauseUri() {
+    if (m_uriPipeline) {
+        gst_element_set_state(m_uriPipeline, GST_STATE_PAUSED);
+    }
+}
+
+void MediaPipeline::stopUri() {
+    if (m_uriPipeline) {
+        gst_element_set_state(m_uriPipeline, GST_STATE_NULL);
+    }
+}
+
+gint64 MediaPipeline::queryPosition() const {
+    if (!m_uriPipeline) return -1;
+    gint64 pos = -1;
+    gst_element_query_position(m_uriPipeline, GST_FORMAT_TIME, &pos);
+    return pos;
+}
+
+gint64 MediaPipeline::queryDuration() const {
+    if (!m_uriPipeline) return -1;
+    gint64 dur = -1;
+    gst_element_query_duration(m_uriPipeline, GST_FORMAT_TIME, &dur);
+    return dur;
+}
+
+void MediaPipeline::seekUri(gint64 positionNs) {
+    if (!m_uriPipeline) return;
+    gst_element_seek_simple(m_uriPipeline, GST_FORMAT_TIME,
+        static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
+        positionNs);
+}
+
+void MediaPipeline::setVolume(double volume) {
+    if (m_uriVolume) {
+        g_object_set(m_uriVolume, "volume", volume, nullptr);
+    }
+    // Also set on appsrc pipeline audio sink if active (for consistency)
+    if (m_audioSink) {
+        g_object_set(m_audioSink, "volume", volume, nullptr);
+    }
+}
+
+double MediaPipeline::getVolume() const {
+    if (m_uriVolume) {
+        gdouble vol = 1.0;
+        g_object_get(m_uriVolume, "volume", &vol, nullptr);
+        return static_cast<double>(vol);
+    }
+    return 1.0;
 }
 
 void MediaPipeline::setAudioCaps(const char* capsString) {
