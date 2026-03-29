@@ -1,0 +1,69 @@
+// Source: Chromium source extensions/common/api/cast_channel/cast_channel.proto
+// CASTV2 wire protocol definition — length-prefixed protobuf over TLS port 8009.
+syntax = "proto2";
+
+package extensions.api.cast_channel;
+
+// Signature algorithm used in device authentication.
+enum SignatureAlgorithm {
+  UNSPECIFIED      = 0;
+  RSASSA_PKCS1v15  = 1;
+  RSASSA_PSS       = 2;
+}
+
+// Hash algorithm used in device authentication.
+enum HashAlgorithm {
+  SHA1   = 0;
+  SHA256 = 1;
+}
+
+// Every CASTV2 message is prefixed by a 4-byte big-endian uint32 length,
+// followed by a serialized CastMessage.
+message CastMessage {
+  enum ProtocolVersion { CASTV2_1_0 = 0; }
+  required ProtocolVersion protocol_version = 1;
+  required string source_id = 2;
+  required string destination_id = 3;
+  // Field name is "namespace" in the spec but "namespace_" in generated C++
+  // because "namespace" is a C++ keyword — protoc handles this automatically.
+  required string namespace = 4;
+  enum PayloadType { STRING = 0; BINARY = 1; }
+  required PayloadType payload_type = 5;
+  optional string payload_utf8 = 6;   // used when payload_type == STRING
+  optional bytes  payload_binary = 7; // used when payload_type == BINARY
+}
+
+// Sent by the sender on the deviceauth namespace to authenticate the receiver.
+message AuthChallenge {
+  optional SignatureAlgorithm signature_algorithm = 1 [default = RSASSA_PKCS1v15];
+  optional bytes sender_nonce = 2;
+  optional HashAlgorithm hash_algorithm = 3 [default = SHA1];
+}
+
+// Sent by the receiver in response to AuthChallenge.
+message AuthResponse {
+  required bytes signature = 1;                    // 256-byte RSA-2048 PKCS#1v1.5
+  required bytes client_auth_certificate = 2;      // DER-encoded X.509 peer cert
+  repeated bytes intermediate_certificate = 3;     // empty for self-signed approach
+  optional SignatureAlgorithm signature_algorithm = 4 [default = RSASSA_PKCS1v15];
+  optional bytes sender_nonce = 5;                 // echoed from challenge (optional)
+  optional HashAlgorithm hash_algorithm = 6 [default = SHA1];
+}
+
+// Returned when auth fails.
+message AuthError {
+  enum ErrorType {
+    INTERNAL_ERROR = 0;
+    NO_TLS         = 1;
+    FINGERPRINT_NOT_FOUND = 2;
+    CERTIFICATE_NOT_SIGNED_BY_TRUSTED_CA = 3;
+  }
+  required ErrorType error_type = 1;
+}
+
+// Top-level wrapper for device auth messages sent on the deviceauth namespace.
+message DeviceAuthMessage {
+  optional AuthChallenge challenge = 1;
+  optional AuthResponse  response  = 2;
+  optional AuthError     error     = 3;
+}

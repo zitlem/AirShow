@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Qt6 — must come before GStreamer to add Qt6's FindGStreamer.cmake to the module path
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick Qml)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick Qml Network)
 qt_standard_project_setup()
 
 # GStreamer via pkg-config (per D-01)
@@ -35,6 +35,26 @@ find_package(spdlog QUIET)
 # OpenSSL — link now to avoid header-change task in future phases (per RESEARCH.md Standard Stack)
 find_package(OpenSSL REQUIRED)
 
+# Protobuf — system package 3.21.12 (NOT CONFIG mode — per Pitfall 5 in RESEARCH.md)
+# Headers are vendored to /tmp/protobuf-dev when libprotobuf-dev is not system-installed.
+list(APPEND CMAKE_PREFIX_PATH "/tmp/protobuf-dev/usr")
+find_package(Protobuf REQUIRED)
+message(STATUS "Protobuf version: ${Protobuf_VERSION}")
+message(STATUS "Protobuf include dirs: ${Protobuf_INCLUDE_DIRS}")
+
+# CASTV2 protobuf code generation
+# Generated files land in ${CMAKE_CURRENT_BINARY_DIR}; added to myairshow and test_cast targets.
+protobuf_generate_cpp(CAST_PROTO_SRCS CAST_PROTO_HDRS src/cast/cast_channel.proto)
+# Make available to tests/CMakeLists.txt via cache
+set(CAST_PROTO_SRCS "${CAST_PROTO_SRCS}" CACHE INTERNAL "CASTV2 protobuf generated sources")
+set(CAST_PROTO_HDRS "${CAST_PROTO_HDRS}" CACHE INTERNAL "CASTV2 protobuf generated headers")
+
+# GStreamer WebRTC (for Plan 02 WebRTC media pipeline — link now, headers used later)
+pkg_check_modules(GST_WEBRTC IMPORTED_TARGET
+  gstreamer-webrtc-1.0>=1.20
+  gstreamer-sdp-1.0>=1.20
+)
+
 # libplist — required by UxPlay lib/ for Apple plist parsing (D-07)
 pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
 
@@ -59,6 +79,9 @@ qt_add_executable(myairshow
   src/protocol/ProtocolManager.cpp
   src/protocol/AirPlayHandler.cpp
   src/protocol/DlnaHandler.cpp
+  src/protocol/CastHandler.cpp
+  src/protocol/CastSession.cpp
+  ${CAST_PROTO_SRCS}
   src/settings/AppSettings.cpp
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
@@ -76,23 +99,34 @@ qt_add_qml_module(myairshow
     qml/IdleScreen.qml
 )
 
-target_include_directories(myairshow PRIVATE src vendor/uxplay/lib)
+target_include_directories(myairshow PRIVATE
+  src
+  vendor/uxplay/lib
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ${Protobuf_INCLUDE_DIRS}
+)
 
 target_link_libraries(myairshow PRIVATE
   Qt6::Core
   Qt6::Gui
   Qt6::Quick
   Qt6::Qml
+  Qt6::Network
   PkgConfig::GST
   PkgConfig::UPNP
   OpenSSL::SSL
   OpenSSL::Crypto
   airplay
   PkgConfig::PLIST
+  ${Protobuf_LIBRARIES}
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(myairshow PRIVATE PkgConfig::AVAHI)
+endif()
+
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(myairshow PRIVATE PkgConfig::GST_WEBRTC)
 endif()
 
 if(spdlog_FOUND)
