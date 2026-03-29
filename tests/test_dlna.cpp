@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "protocol/DlnaHandler.h"
+#include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
 #include <gst/gst.h>
 #include <QCoreApplication>
@@ -76,4 +77,28 @@ TEST(DlnaHandlerTest, FormatGstTimeRoundTrip) {
     // Round-trip: parse the formatted string back
     gint64 reparsed = myairshow::DlnaHandler::parseTimeString(formatted);
     EXPECT_EQ(reparsed, ns);
+}
+
+// ── Integration tests: pipeline wiring and handler registration ───────────────
+
+TEST(DlnaHandlerTest, SetPipelineNocrash) {
+    // DlnaHandlerSetPipeline: setMediaPipeline must not crash with a valid pipeline ptr
+    myairshow::ConnectionBridge bridge;
+    myairshow::DlnaHandler handler(&bridge);
+    myairshow::MediaPipeline pipeline;
+    // Should not crash or throw
+    handler.setMediaPipeline(&pipeline);
+    SUCCEED();
+}
+
+TEST(DlnaHandlerTest, StartStopWithPipeline) {
+    // DlnaHandlerStartStop: handler is running after start, not running after stop
+    myairshow::ConnectionBridge bridge;
+    myairshow::DlnaHandler handler(&bridge);
+    myairshow::MediaPipeline pipeline;
+    handler.setMediaPipeline(&pipeline);
+    EXPECT_TRUE(handler.start());
+    EXPECT_TRUE(handler.isRunning());
+    handler.stop();
+    EXPECT_FALSE(handler.isRunning());
 }
