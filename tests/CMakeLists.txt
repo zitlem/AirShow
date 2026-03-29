@@ -117,3 +117,34 @@ target_link_libraries(test_dlna PRIVATE
   Qt6::Core PkgConfig::GST PkgConfig::UPNP
 )
 gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
+
+# Cast CASTV2 unit tests (Phase 06 Plan 01)
+# CAST_PROTO_SRCS and CAST_PROTO_HDRS are set as CACHE INTERNAL in the parent CMakeLists.txt
+# (populated by protobuf_generate_cpp before add_subdirectory(tests))
+add_executable(test_cast
+  test_cast.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/CastHandler.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/CastSession.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+  ${CAST_PROTO_SRCS}
+)
+
+target_include_directories(test_cast PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_BINARY_DIR}
+  ${Protobuf_INCLUDE_DIRS}
+)
+
+target_link_libraries(test_cast PRIVATE
+  GTest::gtest_main
+  GTest::gmock
+  Qt6::Core
+  Qt6::Network
+  PkgConfig::GST
+  OpenSSL::SSL
+  OpenSSL::Crypto
+  ${Protobuf_LIBRARIES}
+)
+
+gtest_discover_tests(test_cast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
