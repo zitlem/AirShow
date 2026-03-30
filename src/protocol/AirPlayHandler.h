@@ -14,6 +14,7 @@ namespace myairshow {
 class MediaPipeline;
 class ConnectionBridge;
 class DiscoveryManager;
+class SecurityManager;
 
 // AirPlay 2 screen mirroring receiver handler (D-02).
 // Wraps UxPlay's RAOP server and implements ProtocolHandler.
@@ -38,6 +39,10 @@ public:
     bool isRunning() const override { return m_running; }
     void setMediaPipeline(MediaPipeline* pipeline) override;
 
+    // Security integration (Phase 7 Plan 02). Call before start().
+    // SecurityManager is optional — if null, all connections are admitted (backward compatible).
+    void setSecurityManager(SecurityManager* sm);
+
     // Internal callbacks invoked from C trampolines in AirPlayHandler.cpp.
     // Public so the file-scope trampoline functions can call them without friend declarations.
     // These are NOT part of the ProtocolHandler interface — do not call from application code.
@@ -50,6 +55,10 @@ public:
                           bool* usingScreen, bool* isMedia, uint64_t* audioFormat);
     void onReportClientRequest(char* deviceid, char* model, char* devicename, bool* admit);
 
+    // Invoked by the display_pin C trampoline when UxPlay shows a PIN pairing code.
+    // Marshals the PIN to the Qt thread for ConnectionBridge / IdleScreen display (Plan 03).
+    void onDisplayPin(const std::string& pin);
+
     // Read hex-encoded Ed25519 public key from PEM keyfile after raop_init2 generates it.
     // Returns 64-char lowercase hex string (32 bytes = ED25519_KEY_SIZE) or empty on failure.
     std::string readPublicKeyFromKeyfile() const;
@@ -59,6 +68,7 @@ private:
     MediaPipeline*    m_pipeline         = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;
     DiscoveryManager* m_discoveryManager = nullptr;
+    SecurityManager*  m_securityManager  = nullptr;
     // GstElement pointers stored as void* to keep GStreamer headers out of this header.
     // Cast to GstElement* in the .cpp where GStreamer headers are included.
     void*             m_videoAppsrc      = nullptr;

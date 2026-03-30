@@ -39,6 +39,13 @@ Window {
         anchors.horizontalCenter: parent.horizontalCenter
     }
 
+    // SEC-01: Approval dialog overlay — appears on top of everything when a new device
+    // requests to connect and requireApproval is enabled. Must be the last child so
+    // it renders above all other overlays (HudOverlay, mute button, close button).
+    ApprovalDialog {
+        anchors.fill: parent
+    }
+
     // Track mouse movement to show/hide controls overlay
     MouseArea {
         id: mouseTracker

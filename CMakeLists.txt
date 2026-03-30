@@ -83,6 +83,7 @@ qt_add_executable(myairshow
   src/protocol/CastSession.cpp
   ${CAST_PROTO_SRCS}
   src/settings/AppSettings.cpp
+  src/security/SecurityManager.cpp
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
   src/discovery/DiscoveryManager.cpp
@@ -97,6 +98,7 @@ qt_add_qml_module(myairshow
     qml/main.qml
     qml/HudOverlay.qml
     qml/IdleScreen.qml
+    qml/ApprovalDialog.qml
 )
 
 target_include_directories(myairshow PRIVATE

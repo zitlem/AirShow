@@ -55,5 +55,42 @@ Item {
                 NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
             }
         }
+
+        // PIN display — SEC-02 / D-05 / D-14
+        // Visible only when pinEnabled is true and pin is non-empty.
+        // Renders below the waiting text so new devices can enter the PIN.
+        Item {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: pinColumn.width
+            height: pinColumn.height
+            visible: appSettings.pinEnabled && appSettings.pin.length > 0
+
+            Column {
+                id: pinColumn
+                spacing: 4
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "PIN"
+                    color: "white"
+                    font.pixelSize: 14
+                    font.family: "sans-serif"
+                    opacity: 0.7
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: appSettings.pin
+                    color: "white"
+                    font.pixelSize: 48
+                    font.bold: true
+                    font.family: "sans-serif"
+                    font.letterSpacing: 8
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
     }
 }
