@@ -1,0 +1,176 @@
+# MyAirShow
+
+A free, open-source, cross-platform screen mirroring receiver. Turn any computer into a wireless display that accepts screen mirrors from phones, tablets, and other computers.
+
+**Think AirServer, but free.**
+
+## Supported Protocols
+
+| Protocol | Source Devices | Status |
+|----------|---------------|--------|
+| **AirPlay** | iPhone, iPad, Mac | Working (needs device testing) |
+| **Google Cast** | Android, Chrome browser | Infrastructure built (auth signatures pending) |
+| **Miracast** | Windows 10/11 | Infrastructure built (MS-MICE, needs device testing) |
+| **DLNA** | Any DLNA controller app | Working (needs device testing) |
+
+## Features
+
+- **Multi-protocol** --- one app receives from any device
+- **Fullscreen receiver** with correct aspect ratio (letterboxed when needed)
+- **Connection status HUD** showing device name and protocol
+- **Audio playback** with mute toggle
+- **Hardware H.264 decode** with automatic software fallback
+- **Security controls** --- device approval prompts, PIN pairing, LAN-only filtering
+- **Windowed mode** (`--windowed` flag) for development and testing
+- **Close button + mute** appear on mouse hover
+
+## Quick Start
+
+### Linux (Ubuntu/Debian)
+
+Install dependencies:
+
+```bash
+sudo apt install \
+  qt6-base-dev qt6-declarative-dev qt6-multimedia-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-qt6 \
+  libgstreamer-plugins-bad1.0-dev \
+  libssl-dev libavahi-client-dev libupnp-dev libplist-dev \
+  libprotobuf-dev protobuf-compiler \
+  ninja-build cmake pkg-config
+```
+
+Build and run:
+
+```bash
+./build-and-run.sh
+```
+
+Or with windowed mode:
+
+```bash
+./build-and-run.sh --windowed
+```
+
+### macOS (Homebrew)
+
+```bash
+brew install qt@6 gstreamer openssl libplist libupnp protobuf ninja cmake
+./build-and-run.sh
+```
+
+### Windows (MSYS2 MinGW-64)
+
+```cmd
+build-and-run.bat
+```
+
+The script will tell you which MSYS2 packages to install if missing.
+
+## Manual Build
+
+```bash
+cmake --preset linux-debug    # or macos-debug / windows-msys2-debug
+cmake --build build/linux-debug
+./build/linux-debug/myairshow
+```
+
+## Architecture
+
+```
+src/
+  main.cpp                    # Application entry point
+  pipeline/                   # GStreamer media pipeline (appsrc, uridecodebin, webrtcbin, MPEG-TS)
+  protocol/                   # Protocol handlers
+    ProtocolHandler.h          # Abstract interface
+    ProtocolManager.h          # Handler registry
+    AirPlayHandler.h           # AirPlay 2 via UxPlay
+    DlnaHandler.h              # DLNA DMR via libupnp
+    CastHandler.h              # Google Cast via CASTV2 protobuf + WebRTC
+    MiracastHandler.h          # Miracast over Infrastructure (MS-MICE)
+  discovery/                  # mDNS/SSDP service advertisement
+    DiscoveryManager.h         # Advertises all protocols
+    AvahiAdvertiser.h          # Linux mDNS backend
+    UpnpAdvertiser.h           # DLNA SSDP backend
+  security/                   # Connection approval, PIN, network filter
+    SecurityManager.h
+  settings/                   # QSettings persistence
+    AppSettings.h
+  ui/                         # Qt Quick/QML bridges
+    ReceiverWindow.h
+    ConnectionBridge.h         # HUD state + approval dialog
+    AudioBridge.h              # Mute toggle
+    SettingsBridge.h           # Settings exposure to QML
+  platform/
+    WindowsFirewall.h          # Windows firewall rule registration
+qml/
+  main.qml                    # Root window
+  HudOverlay.qml              # Connection status overlay
+  IdleScreen.qml              # Waiting screen + PIN display
+  ApprovalDialog.qml           # Device approval prompt
+```
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Language | C++17 |
+| GUI | Qt 6.8+ / Qt Quick / QML |
+| Media Pipeline | GStreamer 1.26.x |
+| Video Rendering | qml6glsink (zero-copy GL) |
+| AirPlay | UxPlay (embedded) |
+| DLNA | libupnp (pupnp) |
+| Google Cast | protobuf + OpenSSL TLS |
+| Miracast | MS-MICE (TCP/RTSP) |
+| Discovery | Avahi (Linux), Bonjour (macOS/Windows) |
+| Build | CMake + Ninja |
+| Crypto | OpenSSL 3.x |
+
+## Security
+
+MyAirShow includes three security layers:
+
+1. **Device Approval** --- new devices trigger an Allow/Deny dialog before mirroring starts. Approved devices are remembered.
+2. **PIN Pairing** --- optional 4-digit PIN displayed on the receiver. Devices must enter the correct PIN to connect.
+3. **LAN-Only Filter** --- connections from non-RFC1918 IPs are rejected. VPN interfaces are excluded from listener binding.
+
+## Known Limitations
+
+- **Google Cast authentication** requires precomputed RSA signatures from a certified Cast receiver (e.g., AirReceiver APK). The infrastructure is complete but placeholder signatures are used until real ones are extracted.
+- **Miracast** uses MS-MICE (infrastructure mode) only. Wi-Fi Direct Miracast is not supported due to unstable Linux kernel/wpa_supplicant P2P APIs.
+- **Android Miracast** support varies by OEM. Most Android devices use Wi-Fi Direct only and won't connect via MS-MICE.
+- **HDCP content** (Netflix, Disney+, etc.) is blocked at the protocol level by DRM --- this is not a bug.
+
+## Testing
+
+```bash
+# Run all tests
+cd build/linux-debug && ctest --output-on-failure
+
+# Run tests for a specific protocol
+ctest -R test_airplay
+ctest -R test_dlna
+ctest -R test_cast
+ctest -R test_miracast
+ctest -R test_security
+```
+
+## Contributing
+
+Contributions welcome. The codebase follows these conventions:
+
+- C++17, Qt Quick/QML, GStreamer
+- Pure virtual `ProtocolHandler` interface for each protocol
+- `MediaPipeline` with pluggable modes (appsrc, uridecodebin, webrtcbin, MPEG-TS)
+- GTest for unit and integration tests
+- CMake with presets for Linux/macOS/Windows
+
+## License
+
+Open source (license TBD).
+
+---
+
+*Built with Claude Code*
