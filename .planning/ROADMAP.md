@@ -122,7 +122,7 @@ Plans:
   3. The application does not accept connections from IP addresses outside the local network (RFC1918 ranges), even when a VPN is active
 **Plans**: 3 plans
 Plans:
-- [ ] 07-01-PLAN.md — SecurityManager class, AppSettings/SettingsBridge/ConnectionBridge security extensions, test scaffold
+- [x] 07-01-PLAN.md — SecurityManager class, AppSettings/SettingsBridge/ConnectionBridge security extensions, test scaffold
 - [ ] 07-02-PLAN.md — Protocol handler integration (AirPlay/DLNA/Cast security checks), main.cpp wiring
 - [ ] 07-03-PLAN.md — QML approval dialog overlay, PIN display on idle screen, visual verification
 
@@ -149,5 +149,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
-| 7. Security & Hardening | 0/3 | In progress | - |
+| 7. Security & Hardening | 1/3 | In Progress|  |
 | 8. Miracast | 0/? | Not started | - |

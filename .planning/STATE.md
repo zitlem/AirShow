@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-30T04:21:23.007Z"
-last_activity: 2026-03-29
+status: executing
+stopped_at: Completed 07-security-hardening 07-01-PLAN.md
+last_updated: "2026-03-30T04:46:11.132Z"
+last_activity: 2026-03-30
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 21
+  completed_plans: 19
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 06 — google-cast
+**Current focus:** Phase 07 — security-hardening
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-29
+Phase: 07 (security-hardening) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -70,6 +70,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-google-cast P01 | 10 | 2 tasks | 9 files |
 | Phase 06-google-cast P02 | 8 | 2 tasks | 9 files |
 | Phase 06-google-cast P03 | 5 | 2 tasks | 2 files |
+| Phase 07-security-hardening P07-01 | 14 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,8 @@ Recent decisions affecting current work:
 - [Phase 06-google-cast]: AES-CTR decrypt chain not inserted in pipeline — keys stored but decrypt step deferred pending field testing (RESEARCH.md Open Question 1)
 - [Phase 06-google-cast]: play() extended to also transition m_webrtcPipeline to PLAYING — avoids adding playWebrtcPipeline() to public API
 - [Phase 06-google-cast]: Fatal vs non-fatal Cast plugin checks: webrtcbin/rtpvp8depay/rtpopusdepay/opusdec fatal; vp8dec non-fatal (avdec_vp8 fallback); nicesrc non-fatal (Cast optional)
+- [Phase 07-security-hardening]: SecurityManager uses constructor dependency injection (AppSettings& ref), not singleton — consistent with SettingsBridge and ConnectionBridge patterns
+- [Phase 07-security-hardening]: ResolveApprovalGrants test uses std::thread + processEvents loop to exercise QueuedConnection dispatch; Qt6::Concurrent unavailable on dev machine
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T04:21:22.997Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-security-hardening/07-CONTEXT.md
+Last session: 2026-03-30T04:46:11.128Z
+Stopped at: Completed 07-security-hardening 07-01-PLAN.md
+Resume file: None
