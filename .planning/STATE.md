@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-30T18:28:04.866Z"
+status: executing
+stopped_at: Completed 08-miracast-01-PLAN.md
+last_updated: "2026-03-30T18:58:25.534Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 24
+  completed_plans: 22
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 07 — security-hardening
+**Current focus:** Phase 08 — miracast
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 08 (miracast) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
@@ -73,6 +73,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07-security-hardening P07-01 | 14 | 2 tasks | 9 files |
 | Phase 07-security-hardening P07-03 | 15 | 2 tasks | 9 files |
 | Phase 07-security-hardening P07-02 | 10 | 2 tasks | 9 files |
+| Phase 08-miracast P01 | 15 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,9 @@ Recent decisions affecting current work:
 - [Phase 07-security-hardening]: ApprovalDialog uses opacity/visible guard matching HudOverlay pattern (RESEARCH.md Pitfall 3) — prevents mouse-event blocking at opacity 0
 - [Phase 07-security-hardening]: AirPlay/DLNA use synchronous checkConnection (non-Qt protocol threads); Cast uses checkConnectionAsync (Qt main thread avoids event loop deadlock)
 - [Phase 07-security-hardening]: display_pin callback is no-op in MyAirShow — PIN display driven by QML bindings to AppSettings, not UxPlay runtime callback
+- [Phase 08-miracast]: parseSourceReady() and buildRtspResponse() exposed as public static methods for unit testability (same pattern as DlnaHandler::parseTimeString)
+- [Phase 08-miracast]: _display._tcp mDNS advertisement added to DiscoveryManager with VerMgmt/VerMin TXT records from MS-MICE spec revision 6.0
+- [Phase 08-miracast]: m_miracastPipeline is a separate GstElement* member consistent with m_uriPipeline and m_webrtcPipeline isolation pattern
 
 ### Pending Todos
 
@@ -153,6 +157,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T18:28:04.862Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-miracast/08-CONTEXT.md
+Last session: 2026-03-30T18:58:25.531Z
+Stopped at: Completed 08-miracast-01-PLAN.md
+Resume file: None
