@@ -418,3 +418,116 @@ TEST(MiracastHandlerTest, TeardownResetsState) {
     // Note: Port 7250 may still be in TIME_WAIT on some systems; skip if bind fails.
     // We use a second handler to avoid port conflict with the first handler's bind.
 }
+
+// ── Test 10: RequiredGStreamerPluginsAvailable ────────────────────────────────
+// Verify that all required GStreamer plugins for Miracast are installed.
+// Fails immediately with a clear message if any required plugin is missing —
+// catches missing package installs before a real Miracast session tries to use them.
+
+TEST(MiracastHandlerTest, RequiredGStreamerPluginsAvailable) {
+    // All elements required to build the Miracast MPEG-TS/RTP receive pipeline
+    struct { const char* name; const char* package; } requiredPlugins[] = {
+        {"rtpmp2tdepay", "gstreamer1.0-plugins-good"},
+        {"tsparse",      "gstreamer1.0-plugins-bad"},
+        {"tsdemux",      "gstreamer1.0-plugins-bad"},
+        {"h264parse",    "gstreamer1.0-plugins-bad"},
+        {"avdec_h264",   "gstreamer1.0-libav"},
+        {"aacparse",     "gstreamer1.0-plugins-bad"},
+        {"avdec_aac",    "gstreamer1.0-libav"},
+        {"videoconvert", "gstreamer1.0-plugins-base"},
+        {"autoaudiosink","gstreamer1.0-plugins-good"},
+    };
+
+    for (auto& p : requiredPlugins) {
+        GstElementFactory* factory = gst_element_factory_find(p.name);
+        EXPECT_NE(factory, nullptr)
+            << "Required Miracast GStreamer plugin '" << p.name
+            << "' not found. Install: " << p.package;
+        if (factory) {
+            gst_object_unref(factory);
+        }
+    }
+}
+
+// ── Test 11: MiracastHandlerStartStopLifecycle ────────────────────────────────
+// Verify TCP server lifecycle: start() opens port 7250, isRunning() reflects state,
+// stop() closes the port, and restart() works cleanly.
+
+TEST(MiracastHandlerTest, MiracastHandlerStartStopLifecycle) {
+    MiracastHandler handler(nullptr);
+
+    // Initially not running
+    EXPECT_FALSE(handler.isRunning());
+
+    // start() must succeed and listen on port 7250
+    EXPECT_TRUE(handler.start());
+    EXPECT_TRUE(handler.isRunning());
+
+    // stop() must clean up and clear isRunning()
+    handler.stop();
+    EXPECT_FALSE(handler.isRunning());
+
+    // start() again — verify the handler can restart cleanly
+    // (port must be released by stop() so re-bind succeeds)
+    EXPECT_TRUE(handler.start());
+    EXPECT_TRUE(handler.isRunning());
+
+    // Final stop
+    handler.stop();
+    EXPECT_FALSE(handler.isRunning());
+}
+
+// ── Test 12: MiracastPipelineStartStopCycle ───────────────────────────────────
+// Verify that initMiracastPipeline() creates a pipeline, play() transitions it
+// to PLAYING, stopMiracast() cleans it up, and the cycle can be repeated once
+// without resource leaks (pipeline pointer null after stop).
+
+TEST(MiracastHandlerTest, MiracastPipelineStartStopCycle) {
+    MediaPipeline pipeline;
+
+    // First cycle — headless mode (nullptr qmlVideoItem), port 1028
+    bool firstResult = pipeline.initMiracastPipeline(nullptr, 1028);
+
+    if (!firstResult) {
+        GTEST_SKIP() << "initMiracastPipeline() returned false — required GStreamer plugins "
+                        "(rtpmp2tdepay, tsparse, tsdemux) may not be available in this environment";
+    }
+
+    EXPECT_NE(pipeline.miracastPipeline(), nullptr)
+        << "Pipeline must be non-null after successful initMiracastPipeline";
+
+    // Transition to PLAYING
+    pipeline.play();
+
+    // Verify pipeline is in PLAYING or PAUSED state (PLAYING transition may be async)
+    {
+        GstElement* gstPipeline = pipeline.miracastPipeline();
+        ASSERT_NE(gstPipeline, nullptr);
+        GstState state = GST_STATE_NULL;
+        GstState pending = GST_STATE_NULL;
+        // Use a short timeout — we don't want to block indefinitely in a unit test
+        gst_element_get_state(gstPipeline, &state, &pending, 500 * GST_MSECOND);
+        EXPECT_TRUE(state == GST_STATE_PLAYING || state == GST_STATE_PAUSED
+                    || pending == GST_STATE_PLAYING)
+            << "Expected PLAYING (or transition), got state=" << state
+            << " pending=" << pending;
+    }
+
+    // stopMiracast() must clean up: pipeline pointer becomes null
+    pipeline.stopMiracast();
+    EXPECT_EQ(pipeline.miracastPipeline(), nullptr)
+        << "miracastPipeline() must return nullptr after stopMiracast()";
+
+    // Second cycle — verify restart works without resource leaks
+    bool secondResult = pipeline.initMiracastPipeline(nullptr, 1028);
+    EXPECT_TRUE(secondResult) << "Second initMiracastPipeline() cycle must succeed";
+
+    if (secondResult) {
+        EXPECT_NE(pipeline.miracastPipeline(), nullptr)
+            << "Pipeline must be non-null after second initMiracastPipeline";
+
+        pipeline.stopMiracast();
+        EXPECT_EQ(pipeline.miracastPipeline(), nullptr)
+            << "Pipeline must be null after second stopMiracast()";
+    }
+}
