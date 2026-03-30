@@ -134,7 +134,11 @@ Plans:
   1. A Windows 10 or 11 device can select MyAirShow from "Connect" / wireless display and mirror its desktop to the receiver over the existing LAN
   2. An Android device that supports Miracast can mirror its screen to MyAirShow
   3. Audio from the Miracast source plays through the receiver's speakers in sync with the video
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 08-01-PLAN.md — MiracastHandler skeleton, initMiracastPipeline() MPEG-TS/RTP mode, _display._tcp mDNS, test scaffold
+- [ ] 08-02-PLAN.md — MS-MICE SOURCE_READY + WFD RTSP M1-M7 client state machine, SecurityManager integration
+- [ ] 08-03-PLAN.md — main.cpp wiring, GStreamer plugin checks, integration tests, end-to-end Windows verification
 
 ## Progress
 
@@ -150,4 +154,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
 | 7. Security & Hardening | 3/3 | Complete   | 2026-03-30 |
-| 8. Miracast | 0/? | Not started | - |
+| 8. Miracast | 0/3 | Not started | - |
