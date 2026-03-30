@@ -163,3 +163,23 @@ if(GST_WEBRTC_FOUND)
 endif()
 
 gtest_discover_tests(test_cast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
+
+# Phase 07 Plan 01 — SecurityManager unit tests (SEC-01, SEC-02, SEC-03)
+add_executable(test_security
+  test_security.cpp
+  ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+)
+
+target_include_directories(test_security PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_security PRIVATE
+  GTest::gtest_main
+  GTest::gmock
+  Qt6::Core
+  Qt6::Network
+)
+
+gtest_discover_tests(test_security TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
