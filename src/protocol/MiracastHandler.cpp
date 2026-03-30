@@ -94,6 +94,10 @@ void MiracastHandler::setSecurityManager(SecurityManager* sm) {
     m_securityManager = sm;
 }
 
+void MiracastHandler::setQmlVideoItem(void* item) {
+    m_qmlVideoItem = item;
+}
+
 // ── Private slots ─────────────────────────────────────────────────────────────
 
 void MiracastHandler::onMiceConnection() {
@@ -143,13 +147,37 @@ void MiracastHandler::parseMiceMessage(const QByteArray& data) {
            static_cast<unsigned>(m_rtspPort),
            qPrintable(m_sourceId));
 
-    // Plan 02 will initiate the RTSP connection here.
-    // For now, log that we received SOURCE_READY and stop at this point.
-    qDebug("MiracastHandler: RTSP connection (Plan 02) not yet implemented — "
-           "source IP=%s rtspPort=%u",
-           qPrintable(m_sourceAddr.toString()),
-           static_cast<unsigned>(m_rtspPort));
-    m_state = State::ConnectingToSource;
+    // Phase 7 (SEC-03): Reject connections from non-RFC1918 addresses (RESEARCH.md Pitfall 7)
+    if (m_securityManager && !SecurityManager::isLocalNetwork(m_sourceAddr)) {
+        qWarning("MiracastHandler: rejecting non-local source %s",
+                 qPrintable(m_sourceAddr.toString()));
+        if (m_miceClient) {
+            m_miceClient->disconnectFromHost();
+        }
+        m_state = State::WaitingSourceReady;
+        return;
+    }
+
+    // Phase 7 (SEC-01): Require SecurityManager approval before connecting.
+    // MiracastHandler runs on the Qt main thread (same as CastHandler) — MUST use async.
+    if (m_securityManager) {
+        m_securityManager->checkConnectionAsync(
+            m_sourceName, QStringLiteral("miracast"), m_sourceAddr.toString(),
+            [this](bool approved) {
+                if (!approved) {
+                    qDebug("MiracastHandler: connection denied by security manager");
+                    if (m_miceClient) {
+                        m_miceClient->disconnectFromHost();
+                    }
+                    m_state = State::WaitingSourceReady;
+                    return;
+                }
+                connectToSource();
+            });
+    } else {
+        // No security manager — connect directly (backward compatible)
+        connectToSource();
+    }
 }
 
 // static
@@ -237,14 +265,286 @@ bool MiracastHandler::parseSourceReady(const QByteArray& data, SourceReadyInfo& 
     return true;
 }
 
-// ── RTSP stubs — implemented in Plan 02 ──────────────────────────────────────
+// ── RTSP connection ───────────────────────────────────────────────────────────
+
+void MiracastHandler::connectToSource() {
+    // Create RTSP client socket and connect to source:7236
+    if (m_rtspSocket) {
+        m_rtspSocket->disconnect(this);
+        m_rtspSocket->disconnectFromHost();
+        m_rtspSocket->deleteLater();
+        m_rtspSocket = nullptr;
+    }
+
+    m_rtspBuffer.clear();
+    m_cseq = 1;
+
+    m_rtspSocket = new QTcpSocket(this);
+    connect(m_rtspSocket, &QTcpSocket::connected,
+            this, &MiracastHandler::onRtspConnected);
+    connect(m_rtspSocket, &QTcpSocket::readyRead,
+            this, &MiracastHandler::onRtspData);
+    connect(m_rtspSocket, &QTcpSocket::disconnected,
+            this, &MiracastHandler::onRtspDisconnected);
+
+    m_state = State::ConnectingToSource;
+    qDebug("Miracast: connecting to RTSP server at %s:%u",
+           qPrintable(m_sourceAddr.toString()),
+           static_cast<unsigned>(m_rtspPort));
+    m_rtspSocket->connectToHost(m_sourceAddr, m_rtspPort);
+}
+
+void MiracastHandler::onRtspConnected() {
+    // Source sends M1 OPTIONS first — wait for data
+    m_state = State::NegotiatingM1;
+    qDebug("Miracast: RTSP connected to source — waiting for M1 OPTIONS");
+}
+
+void MiracastHandler::onRtspData() {
+    if (!m_rtspSocket) return;
+    m_rtspBuffer.append(m_rtspSocket->readAll());
+
+    // Process all complete messages in the buffer
+    RtspMessage msg;
+    while (parseNextRtspMessage(msg)) {
+        qDebug("Miracast: RTSP received [%s] state=%d cseq=%d status=%d",
+               msg.isRequest ? qPrintable(msg.method) : "response",
+               static_cast<int>(m_state),
+               msg.cseq,
+               msg.statusCode);
+
+        switch (m_state) {
+        case State::NegotiatingM1:
+            // M1: OPTIONS request from source with "Require: org.wfa.wfd1.0"
+            if (msg.isRequest && msg.method == QStringLiteral("OPTIONS")) {
+                // Send 200 OK with WFD capabilities in Public header
+                const QString publicHeader =
+                    QStringLiteral("Public: org.wfa.wfd1.0, GET_PARAMETER, SET_PARAMETER, "
+                                   "SETUP, PLAY, PAUSE, TEARDOWN\r\n");
+                // Build M1 200 OK manually (Public header doesn't fit buildRtspResponse)
+                const QString m1Resp =
+                    QStringLiteral("RTSP/1.0 200 OK\r\n"
+                                   "CSeq: %1\r\n"
+                                   "Server: MyAirShow/1.0\r\n"
+                                   "%2\r\n")
+                    .arg(msg.cseq)
+                    .arg(publicHeader);
+                m_rtspSocket->write(m1Resp.toUtf8());
+                qDebug("Miracast: sent M1 200 OK");
+
+                // Immediately send M2 OPTIONS (RESEARCH.md Pitfall 3 — M2 is NOT optional)
+                sendRtspRequest(QStringLiteral("OPTIONS"),
+                                QStringLiteral("*"),
+                                QStringLiteral("Require: org.wfa.wfd1.0\r\n"));
+                m_state = State::NegotiatingM2;
+                qDebug("Miracast: sent M2 OPTIONS");
+            }
+            break;
+
+        case State::NegotiatingM2:
+            // M2: 200 OK response to our OPTIONS
+            if (!msg.isRequest && msg.statusCode == 200) {
+                m_state = State::NegotiatingM3;
+                qDebug("Miracast: M2 acknowledged — waiting for M3 GET_PARAMETER");
+            }
+            break;
+
+        case State::NegotiatingM3:
+            // M3: GET_PARAMETER from source requesting our capabilities
+            if (msg.isRequest && msg.method == QStringLiteral("GET_PARAMETER")) {
+                const QString capResp = QString::fromUtf8(kWfdCapabilityResponse);
+                const QString m3Resp = buildRtspResponse(msg.cseq, 200, capResp);
+                m_rtspSocket->write(m3Resp.toUtf8());
+                m_state = State::NegotiatingM4;
+                qDebug("Miracast: sent M3 capability response");
+            }
+            break;
+
+        case State::NegotiatingM4:
+            // M4: SET_PARAMETER from source with selected codec + RTP ports
+            if (msg.isRequest && msg.method == QStringLiteral("SET_PARAMETER")) {
+                qDebug("Miracast: M4 SET_PARAMETER received — selected params:\n%s",
+                       msg.body.constData());
+                const QString m4Resp = buildRtspResponse(msg.cseq, 200);
+                m_rtspSocket->write(m4Resp.toUtf8());
+                m_state = State::NegotiatingM5;
+                qDebug("Miracast: sent M4 200 OK");
+            }
+            break;
+
+        case State::NegotiatingM5:
+            // M5: SET_PARAMETER with wfd_trigger_method: SETUP
+            if (msg.isRequest && msg.method == QStringLiteral("SET_PARAMETER")) {
+                const QString m5Resp = buildRtspResponse(msg.cseq, 200);
+                m_rtspSocket->write(m5Resp.toUtf8());
+                qDebug("Miracast: sent M5 200 OK — sending M6 SETUP");
+
+                // Send M6 SETUP
+                const QString rtspUri = QStringLiteral("rtsp://%1:%2/wfd1.0/streamid=0")
+                    .arg(m_sourceAddr.toString())
+                    .arg(m_rtspPort);
+                const QString transportHeader =
+                    QStringLiteral("Transport: RTP/AVP/UDP;unicast;client_port=%1\r\n")
+                    .arg(m_udpPort);
+                sendRtspRequest(QStringLiteral("SETUP"), rtspUri, transportHeader);
+                m_state = State::SendingSetup;
+                qDebug("Miracast: sent M6 SETUP (client_port=%d)", m_udpPort);
+            }
+            break;
+
+        case State::SendingSetup:
+            // M6 response: 200 OK with Transport header containing server_port
+            if (!msg.isRequest && msg.statusCode == 200) {
+                qDebug("Miracast: M6 SETUP accepted — sending M7 PLAY");
+
+                // Initialize the GStreamer MPEG-TS/RTP receive pipeline
+                if (m_pipeline) {
+                    if (!m_pipeline->initMiracastPipeline(m_qmlVideoItem, m_udpPort)) {
+                        qWarning("Miracast: failed to initialize media pipeline");
+                    }
+                }
+
+                // Send M7 PLAY
+                const QString rtspUri = QStringLiteral("rtsp://%1:%2/wfd1.0/streamid=0")
+                    .arg(m_sourceAddr.toString())
+                    .arg(m_rtspPort);
+                sendRtspRequest(QStringLiteral("PLAY"), rtspUri);
+                m_state = State::SendingPlay;
+                qDebug("Miracast: sent M7 PLAY");
+            }
+            break;
+
+        case State::SendingPlay:
+            // M7 response: 200 OK — stream begins
+            if (!msg.isRequest && msg.statusCode == 200) {
+                qDebug("Miracast: streaming from '%s'", qPrintable(m_sourceName));
+
+                // Start the pipeline
+                if (m_pipeline) {
+                    m_pipeline->play();
+                }
+
+                // Update HUD (D-16)
+                if (m_connectionBridge) {
+                    m_connectionBridge->setConnected(true, m_sourceName,
+                                                     QStringLiteral("miracast"));
+                }
+
+                m_state = State::Streaming;
+                qDebug("Miracast: streaming from %s", qPrintable(m_sourceName));
+            }
+            break;
+
+        case State::Streaming:
+            // Handle keepalive GET_PARAMETER from source
+            if (msg.isRequest && msg.method == QStringLiteral("GET_PARAMETER")) {
+                const QString keepaliveResp = buildRtspResponse(msg.cseq, 200);
+                m_rtspSocket->write(keepaliveResp.toUtf8());
+                qDebug("Miracast: keepalive GET_PARAMETER acknowledged");
+            }
+            // Handle TEARDOWN from source
+            else if (msg.isRequest && msg.method == QStringLiteral("TEARDOWN")) {
+                const QString tearResp = buildRtspResponse(msg.cseq, 200);
+                m_rtspSocket->write(tearResp.toUtf8());
+                qDebug("Miracast: TEARDOWN received from source");
+                teardown();
+            }
+            break;
+
+        default:
+            qDebug("Miracast: ignoring RTSP message in state %d", static_cast<int>(m_state));
+            break;
+        }
+    }
+}
+
+void MiracastHandler::onRtspDisconnected() {
+    qDebug("MiracastHandler: RTSP socket disconnected (state=%d)", static_cast<int>(m_state));
+    if (m_state == State::Streaming) {
+        teardown();
+    } else {
+        // Clean up and reset to waiting for next connection
+        if (m_rtspSocket) {
+            m_rtspSocket->deleteLater();
+            m_rtspSocket = nullptr;
+        }
+        m_rtspBuffer.clear();
+        if (m_running) {
+            m_state = State::WaitingSourceReady;
+        } else {
+            m_state = State::Idle;
+        }
+    }
+}
+
+// ── Helper methods ─────────────────────────────────────────────────────────────
+
+void MiracastHandler::teardown() {
+    m_state = State::TearingDown;
+    qDebug("Miracast: session ended");
+
+    if (m_pipeline) {
+        m_pipeline->stopMiracast();
+    }
+
+    if (m_connectionBridge) {
+        m_connectionBridge->setConnected(false);
+    }
+
+    if (m_rtspSocket) {
+        m_rtspSocket->disconnect(this);
+        m_rtspSocket->disconnectFromHost();
+        m_rtspSocket->deleteLater();
+        m_rtspSocket = nullptr;
+    }
+
+    if (m_miceClient) {
+        m_miceClient->disconnect(this);
+        m_miceClient->disconnectFromHost();
+        m_miceClient->deleteLater();
+        m_miceClient = nullptr;
+    }
+
+    m_rtspBuffer.clear();
+    m_sourceName.clear();
+    m_sourceId.clear();
+    m_cseq = 1;
+
+    // Return to waiting for next connection (server still listening)
+    if (m_running) {
+        m_state = State::WaitingSourceReady;
+    } else {
+        m_state = State::Idle;
+    }
+}
 
 void MiracastHandler::sendRtspRequest(const QString& method, const QString& uri,
-                                       const QString& body) {
-    Q_UNUSED(method)
-    Q_UNUSED(uri)
-    Q_UNUSED(body)
-    qDebug("MiracastHandler::sendRtspRequest — not yet implemented (Plan 02)");
+                                       const QString& extraHeaders, const QString& body) {
+    if (!m_rtspSocket) {
+        qWarning("MiracastHandler::sendRtspRequest called with no RTSP socket");
+        return;
+    }
+
+    QString request = QStringLiteral("%1 %2 RTSP/1.0\r\nCSeq: %3\r\n")
+        .arg(method)
+        .arg(uri)
+        .arg(m_cseq++);
+
+    if (!extraHeaders.isEmpty()) {
+        request += extraHeaders;
+    }
+
+    if (!body.isEmpty()) {
+        const QByteArray bodyBytes = body.toUtf8();
+        request += QStringLiteral("Content-Type: text/parameters\r\n");
+        request += QStringLiteral("Content-Length: %1\r\n").arg(bodyBytes.size());
+        request += QStringLiteral("\r\n");
+        request += body;
+    } else {
+        request += QStringLiteral("\r\n");
+    }
+
+    m_rtspSocket->write(request.toUtf8());
 }
 
 // static
@@ -261,7 +561,7 @@ QString MiracastHandler::buildRtspResponse(int cseq, int statusCode, const QStri
     default:  statusText = "Unknown";               break;
     }
 
-    QString response = QStringLiteral("RTSP/1.0 %1 %2\r\nCSeq: %3\r\n")
+    QString response = QStringLiteral("RTSP/1.0 %1 %2\r\nCSeq: %3\r\nServer: MyAirShow/1.0\r\n")
                            .arg(statusCode)
                            .arg(statusText)
                            .arg(cseq);
@@ -279,17 +579,74 @@ QString MiracastHandler::buildRtspResponse(int cseq, int statusCode, const QStri
     return response;
 }
 
-void MiracastHandler::onRtspConnected() {
-    qDebug("MiracastHandler::onRtspConnected — not yet implemented (Plan 02)");
-}
+bool MiracastHandler::parseNextRtspMessage(RtspMessage& msg) {
+    // RTSP messages are delimited by \r\n\r\n (end of headers),
+    // with optional body of Content-Length bytes after that.
+    // This function parses one complete message from m_rtspBuffer.
 
-void MiracastHandler::onRtspData() {
-    qDebug("MiracastHandler::onRtspData — not yet implemented (Plan 02)");
-}
+    // Find end of headers
+    const int headerEnd = m_rtspBuffer.indexOf("\r\n\r\n");
+    if (headerEnd < 0) {
+        return false;  // Incomplete headers
+    }
 
-void MiracastHandler::onRtspDisconnected() {
-    qDebug("MiracastHandler::onRtspDisconnected — not yet implemented (Plan 02)");
-    m_state = State::Idle;
+    const QByteArray headerBlock = m_rtspBuffer.left(headerEnd);
+    const QList<QByteArray> lines = headerBlock.split('\n');
+
+    if (lines.isEmpty()) return false;
+
+    // Parse first line: "METHOD uri RTSP/1.0" or "RTSP/1.0 STATUS text"
+    QString firstLine = QString::fromUtf8(lines[0]).trimmed();
+    msg = RtspMessage{};
+
+    if (firstLine.startsWith(QStringLiteral("RTSP/1.0"))) {
+        // Response line
+        msg.isRequest = false;
+        const QStringList parts = firstLine.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            msg.statusCode = parts[1].toInt();
+        }
+    } else {
+        // Request line: METHOD uri RTSP/1.0
+        msg.isRequest = true;
+        const QStringList parts = firstLine.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() >= 1) msg.method = parts[0];
+        if (parts.size() >= 2) msg.uri = parts[1];
+    }
+
+    // Parse header lines
+    for (int i = 1; i < lines.size(); ++i) {
+        const QString line = QString::fromUtf8(lines[i]).trimmed();
+        if (line.isEmpty()) continue;
+
+        const int colonIdx = line.indexOf(QLatin1Char(':'));
+        if (colonIdx < 0) continue;
+
+        const QString key   = line.left(colonIdx).trimmed().toLower();
+        const QString value = line.mid(colonIdx + 1).trimmed();
+
+        if (key == QStringLiteral("cseq")) {
+            msg.cseq = value.toInt();
+        } else if (key == QStringLiteral("content-length")) {
+            msg.contentLength = value.toInt();
+        } else if (key == QStringLiteral("content-type")) {
+            msg.contentType = value;
+        }
+    }
+
+    // Check if body is complete
+    const int messageEnd = headerEnd + 4 + msg.contentLength;
+    if (m_rtspBuffer.size() < messageEnd) {
+        return false;  // Body incomplete
+    }
+
+    if (msg.contentLength > 0) {
+        msg.body = m_rtspBuffer.mid(headerEnd + 4, msg.contentLength);
+    }
+
+    // Remove consumed bytes from buffer
+    m_rtspBuffer.remove(0, messageEnd);
+    return true;
 }
 
 } // namespace myairshow

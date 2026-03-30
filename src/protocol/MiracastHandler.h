@@ -66,6 +66,27 @@ public:
     // If null, all local connections are admitted (backward compatible).
     void        setSecurityManager(SecurityManager* sm);
 
+    // Store QML video output item for initMiracastPipeline().
+    // Called from main.cpp before any Miracast connection arrives.
+    // Same pattern as MediaPipeline::setQmlVideoItem() used by Cast.
+    void        setQmlVideoItem(void* item);
+
+    // WFD M3 capability response body (public so tests can verify exact format).
+    // Source: lazycast d2.py (verified against WFD spec v2.1 field definitions).
+    // IMPORTANT: wfd_content_protection MUST be "none" — see RESEARCH.md Pitfall 6.
+    static constexpr const char* kWfdCapabilityResponse =
+        "wfd_video_formats: "
+        "00 00 02 10 "
+        "0001FEFF 3FFFFFFF 00000FFF "
+        "00 0000 0000 00 none none\r\n"
+        "wfd_audio_codecs: "
+        "LPCM 00000003 00, AAC 00000001 00\r\n"
+        "wfd_client_rtp_ports: "
+        "RTP/AVP/UDP;unicast 1028 0 mode=play\r\n"
+        "wfd_content_protection: none\r\n"
+        "wfd_display_edid: none\r\n"
+        "wfd_connector_type: 05\r\n";
+
     // Build a RTSP/1.0 response string for a given CSeq, status code, and optional body.
     // Made public static for unit testing without friend declarations
     // (same pattern as DlnaHandler::parseTimeString and CastSession::buildSdpFromOffer).
@@ -89,7 +110,25 @@ private slots:
 
 private:
     void parseMiceMessage(const QByteArray& data);
-    void sendRtspRequest(const QString& method, const QString& uri, const QString& body = {});
+    void connectToSource();
+    void sendRtspRequest(const QString& method, const QString& uri,
+                         const QString& extraHeaders = {}, const QString& body = {});
+    void teardown();
+
+    // Parse one complete RTSP message from m_rtspBuffer.
+    // Returns true and fills out/body/cseq/method/statusCode if a complete message
+    // (headers + optional Content-Length body) is present; removes consumed bytes.
+    struct RtspMessage {
+        QString method;       // e.g., "OPTIONS", "GET_PARAMETER" — empty for responses
+        QString uri;          // for requests
+        int     statusCode{0};// 0 for requests
+        int     cseq{0};
+        QString contentType;
+        int     contentLength{0};
+        QByteArray body;
+        bool    isRequest{false};
+    };
+    bool parseNextRtspMessage(RtspMessage& msg);
 
     // MS-MICE TCP listener (port 7250) — receives SOURCE_READY from Windows source
     QTcpServer*       m_miceServer     = nullptr;
@@ -110,6 +149,7 @@ private:
     QHostAddress      m_sourceAddr;                 // IP of the Windows source
     QString           m_sourceId;                   // SourceID TLV from SOURCE_READY
     int               m_udpPort        = kDefaultRtpPort; // negotiated RTP receive port
+    void*             m_qmlVideoItem   = nullptr;   // stored for initMiracastPipeline()
 
     // Accumulation buffer for RTSP data (non-blocking async parsing)
     QByteArray        m_rtspBuffer;
