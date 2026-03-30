@@ -39,7 +39,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Miracast
 
 - [x] **MIRA-01**: User can mirror their Windows device screen to MyAirShow via Miracast
-- [ ] **MIRA-02**: User can mirror their Android device screen to MyAirShow via Miracast (where supported)
+- [x] **MIRA-02**: User can mirror their Android device screen to MyAirShow via Miracast (where supported)
 - [x] **MIRA-03**: Miracast mirroring includes synchronized audio and video
 
 ### DLNA
@@ -118,7 +118,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEC-02 | Phase 7 | Complete |
 | SEC-03 | Phase 7 | Complete |
 | MIRA-01 | Phase 8 | Complete |
-| MIRA-02 | Phase 8 | Pending |
+| MIRA-02 | Phase 8 | Complete |
 | MIRA-03 | Phase 8 | Complete |
 
 **Coverage:**

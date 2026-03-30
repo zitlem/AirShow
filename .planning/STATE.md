@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-miracast-01-PLAN.md
-last_updated: "2026-03-30T18:58:25.534Z"
+stopped_at: Completed 08-miracast-02-PLAN.md
+last_updated: "2026-03-30T19:05:03.899Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 24
-  completed_plans: 22
+  completed_plans: 23
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 08 (miracast) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-30
 
@@ -74,6 +74,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07-security-hardening P07-03 | 15 | 2 tasks | 9 files |
 | Phase 07-security-hardening P07-02 | 10 | 2 tasks | 9 files |
 | Phase 08-miracast P01 | 15 | 2 tasks | 8 files |
+| Phase 08-miracast P02 | 1 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,8 @@ Recent decisions affecting current work:
 - [Phase 08-miracast]: parseSourceReady() and buildRtspResponse() exposed as public static methods for unit testability (same pattern as DlnaHandler::parseTimeString)
 - [Phase 08-miracast]: _display._tcp mDNS advertisement added to DiscoveryManager with VerMgmt/VerMin TXT records from MS-MICE spec revision 6.0
 - [Phase 08-miracast]: m_miracastPipeline is a separate GstElement* member consistent with m_uriPipeline and m_webrtcPipeline isolation pattern
+- [Phase 08-miracast]: sendRtspRequest() takes extraHeaders param for Transport/Require headers; parseNextRtspMessage() unified request+response parser with isRequest boolean
+- [Phase 08-miracast]: teardown() resets to WaitingSourceReady (not Idle) when m_running=true — server stays listening for next session
 
 ### Pending Todos
 
@@ -157,6 +160,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T18:58:25.531Z
-Stopped at: Completed 08-miracast-01-PLAN.md
+Last session: 2026-03-30T19:05:03.896Z
+Stopped at: Completed 08-miracast-02-PLAN.md
 Resume file: None
