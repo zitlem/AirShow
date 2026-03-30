@@ -81,6 +81,7 @@ add_executable(test_airplay
   ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/AvahiAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+  ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
 )
 
 target_include_directories(test_airplay PRIVATE
@@ -91,6 +92,7 @@ target_include_directories(test_airplay PRIVATE
 target_link_libraries(test_airplay PRIVATE
   GTest::GTest GTest::Main
   Qt6::Core
+  Qt6::Network
   PkgConfig::GST
   airplay
   PkgConfig::PLIST
@@ -116,11 +118,13 @@ add_executable(test_dlna
   ${CMAKE_SOURCE_DIR}/src/protocol/DlnaHandler.cpp
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
   ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+  ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
 )
 target_include_directories(test_dlna PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_dlna PRIVATE
   GTest::gtest_main GTest::gmock
-  Qt6::Core PkgConfig::GST PkgConfig::UPNP
+  Qt6::Core Qt6::Network PkgConfig::GST PkgConfig::UPNP
 )
 if(GST_WEBRTC_FOUND)
   target_link_libraries(test_dlna PRIVATE PkgConfig::GST_WEBRTC)
@@ -136,6 +140,8 @@ add_executable(test_cast
   ${CMAKE_SOURCE_DIR}/src/protocol/CastSession.cpp
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
   ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+  ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
   ${CAST_PROTO_SRCS}
 )
 
