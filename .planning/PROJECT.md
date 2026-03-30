@@ -21,7 +21,7 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 ### Active
 
 - ✓ Receive Google Cast screen mirroring from Android/Chrome devices — Phase 6 (CastHandler + CASTV2 + WebRTC, pending auth signature extraction + human testing)
-- [ ] Receive Miracast screen mirroring from Windows/Android devices
+- ✓ Receive Miracast screen mirroring from Windows/Android devices — Phase 8 (MS-MICE over Infrastructure, pending Windows device testing)
 - ✓ Auto-discover and advertise as a receiver on the local network — Phase 2 (mDNS + SSDP)
 
 ### Out of Scope
@@ -71,4 +71,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 7 completion*
+*Last updated: 2026-03-30 after Phase 8 completion (ALL PHASES COMPLETE)*
