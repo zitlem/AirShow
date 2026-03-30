@@ -120,7 +120,11 @@ Plans:
   1. When a new device attempts to connect, the user sees an allow/deny prompt before any mirroring begins
   2. When PIN pairing is enabled, a device without the correct PIN cannot start a mirroring session
   3. The application does not accept connections from IP addresses outside the local network (RFC1918 ranges), even when a VPN is active
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 07-01-PLAN.md — SecurityManager class, AppSettings/SettingsBridge/ConnectionBridge security extensions, test scaffold
+- [ ] 07-02-PLAN.md — Protocol handler integration (AirPlay/DLNA/Cast security checks), main.cpp wiring
+- [ ] 07-03-PLAN.md — QML approval dialog overlay, PIN display on idle screen, visual verification
 
 ### Phase 8: Miracast
 **Goal**: Windows and Android devices can mirror their screen to MyAirShow via Miracast over Infrastructure with synchronized audio and video
@@ -145,5 +149,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
-| 7. Security & Hardening | 0/? | Not started | - |
+| 7. Security & Hardening | 0/3 | In progress | - |
 | 8. Miracast | 0/? | Not started | - |
