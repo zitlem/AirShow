@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: AirPlay** - iOS and macOS screen mirroring via AirPlay with synchronized A/V and session management (completed 2026-03-28)
 - [x] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps (completed 2026-03-29)
 - [x] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend (completed 2026-03-29)
-- [ ] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability
+- [x] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability (completed 2026-03-30)
 - [ ] **Phase 8: Miracast** - Windows and Android screen mirroring via Miracast over Infrastructure
 
 ## Phase Details
@@ -123,7 +123,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 07-01-PLAN.md — SecurityManager class, AppSettings/SettingsBridge/ConnectionBridge security extensions, test scaffold
-- [ ] 07-02-PLAN.md — Protocol handler integration (AirPlay/DLNA/Cast security checks), main.cpp wiring
+- [x] 07-02-PLAN.md — Protocol handler integration (AirPlay/DLNA/Cast security checks), main.cpp wiring
 - [x] 07-03-PLAN.md — QML approval dialog overlay, PIN display on idle screen, visual verification
 
 ### Phase 8: Miracast
@@ -149,5 +149,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
-| 7. Security & Hardening | 2/3 | In Progress|  |
+| 7. Security & Hardening | 3/3 | Complete   | 2026-03-30 |
 | 8. Miracast | 0/? | Not started | - |

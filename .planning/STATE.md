@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 07-security-hardening 07-03-PLAN.md
-last_updated: "2026-03-30T04:53:33.162Z"
+status: verifying
+stopped_at: Completed 07-security-hardening 07-02-PLAN.md
+last_updated: "2026-03-30T04:57:36.607Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 07 (security-hardening) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
@@ -72,6 +72,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-google-cast P03 | 5 | 2 tasks | 2 files |
 | Phase 07-security-hardening P07-01 | 14 | 2 tasks | 9 files |
 | Phase 07-security-hardening P07-03 | 15 | 2 tasks | 9 files |
+| Phase 07-security-hardening P07-02 | 10 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,8 @@ Recent decisions affecting current work:
 - [Phase 07-security-hardening]: clearApprovalRequest() marked Q_INVOKABLE in ConnectionBridge.h — required for QML button handlers to dismiss approval dialog
 - [Phase 07-security-hardening]: onDisplayPin() is a no-op in AirPlayHandler — PIN display driven by appSettings.pinEnabled QML binding, not UxPlay callback
 - [Phase 07-security-hardening]: ApprovalDialog uses opacity/visible guard matching HudOverlay pattern (RESEARCH.md Pitfall 3) — prevents mouse-event blocking at opacity 0
+- [Phase 07-security-hardening]: AirPlay/DLNA use synchronous checkConnection (non-Qt protocol threads); Cast uses checkConnectionAsync (Qt main thread avoids event loop deadlock)
+- [Phase 07-security-hardening]: display_pin callback is no-op in MyAirShow — PIN display driven by QML bindings to AppSettings, not UxPlay runtime callback
 
 ### Pending Todos
 
@@ -150,6 +153,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T04:53:33.159Z
-Stopped at: Completed 07-security-hardening 07-03-PLAN.md
+Last session: 2026-03-30T04:57:36.603Z
+Stopped at: Completed 07-security-hardening 07-02-PLAN.md
 Resume file: None
