@@ -287,6 +287,12 @@ void MediaPipeline::stop() {
         m_webrtcPipeline = nullptr;
         m_webrtcbin      = nullptr;
     }
+    // Phase 8: clean up Miracast pipeline
+    if (m_miracastPipeline) {
+        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
+        gst_object_unref(m_miracastPipeline);
+        m_miracastPipeline = nullptr;
+    }
 }
 
 bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
@@ -1097,6 +1103,223 @@ void MediaPipeline::setCastDecryptionKeys(uint32_t ssrc,
 
     m_castCryptoKeys[ssrc] = std::move(keys);
     g_message("MediaPipeline::setCastDecryptionKeys — AES-CTR keys stored for SSRC %u", ssrc);
+}
+
+// ── Phase 8: Miracast MPEG-TS/RTP receive pipeline ────────────────────────────
+
+bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
+    // D-09, D-10: Miracast MPEG-TS/RTP receive pipeline (RESEARCH.md Pattern 4).
+    //
+    // Static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
+    // Video branch (pad-added): queue ! h264parse ! [vaapidecodebin|avdec_h264]
+    //                           ! videoconvert ! glupload ! qml6glsink  (or fakesink)
+    // Audio branch (pad-added): queue ! aacparse ! avdec_aac
+    //                           ! audioconvert ! audioresample ! autoaudiosink
+    //
+    // tsdemux emits dynamic pads when it identifies TS stream contents via PAT/PMT.
+    // Pre-create video/audio branches and add to bin before pad-added fires (same
+    // pattern as initUriPipeline Phase 5 — D-05).
+
+    // Clean up any previous Miracast pipeline
+    if (m_miracastPipeline) {
+        stopMiracast();
+    }
+
+    GstElement* pipeline    = gst_pipeline_new("miracast-pipeline");
+
+    // Static source chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
+    GstElement* udpsrc      = gst_element_factory_make("udpsrc",       "mir-udpsrc");
+    GstElement* rtpmp2tdepay = gst_element_factory_make("rtpmp2tdepay", "mir-rtpmp2tdepay");
+    GstElement* tsparse     = gst_element_factory_make("tsparse",      "mir-tsparse");
+    GstElement* tsdemux     = gst_element_factory_make("tsdemux",      "mir-tsdemux");
+
+    // Video branch (pre-created, linked in pad-added)
+    GstElement* videoQueue  = gst_element_factory_make("queue",        "mir-videoqueue");
+    GstElement* h264parse   = gst_element_factory_make("h264parse",    "mir-h264parse");
+
+    // Hardware decoder: try vaapidecodebin first, fall back to avdec_h264 (same as AirPlay D-12)
+    GstElement* videoDecode = gst_element_factory_make("vaapidecodebin", "mir-videodecode");
+    if (!videoDecode) {
+        g_message("MediaPipeline::initMiracastPipeline — vaapidecodebin not available, "
+                  "falling back to avdec_h264");
+        videoDecode = gst_element_factory_make("avdec_h264", "mir-videodecode");
+    }
+
+    GstElement* videoConvert = gst_element_factory_make("videoconvert", "mir-videoconvert");
+
+    // Video sink: qml6glsink (with glupload) in GL mode, fakesink in headless mode
+    const bool useGlSink = (qmlVideoItem != nullptr);
+    GstElement* glUpload   = useGlSink ? gst_element_factory_make("glupload",   "mir-glupload")  : nullptr;
+    GstElement* videoSink  = useGlSink ? gst_element_factory_make("qml6glsink", "mir-videosink")
+                                       : gst_element_factory_make("fakesink",   "mir-videosink");
+
+    // Audio branch (pre-created, linked in pad-added)
+    GstElement* audioQueue    = gst_element_factory_make("queue",        "mir-audioqueue");
+    GstElement* aacparse      = gst_element_factory_make("aacparse",     "mir-aacparse");
+    GstElement* avdecAac      = gst_element_factory_make("avdec_aac",    "mir-avdecaac");
+    GstElement* audioConvert  = gst_element_factory_make("audioconvert", "mir-audioconvert");
+    GstElement* audioResample = gst_element_factory_make("audioresample","mir-audioresample");
+    GstElement* audioSink     = gst_element_factory_make("autoaudiosink","mir-audiosink");
+
+    // Verify all mandatory elements were created
+    const bool allCreated = pipeline && udpsrc && rtpmp2tdepay && tsparse && tsdemux &&
+                            videoQueue && h264parse && videoDecode && videoConvert && videoSink &&
+                            audioQueue && aacparse && avdecAac && audioConvert &&
+                            audioResample && audioSink &&
+                            (!useGlSink || glUpload);
+
+    if (!allCreated) {
+        g_warning("MediaPipeline::initMiracastPipeline — failed to create one or more GStreamer elements");
+        // Unref any successfully created elements to avoid leaks
+        if (pipeline)      gst_object_unref(pipeline);
+        if (udpsrc)        gst_object_unref(udpsrc);
+        if (rtpmp2tdepay)  gst_object_unref(rtpmp2tdepay);
+        if (tsparse)       gst_object_unref(tsparse);
+        if (tsdemux)       gst_object_unref(tsdemux);
+        if (videoQueue)    gst_object_unref(videoQueue);
+        if (h264parse)     gst_object_unref(h264parse);
+        if (videoDecode)   gst_object_unref(videoDecode);
+        if (videoConvert)  gst_object_unref(videoConvert);
+        if (glUpload)      gst_object_unref(glUpload);
+        if (videoSink)     gst_object_unref(videoSink);
+        if (audioQueue)    gst_object_unref(audioQueue);
+        if (aacparse)      gst_object_unref(aacparse);
+        if (avdecAac)      gst_object_unref(avdecAac);
+        if (audioConvert)  gst_object_unref(audioConvert);
+        if (audioResample) gst_object_unref(audioResample);
+        if (audioSink)     gst_object_unref(audioSink);
+        return false;
+    }
+
+    // Configure udpsrc: bind to the negotiated RTP port
+    // caps describe the incoming RTP stream: MP2T (MPEG-TS) with 90kHz clock
+    GstCaps* udpCaps = gst_caps_from_string(
+        "application/x-rtp,media=video,clock-rate=90000,encoding-name=MP2T");
+    g_object_set(udpsrc,
+        "port", udpPort,
+        "caps", udpCaps,
+        nullptr);
+    gst_caps_unref(udpCaps);
+
+    // Set QML video item on sink BEFORE state change (D-04 pattern)
+    if (useGlSink) {
+        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
+    }
+
+    // Add all elements to the pipeline bin before linking
+    if (useGlSink) {
+        gst_bin_add_many(GST_BIN(pipeline),
+            udpsrc, rtpmp2tdepay, tsparse, tsdemux,
+            videoQueue, h264parse, videoDecode, videoConvert, glUpload, videoSink,
+            audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
+            nullptr);
+    } else {
+        gst_bin_add_many(GST_BIN(pipeline),
+            udpsrc, rtpmp2tdepay, tsparse, tsdemux,
+            videoQueue, h264parse, videoDecode, videoConvert, videoSink,
+            audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
+            nullptr);
+    }
+
+    // Link the static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
+    // Do NOT link tsdemux output yet — tsdemux pads are dynamic (Pitfall 4)
+    if (!gst_element_link_many(udpsrc, rtpmp2tdepay, tsparse, tsdemux, nullptr)) {
+        g_warning("MediaPipeline::initMiracastPipeline — failed to link static source chain");
+        gst_object_unref(pipeline);
+        return false;
+    }
+
+    // Pre-link the video branch internal chain (up to videosink) — not yet connected to tsdemux
+    if (useGlSink) {
+        if (!gst_element_link_many(videoQueue, h264parse, videoDecode, videoConvert, glUpload, videoSink, nullptr)) {
+            g_warning("MediaPipeline::initMiracastPipeline — failed to link video branch (GL)");
+            gst_object_unref(pipeline);
+            return false;
+        }
+    } else {
+        if (!gst_element_link_many(videoQueue, h264parse, videoDecode, videoConvert, videoSink, nullptr)) {
+            g_warning("MediaPipeline::initMiracastPipeline — failed to link video branch (fake)");
+            gst_object_unref(pipeline);
+            return false;
+        }
+    }
+
+    // Pre-link the audio branch internal chain
+    if (!gst_element_link_many(audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink, nullptr)) {
+        g_warning("MediaPipeline::initMiracastPipeline — failed to link audio branch");
+        gst_object_unref(pipeline);
+        return false;
+    }
+
+    // Connect tsdemux pad-added signal to dynamically link video/audio branches
+    // Detect pad type from GstCaps: "video/x-h264" -> video queue, "audio/*" -> audio queue
+    // (RESEARCH.md Pitfall 4, Pattern 4)
+    struct MiracastPadHelper {
+        GstElement* videoQueue;
+        GstElement* audioQueue;
+
+        static void callback(GstElement* /*tsdemux*/, GstPad* pad, gpointer data) {
+            auto* self = static_cast<MiracastPadHelper*>(data);
+
+            // Determine pad type from caps
+            GstCaps* caps = gst_pad_get_current_caps(pad);
+            if (!caps) caps = gst_pad_query_caps(pad, nullptr);
+            if (!caps) return;
+
+            const GstStructure* s = gst_caps_get_structure(caps, 0);
+            const gchar* mediaType = gst_structure_get_name(s);
+            gst_caps_unref(caps);
+
+            if (g_str_has_prefix(mediaType, "video/x-h264")) {
+                // Video pad: link to videoQueue sink
+                GstPad* sinkPad = gst_element_get_static_pad(self->videoQueue, "sink");
+                if (sinkPad && !GST_PAD_IS_LINKED(sinkPad)) {
+                    if (gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+                        g_warning("MiracastPadHelper: failed to link video pad to queue");
+                    }
+                }
+                if (sinkPad) gst_object_unref(sinkPad);
+            } else if (g_str_has_prefix(mediaType, "audio/")) {
+                // Audio pad: link to audioQueue sink
+                GstPad* sinkPad = gst_element_get_static_pad(self->audioQueue, "sink");
+                if (sinkPad && !GST_PAD_IS_LINKED(sinkPad)) {
+                    if (gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+                        g_warning("MiracastPadHelper: failed to link audio pad to queue");
+                    }
+                }
+                if (sinkPad) gst_object_unref(sinkPad);
+            } else {
+                g_message("MiracastPadHelper: ignoring unknown pad type '%s'", mediaType);
+            }
+        }
+    };
+
+    auto* padHelper = new MiracastPadHelper{videoQueue, audioQueue};
+    g_signal_connect(tsdemux, "pad-added", G_CALLBACK(MiracastPadHelper::callback), padHelper);
+
+    m_miracastPipeline = pipeline;
+
+    // Start in PAUSED — MiracastHandler transitions to PLAYING when PLAY is received (M7)
+    GstStateChangeReturn ret = gst_element_set_state(m_miracastPipeline, GST_STATE_PAUSED);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_warning("MediaPipeline::initMiracastPipeline — GST_STATE_CHANGE_FAILURE on PAUSED");
+        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
+        gst_object_unref(m_miracastPipeline);
+        m_miracastPipeline = nullptr;
+        return false;
+    }
+
+    g_message("MediaPipeline::initMiracastPipeline — pipeline created and PAUSED (udpPort=%d)", udpPort);
+    return true;
+}
+
+void MediaPipeline::stopMiracast() {
+    if (m_miracastPipeline) {
+        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
+        gst_object_unref(m_miracastPipeline);
+        m_miracastPipeline = nullptr;
+        g_message("MediaPipeline::stopMiracast — pipeline stopped and cleaned up");
+    }
 }
 
 } // namespace myairshow

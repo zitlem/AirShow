@@ -108,6 +108,23 @@ public:
     // Get the webrtcbin element (for external ICE candidate injection if needed).
     GstElement* webrtcbin() const { return m_webrtcbin; }
 
+    // Phase 8: Miracast MPEG-TS/RTP receive pipeline (D-09, D-10).
+    //
+    // Pipeline: udpsrc(port=udpPort) ! rtpmp2tdepay ! tsparse ! tsdemux
+    //   [video: queue ! h264parse ! vaapidecodebin/avdec_h264 ! videoconvert ! glupload ! qml6glsink]
+    //   [audio: queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink]
+    //
+    // Uses dynamic pads from tsdemux (same pattern as uridecodebin in initUriPipeline).
+    // If qmlVideoItem is nullptr, uses fakesink for video (headless test mode).
+    // Pipeline starts in GST_STATE_PAUSED; MiracastHandler calls play() when PLAY received.
+    bool initMiracastPipeline(void* qmlVideoItem, int udpPort);
+
+    // Stop and clean up the Miracast pipeline. Safe to call if not started.
+    void stopMiracast();
+
+    // White-box accessor for tests — allows gst_element_get_state on the miracast pipeline.
+    GstElement* miracastPipeline() const { return m_miracastPipeline; }
+
 private:
     GstElement* m_pipeline        = nullptr;
     GstElement* m_decoderPipeline = nullptr;
@@ -139,6 +156,9 @@ private:
 
     // Stored SDP answer from webrtcbin after setRemoteOffer()
     std::string m_localAnswerSdp;
+
+    // Phase 8: Miracast MPEG-TS/RTP pipeline (separate pipeline, same pattern as m_uriPipeline)
+    GstElement* m_miracastPipeline = nullptr;
 
     // Static member callback for decodebin "element-added" signal (Plan 03).
     // Declared here so it has natural access to private members via the

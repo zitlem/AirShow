@@ -17,8 +17,9 @@
 
 namespace myairshow {
 
-static constexpr uint16_t kAirPlayPort = 7000;
-static constexpr uint16_t kCastPort    = 8009;
+static constexpr uint16_t kAirPlayPort   = 7000;
+static constexpr uint16_t kCastPort      = 8009;
+static constexpr uint16_t kMiracastPort  = 7250;  // MS-MICE control port (D-04)
 
 DiscoveryManager::DiscoveryManager(AppSettings* settings)
     : m_settings(settings)
@@ -93,6 +94,16 @@ bool DiscoveryManager::start() {
         {"rs", ""},
     };
     m_advertiser->advertise("_googlecast._tcp", name, kCastPort, castTxt);
+
+    // --- _display._tcp (MS-MICE Miracast over Infrastructure — DISC-04, D-04) ---
+    // Windows "Connect" app discovers receivers via this mDNS service type.
+    // TXT records: VerMgmt and VerMin from MS-MICE spec revision 6.0.
+    // Per RESEARCH.md Pitfall 1: without this advertisement Windows "Connect" shows no devices.
+    std::vector<TxtRecord> miracastTxt = {
+        {"VerMgmt", "0x0202"},  // MS-MICE management version (revision 6.0)
+        {"VerMin",  "0x0100"},  // MS-MICE minimum version
+    };
+    m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
 
     m_running = true;
     g_message("DiscoveryManager: started advertising as '%s'", name.c_str());
