@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-security-hardening 07-01-PLAN.md
-last_updated: "2026-03-30T04:46:11.132Z"
+stopped_at: Completed 07-security-hardening 07-03-PLAN.md
+last_updated: "2026-03-30T04:53:33.162Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 07 (security-hardening) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-30
 
@@ -71,6 +71,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-google-cast P02 | 8 | 2 tasks | 9 files |
 | Phase 06-google-cast P03 | 5 | 2 tasks | 2 files |
 | Phase 07-security-hardening P07-01 | 14 | 2 tasks | 9 files |
+| Phase 07-security-hardening P07-03 | 15 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -132,6 +133,9 @@ Recent decisions affecting current work:
 - [Phase 06-google-cast]: Fatal vs non-fatal Cast plugin checks: webrtcbin/rtpvp8depay/rtpopusdepay/opusdec fatal; vp8dec non-fatal (avdec_vp8 fallback); nicesrc non-fatal (Cast optional)
 - [Phase 07-security-hardening]: SecurityManager uses constructor dependency injection (AppSettings& ref), not singleton — consistent with SettingsBridge and ConnectionBridge patterns
 - [Phase 07-security-hardening]: ResolveApprovalGrants test uses std::thread + processEvents loop to exercise QueuedConnection dispatch; Qt6::Concurrent unavailable on dev machine
+- [Phase 07-security-hardening]: clearApprovalRequest() marked Q_INVOKABLE in ConnectionBridge.h — required for QML button handlers to dismiss approval dialog
+- [Phase 07-security-hardening]: onDisplayPin() is a no-op in AirPlayHandler — PIN display driven by appSettings.pinEnabled QML binding, not UxPlay callback
+- [Phase 07-security-hardening]: ApprovalDialog uses opacity/visible guard matching HudOverlay pattern (RESEARCH.md Pitfall 3) — prevents mouse-event blocking at opacity 0
 
 ### Pending Todos
 
@@ -146,6 +150,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T04:46:11.128Z
-Stopped at: Completed 07-security-hardening 07-01-PLAN.md
+Last session: 2026-03-30T04:53:33.159Z
+Stopped at: Completed 07-security-hardening 07-03-PLAN.md
 Resume file: None
