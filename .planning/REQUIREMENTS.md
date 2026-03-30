@@ -56,9 +56,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Security
 
-- [ ] **SEC-01**: User is prompted to approve or deny incoming connections before mirroring starts
-- [ ] **SEC-02**: User can enable PIN-based pairing so only devices with the PIN can connect
-- [ ] **SEC-03**: Application only listens on local network interfaces (not exposed to internet)
+- [x] **SEC-01**: User is prompted to approve or deny incoming connections before mirroring starts
+- [x] **SEC-02**: User can enable PIN-based pairing so only devices with the PIN can connect
+- [x] **SEC-03**: Application only listens on local network interfaces (not exposed to internet)
 
 ## v2 Requirements
 
@@ -114,9 +114,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAST-01 | Phase 6 | Complete |
 | CAST-02 | Phase 6 | Complete |
 | CAST-03 | Phase 6 | Complete |
-| SEC-01 | Phase 7 | Pending |
-| SEC-02 | Phase 7 | Pending |
-| SEC-03 | Phase 7 | Pending |
+| SEC-01 | Phase 7 | Complete |
+| SEC-02 | Phase 7 | Complete |
+| SEC-03 | Phase 7 | Complete |
 | MIRA-01 | Phase 8 | Pending |
 | MIRA-02 | Phase 8 | Pending |
 | MIRA-03 | Phase 8 | Pending |
