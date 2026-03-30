@@ -1,6 +1,7 @@
 #include "protocol/DlnaHandler.h"
 #include "ui/ConnectionBridge.h"
 #include "pipeline/MediaPipeline.h"
+#include "security/SecurityManager.h"
 
 // libupnp headers
 #include <upnp/upnp.h>
@@ -14,12 +15,15 @@
 
 // Qt
 #include <QMetaObject>
+#include <QHostAddress>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 namespace myairshow {
 
@@ -98,11 +102,49 @@ void DlnaHandler::setMediaPipeline(MediaPipeline* pipeline) {
     m_pipeline = pipeline;
 }
 
+void DlnaHandler::setSecurityManager(SecurityManager* sm) {
+    m_securityManager = sm;
+}
+
 // ── SOAP dispatch ──────────────────────────────────────────────────────────────
 
 int DlnaHandler::handleSoapAction(const void* event) {
     // Pattern 2 from RESEARCH.md — verified against libupnp tv_device sample.
     const auto* req = static_cast<const UpnpActionRequest*>(event);
+
+    // Phase 7 (SEC-03): Reject SOAP actions from non-RFC1918 source IPs (D-08).
+    // UpnpActionRequest_get_CtrlPtIPAddr returns a struct sockaddr_storage*.
+    const struct sockaddr_storage* peerSockAddr = UpnpActionRequest_get_CtrlPtIPAddr(req);
+    if (peerSockAddr) {
+        QHostAddress clientAddr;
+        if (peerSockAddr->ss_family == AF_INET) {
+            const auto* sin = reinterpret_cast<const struct sockaddr_in*>(peerSockAddr);
+            clientAddr = QHostAddress(ntohl(sin->sin_addr.s_addr));
+        } else if (peerSockAddr->ss_family == AF_INET6) {
+            const auto* sin6 = reinterpret_cast<const struct sockaddr_in6*>(peerSockAddr);
+            clientAddr = QHostAddress(sin6->sin6_addr.s6_addr);
+        }
+        if (!clientAddr.isNull() && !SecurityManager::isLocalNetwork(clientAddr)) {
+            // Reject non-local source — return 401 Invalid Action (D-08)
+            UpnpActionRequest_set_ErrCode(
+                const_cast<UpnpActionRequest*>(req), 401);
+            return UPNP_E_SUCCESS;
+        }
+
+        // Phase 7 (SEC-01): Require SecurityManager approval for unrecognized devices.
+        // handleSoapAction runs on libupnp's thread pool — safe to use synchronous
+        // checkConnection (QSemaphore blocking, not Qt main thread).
+        if (m_securityManager && !clientAddr.isNull()) {
+            QString deviceId = clientAddr.toString();
+            bool allowed = m_securityManager->checkConnection(
+                QStringLiteral("DLNA Controller"), QStringLiteral("DLNA"), deviceId);
+            if (!allowed) {
+                UpnpActionRequest_set_ErrCode(
+                    const_cast<UpnpActionRequest*>(req), 401);
+                return UPNP_E_SUCCESS;
+            }
+        }
+    }
 
     const char* actionName =
         UpnpString_get_String(UpnpActionRequest_get_ActionName(req));

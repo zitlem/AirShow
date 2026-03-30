@@ -14,6 +14,7 @@
 #include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
 #include "discovery/DiscoveryManager.h"
+#include "security/SecurityManager.h"
 
 // Qt
 #include <QMetaObject>
@@ -66,6 +67,10 @@ static void raop_cb_report_client_request(void* cls, char* deviceid, char* model
     static_cast<myairshow::AirPlayHandler*>(cls)->onReportClientRequest(deviceid, model, name, admit);
 }
 
+static void raop_cb_display_pin(void* cls, char* pin) {
+    static_cast<myairshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace myairshow {
@@ -103,6 +108,12 @@ void AirPlayHandler::setMediaPipeline(MediaPipeline* pipeline) {
     m_audioAppsrc = pipeline->audioAppsrc();
 }
 
+// ── setSecurityManager() ─────────────────────────────────────────────────────
+
+void AirPlayHandler::setSecurityManager(SecurityManager* sm) {
+    m_securityManager = sm;
+}
+
 // ── start() ──────────────────────────────────────────────────────────────────
 
 bool AirPlayHandler::start() {
@@ -120,6 +131,10 @@ bool AirPlayHandler::start() {
     callbacks.conn_teardown         = raop_cb_conn_teardown;
     callbacks.audio_get_format      = raop_cb_audio_get_format;
     callbacks.report_client_request = raop_cb_report_client_request;
+    // PIN pairing (D-05, D-06): set display_pin trampoline if PIN is enabled
+    if (m_securityManager && m_securityManager->isPinEnabled()) {
+        callbacks.display_pin = raop_cb_display_pin;
+    }
 
     // 2. Initialise RAOP server
     m_raop = raop_init(&callbacks);
@@ -171,6 +186,13 @@ bool AirPlayHandler::start() {
         raop_destroy(m_raop);
         m_raop = nullptr;
         return false;
+    }
+
+    // 3b. Enable PIN pairing if configured (D-05, D-06, D-07).
+    //     MUST be called after raop_init2 and before raop_start_httpd (Pitfall 2).
+    if (m_securityManager && m_securityManager->isPinEnabled()) {
+        int pinValue = m_securityManager->pin().toInt();
+        raop_set_plist(m_raop, "pin", pinValue);
     }
 
     // 4. Read pk from PEM keyfile and update TXT records (Pitfall 1)
@@ -313,12 +335,22 @@ void AirPlayHandler::onAudioGetFormat(unsigned char* ct, unsigned short* /*spf*/
     m_audioCapsSet = true;
 }
 
-void AirPlayHandler::onReportClientRequest(char* /*deviceid*/, char* /*model*/,
+void AirPlayHandler::onReportClientRequest(char* deviceid, char* /*model*/,
                                            char* devicename, bool* admit) {
-    // D-08: Single-session model — always admit (D-09: new connection replaces old)
     m_currentDeviceName = (devicename && *devicename) ? std::string(devicename) : "Unknown";
+
+    // Phase 7 (SEC-01): Check with SecurityManager before admitting connection.
+    // Runs on UxPlay's RAOP thread — use synchronous checkConnection (QSemaphore blocking),
+    // NOT checkConnectionAsync (which is only for the Qt main thread).
     if (admit) {
-        *admit = true;
+        if (m_securityManager) {
+            QString name = QString::fromStdString(m_currentDeviceName);
+            QString id   = (deviceid && *deviceid) ? QString::fromUtf8(deviceid) : name;
+            *admit = m_securityManager->checkConnection(name, QStringLiteral("AirPlay"), id);
+        } else {
+            // Backward compatible: no SecurityManager → admit all (D-08)
+            *admit = true;
+        }
     }
 }
 
@@ -406,6 +438,22 @@ std::string AirPlayHandler::readPublicKeyFromKeyfile() const {
     }
 
     return hexPk;
+}
+
+// ── onDisplayPin() ───────────────────────────────────────────────────────────
+//
+// Invoked by raop_cb_display_pin when UxPlay activates PIN pairing mode.
+// The PIN to display is already stored in AppSettings (via SecurityManager::pin()).
+// IdleScreen.qml shows appSettings.pin automatically when appSettings.pinEnabled is true.
+// This callback is a no-op in MyAirShow's architecture — the PIN display is driven
+// by QML property bindings, not by runtime UxPlay notifications.
+//
+void AirPlayHandler::onDisplayPin(const std::string& pin) {
+    // Log the PIN for debugging; display is handled by IdleScreen.qml binding to
+    // appSettings.pin and appSettings.pinEnabled (Phase 7 Plan 03 / D-05, D-14).
+    if (!pin.empty()) {
+        g_debug("AirPlayHandler::onDisplayPin — UxPlay PIN pairing code: %s", pin.c_str());
+    }
 }
 
 } // namespace myairshow

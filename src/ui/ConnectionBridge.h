@@ -72,7 +72,7 @@ public:
     // Clears all pending approval properties and emits approvalPendingChanged(false).
     // Called after the user has approved or denied (QML triggers resolveApproval
     // on SecurityManager, then calls clearApprovalRequest via an invokable or slot).
-    void clearApprovalRequest();
+    Q_INVOKABLE void clearApprovalRequest();
 
 signals:
     // Connection state signals

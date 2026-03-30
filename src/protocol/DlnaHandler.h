@@ -11,6 +11,7 @@ namespace myairshow {
 
 class MediaPipeline;
 class ConnectionBridge;
+class SecurityManager;
 
 // DLNA Digital Media Renderer handler (D-01).
 // Implements ProtocolHandler and handles SOAP action dispatch for:
@@ -34,6 +35,10 @@ public:
     std::string name() const override { return "dlna"; }
     bool isRunning() const override { return m_running; }
     void setMediaPipeline(MediaPipeline* pipeline) override;
+
+    // Security integration (Phase 7 Plan 02). Call before start().
+    // SecurityManager is optional — if null, all SOAP actions are passed through (backward compatible).
+    void setSecurityManager(SecurityManager* sm);
 
     // Called by UpnpAdvertiser::upnpCallback trampoline (D-02).
     // event is cast to const UpnpActionRequest* internally.
@@ -65,6 +70,7 @@ private:
 
     MediaPipeline*    m_pipeline         = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;
+    SecurityManager*  m_securityManager  = nullptr;
     bool              m_running          = false;
     TransportState    m_transportState   = TransportState::STOPPED;
     std::string       m_currentUri;
