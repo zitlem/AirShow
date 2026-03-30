@@ -1,5 +1,6 @@
 #pragma once
 #include <QString>
+#include <QStringList>
 
 namespace myairshow {
 
@@ -15,6 +16,8 @@ class AppSettings {
 public:
     AppSettings();
 
+    // --- Receiver identity -----------------------------------------------
+
     // Returns stored receiver name, or system hostname as default (D-10).
     QString receiverName() const;
 
@@ -27,6 +30,37 @@ public:
 
     // Mark first-launch as complete. Call after firewall rules are registered.
     void setFirstLaunchComplete();
+
+    // --- Security settings (Phase 7 / D-11) ------------------------------
+
+    // Whether incoming connections require explicit user approval (default: true).
+    // Key: "security/requireApproval"
+    bool requireApproval() const;
+    void setRequireApproval(bool v);
+
+    // Whether PIN-based pairing is enabled (default: false).
+    // Key: "security/pinEnabled"
+    bool pinEnabled() const;
+    void setPinEnabled(bool v);
+
+    // The 4-digit PIN string displayed to users for pairing (default: "").
+    // Key: "security/pin"
+    QString pin() const;
+    void setPin(const QString& v);
+
+    // List of stable device identifiers that have been approved for connection
+    // without re-prompting (MAC for AirPlay, UUID for Cast, IP+UA for DLNA).
+    // Key: "security/trustedDevices"
+    QStringList trustedDevices() const;
+
+    // Append deviceId to trusted list if not already present.
+    void addTrustedDevice(const QString& deviceId);
+
+    // Remove a specific device from the trusted list.
+    void removeTrustedDevice(const QString& deviceId);
+
+    // Clear all trusted devices.
+    void clearTrustedDevices();
 
 private:
     // Returns the platform default receiver name.
