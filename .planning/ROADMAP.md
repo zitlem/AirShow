@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: DLNA** - DLNA Digital Media Renderer for video and audio file push from controller apps (completed 2026-03-29)
 - [x] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend (completed 2026-03-29)
 - [x] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability (completed 2026-03-30)
-- [ ] **Phase 8: Miracast** - Windows and Android screen mirroring via Miracast over Infrastructure
+- [x] **Phase 8: Miracast** - Windows and Android screen mirroring via Miracast over Infrastructure (completed 2026-03-30)
 
 ## Phase Details
 
@@ -138,7 +138,7 @@ Plans:
 Plans:
 - [x] 08-01-PLAN.md — MiracastHandler skeleton, initMiracastPipeline() MPEG-TS/RTP mode, _display._tcp mDNS, test scaffold
 - [x] 08-02-PLAN.md — MS-MICE SOURCE_READY + WFD RTSP M1-M7 client state machine, SecurityManager integration
-- [ ] 08-03-PLAN.md — main.cpp wiring, GStreamer plugin checks, integration tests, end-to-end Windows verification
+- [x] 08-03-PLAN.md — main.cpp wiring, GStreamer plugin checks, integration tests, end-to-end Windows verification
 
 ## Progress
 
@@ -154,4 +154,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. DLNA | 3/3 | Complete   | 2026-03-29 |
 | 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
 | 7. Security & Hardening | 3/3 | Complete   | 2026-03-30 |
-| 8. Miracast | 2/3 | In Progress|  |
+| 8. Miracast | 3/3 | Complete   | 2026-03-30 |
