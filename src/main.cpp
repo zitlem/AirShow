@@ -14,6 +14,7 @@
 #include "protocol/AirPlayHandler.h"
 #include "protocol/CastHandler.h"
 #include "protocol/DlnaHandler.h"
+#include "protocol/MiracastHandler.h"
 #include "protocol/ProtocolManager.h"
 
 static void checkRequiredPlugins() {
@@ -47,6 +48,31 @@ static void checkRequiredPlugins() {
     // Non-fatal warning: nicesrc (ICE for webrtcbin, Pitfall 4)
     if (!gst_registry_check_feature_version(gst_registry_get(), "nicesrc", 0, 1, 14)) {
         qWarning("GStreamer plugin 'nicesrc' not found — Cast WebRTC may fail. Install: gstreamer1.0-nice");
+    }
+
+    // Miracast-specific plugin checks (Phase 8)
+    // Fatal: MPEG-TS demux pipeline — required for all Miracast streams
+    struct { const char* name; const char* pkg; } miracastRequired[] = {
+        {"rtpmp2tdepay", "gstreamer1.0-plugins-good"},
+        {"tsparse",      "gstreamer1.0-plugins-bad"},
+        {"tsdemux",      "gstreamer1.0-plugins-bad"},
+    };
+    for (auto& p : miracastRequired) {
+        if (!gst_registry_check_feature_version(
+                gst_registry_get(), p.name, 1, 20, 0)) {
+            qFatal("Missing GStreamer plugin '%s' (required for Miracast). Install package: %s",
+                   p.name, p.pkg);
+        }
+    }
+
+    // Non-fatal: vaapidecodebin — hardware H.264 decode; avdec_h264 is the software fallback
+    if (!gst_registry_check_feature_version(gst_registry_get(), "vaapidecodebin", 1, 20, 0)) {
+        qWarning("GStreamer plugin 'vaapidecodebin' not found — Miracast will use avdec_h264 software decode");
+    }
+
+    // Non-fatal: aacparse — some Miracast streams carry LPCM only; AAC parsing is optional
+    if (!gst_registry_check_feature_version(gst_registry_get(), "aacparse", 1, 20, 0)) {
+        qWarning("GStreamer plugin 'aacparse' not found — Miracast AAC audio streams may not decode correctly");
     }
 }
 
@@ -158,6 +184,21 @@ int main(int argc, char* argv[]) {
         // Phase 7: Wire SecurityManager for async approval + RFC1918 filter
         castHandler->setSecurityManager(&securityManager);
         protocolManager.addHandler(std::move(castHandler));
+        // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
+    }
+
+    // Miracast (MS-MICE) handler (Phase 8) — Windows wireless display mirroring (MIRA-01)
+    {
+        auto miracastHandler = std::make_unique<myairshow::MiracastHandler>(
+            window.connectionBridge());
+        // Phase 7: Wire SecurityManager for connection approval + RFC1918 filter
+        miracastHandler->setSecurityManager(&securityManager);
+        // QML video item pointer: nullptr here — the real pointer is stored in
+        // MediaPipeline::m_qmlVideoItem (set by ReceiverWindow after sceneGraphInitialized).
+        // MiracastHandler passes m_qmlVideoItem to initMiracastPipeline() at session time.
+        // Same deferred-pointer pattern as pipeline.setQmlVideoItem(nullptr) above.
+        miracastHandler->setQmlVideoItem(nullptr);
+        protocolManager.addHandler(std::move(miracastHandler));
         // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
     }
 
