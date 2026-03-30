@@ -1,10 +1,13 @@
 #include <QGuiApplication>
 #include <QDir>
+#include <QQmlContext>
 #include <QStandardPaths>
 #include <gst/gst.h>
 #include "pipeline/MediaPipeline.h"
 #include "ui/ReceiverWindow.h"
+#include "ui/ConnectionBridge.h"
 #include "settings/AppSettings.h"
+#include "security/SecurityManager.h"
 #include "discovery/DiscoveryManager.h"
 #include "discovery/UpnpAdvertiser.h"
 #include "platform/WindowsFirewall.h"
@@ -59,6 +62,10 @@ int main(int argc, char* argv[]) {
 
     myairshow::AppSettings settings;
 
+    // Phase 7: SecurityManager — must outlive all protocol handlers.
+    // Constructed after AppSettings (dependency injection) and before any handler.
+    myairshow::SecurityManager securityManager(settings);
+
     // Windows firewall rules — first launch only (D-12/D-13/D-14)
     if (settings.isFirstLaunch()) {
         if (!myairshow::WindowsFirewall::registerRules()) {
@@ -96,6 +103,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Phase 7: Wire SecurityManager to ConnectionBridge (approval dialog state) and
+    // expose it as a QML context property so QML can call resolveApproval().
+    QObject::connect(&securityManager, &myairshow::SecurityManager::requestApproval,
+                     window.connectionBridge(),
+                     &myairshow::ConnectionBridge::showApprovalRequest);
+    window.engine()->rootContext()->setContextProperty(
+        QStringLiteral("securityManager"), &securityManager);
+
     // Protocol manager owns all protocol handlers
     myairshow::ProtocolManager protocolManager(&pipeline);
 
@@ -104,6 +119,9 @@ int main(int argc, char* argv[]) {
     {
         auto dlnaHandler = std::make_unique<myairshow::DlnaHandler>(window.connectionBridge());
         auto* dlnaRawPtr = dlnaHandler.get(); // raw ptr for UpnpAdvertiser before ownership transfer
+
+        // Phase 7: Wire SecurityManager for SOAP action approval + RFC1918 filter
+        dlnaRawPtr->setSecurityManager(&securityManager);
 
         // Route SOAP actions from UpnpAdvertiser to DlnaHandler (D-02)
         upnpAdvertiser.setDlnaHandler(dlnaRawPtr);
@@ -124,6 +142,8 @@ int main(int argc, char* argv[]) {
             &discovery,                  // DiscoveryManager* for pk TXT record update
             deviceId,
             keyfilePath);
+        // Phase 7: Wire SecurityManager for connection approval + PIN pairing
+        airplay->setSecurityManager(&securityManager);
         protocolManager.addHandler(std::move(airplay));
         // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
         // This ensures AirPlayHandler::m_pipeline is non-null before start() is called.
@@ -135,6 +155,8 @@ int main(int argc, char* argv[]) {
     {
         auto castHandler = std::make_unique<myairshow::CastHandler>(
             window.connectionBridge());
+        // Phase 7: Wire SecurityManager for async approval + RFC1918 filter
+        castHandler->setSecurityManager(&securityManager);
         protocolManager.addHandler(std::move(castHandler));
         // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
     }

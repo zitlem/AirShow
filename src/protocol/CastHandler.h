@@ -1,6 +1,7 @@
 #pragma once
 #include "protocol/ProtocolHandler.h"
 #include <QObject>
+#include <QPointer>
 #include <QSslCertificate>
 #include <QSslKey>
 #include <memory>
@@ -9,11 +10,13 @@
 
 // Forward declarations — avoid pulling in Qt network headers in the interface
 class QSslServer;
+class QSslSocket;
 
 namespace myairshow {
 
 class ConnectionBridge;
 class CastSession;
+class SecurityManager;
 
 // Google Cast CASTV2 protocol handler (D-12, D-13).
 //
@@ -36,6 +39,10 @@ public:
     bool        isRunning() const override { return m_running; }
     void        setMediaPipeline(MediaPipeline* pipeline) override;
 
+    // Security integration (Phase 7 Plan 02). Call before start().
+    // SecurityManager is optional — if null, all connections are admitted (backward compatible).
+    void        setSecurityManager(SecurityManager* sm);
+
 private:
     // Generate a runtime self-signed RSA-2048 TLS certificate valid for 48 hours.
     // Uses OpenSSL 3.x EVP API (not deprecated EVP_PKEY_CTX_new_from_name).
@@ -49,10 +56,14 @@ private:
     // Clean up when a session emits finished().
     void onSessionFinished();
 
-    QSslServer*                  m_server    = nullptr;
+    QSslServer*                  m_server          = nullptr;
     std::unique_ptr<CastSession> m_session;
     ConnectionBridge*            m_connectionBridge = nullptr;
     MediaPipeline*               m_pipeline         = nullptr;
+    SecurityManager*             m_securityManager  = nullptr;
+    // Holds the incoming socket during async security approval.
+    // QPointer ensures we detect socket deletion during the async wait.
+    QPointer<QSslSocket>         m_pendingSocket;
     bool                         m_running          = false;
 };
 

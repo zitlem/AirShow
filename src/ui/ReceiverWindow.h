@@ -19,6 +19,9 @@ public:
     // Returns nullptr if load() has not been called yet.
     ConnectionBridge* connectionBridge() { return m_connectionBridge; }
 
+    // Public accessor for the QML engine — used to expose C++ objects as context properties.
+    QQmlApplicationEngine* engine() { return &m_engine; }
+
 private:
     QQmlApplicationEngine m_engine;
     MediaPipeline&        m_pipeline;

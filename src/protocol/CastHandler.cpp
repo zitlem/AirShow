@@ -1,6 +1,7 @@
 #include "protocol/CastHandler.h"
 #include "protocol/CastSession.h"
 #include "ui/ConnectionBridge.h"
+#include "security/SecurityManager.h"
 
 // Qt Network / TLS
 #include <QSslServer>
@@ -12,6 +13,7 @@
 
 // Qt Core
 #include <QDebug>
+#include <QCryptographicHash>
 
 // OpenSSL 3.x (runtime self-signed cert generation per RESEARCH.md Pattern 3)
 #include <openssl/evp.h>
@@ -98,22 +100,80 @@ void CastHandler::setMediaPipeline(MediaPipeline* pipeline) {
     m_pipeline = pipeline;
 }
 
+void CastHandler::setSecurityManager(SecurityManager* sm) {
+    m_securityManager = sm;
+}
+
 // ── Private slots ─────────────────────────────────────────────────────────────
 
 void CastHandler::onPendingConnection() {
     auto* socket = qobject_cast<QSslSocket*>(m_server->nextPendingConnection());
     if (!socket) return;
 
+    const QHostAddress peerAddr = socket->peerAddress();
     qDebug("CastHandler: new connection from %s:%d",
-           qPrintable(socket->peerAddress().toString()),
+           qPrintable(peerAddr.toString()),
            socket->peerPort());
 
-    // D-14: new connection replaces active session
-    m_session.reset();
+    // Phase 7 (SEC-03): Reject connections from non-RFC1918 source IPs immediately.
+    if (!SecurityManager::isLocalNetwork(peerAddr)) {
+        qDebug("CastHandler: rejecting non-local connection from %s",
+               qPrintable(peerAddr.toString()));
+        socket->disconnectFromHost();
+        socket->deleteLater();
+        return;
+    }
 
-    m_session = std::make_unique<CastSession>(socket, m_connectionBridge, m_pipeline, this);
-    connect(m_session.get(), &CastSession::finished,
-            this, &CastHandler::onSessionFinished);
+    // Phase 7 (SEC-01): Require SecurityManager approval.
+    // CRITICAL: CastHandler runs on the Qt main thread — MUST use checkConnectionAsync.
+    // Using checkConnection (QSemaphore blocking) here would deadlock the event loop (Pitfall 1).
+    if (m_securityManager) {
+        // Use TLS peer certificate fingerprint as stable Cast device ID if available.
+        // Falls back to peer IP string if no peer cert (we use VerifyNone, so cert may be absent).
+        const QSslCertificate peerCert = socket->peerCertificate();
+        QString deviceId = peerCert.isNull()
+            ? peerAddr.toString()
+            : peerCert.digest(QCryptographicHash::Sha256).toHex();
+
+        // Store socket in QPointer so we can safely check if it was deleted during approval.
+        m_pendingSocket = socket;
+
+        // D-14: clear any existing session immediately (new connection replaces old).
+        m_session.reset();
+
+        m_securityManager->checkConnectionAsync(
+            QStringLiteral("Cast device"), QStringLiteral("Cast"), deviceId,
+            [this, socket](bool approved) {
+                // This callback is invoked on the Qt main thread by resolveApproval().
+                if (!approved) {
+                    qDebug("CastHandler: connection denied by security manager");
+                    if (m_pendingSocket == socket) {
+                        m_pendingSocket = nullptr;
+                    }
+                    socket->disconnectFromHost();
+                    socket->deleteLater();
+                    return;
+                }
+                // Check that the socket is still valid (QPointer catches deletion).
+                if (m_pendingSocket != socket || !socket) {
+                    qDebug("CastHandler: socket gone before approval resolved");
+                    return;
+                }
+                m_pendingSocket = nullptr;
+                qDebug("CastHandler: connection approved, creating CastSession");
+                m_session = std::make_unique<CastSession>(
+                    socket, m_connectionBridge, m_pipeline, this);
+                connect(m_session.get(), &CastSession::finished,
+                        this, &CastHandler::onSessionFinished);
+            });
+    } else {
+        // No SecurityManager — admit all local connections (backward compatible).
+        // D-14: new connection replaces active session.
+        m_session.reset();
+        m_session = std::make_unique<CastSession>(socket, m_connectionBridge, m_pipeline, this);
+        connect(m_session.get(), &CastSession::finished,
+                this, &CastHandler::onSessionFinished);
+    }
 }
 
 void CastHandler::onSessionFinished() {
