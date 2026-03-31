@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: Completed 08-miracast-03-PLAN.md
-last_updated: "2026-03-30T19:10:40.781Z"
+milestone: v2.0
+milestone_name: companion-sender
+status: defining-requirements
+stopped_at: Milestone v2.0 started
+last_updated: "2026-03-30T22:00:00.000Z"
 last_activity: 2026-03-30
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 24
-  completed_plans: 24
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -21,13 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 08 — miracast
+**Current focus:** Milestone v2.0 — AirShow Companion Sender
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-30 — Milestone v2.0 started
 Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
