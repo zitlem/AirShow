@@ -1,135 +1,162 @@
 # Stack Research
 
-**Domain:** Cross-platform wireless display receiver (AirPlay + Google Cast + Miracast + DLNA)
-**Researched:** 2026-03-28
-**Confidence:** MEDIUM — Core stack is HIGH confidence; Google Cast and Miracast receiver feasibility have critical caveats (see notes)
+**Domain:** AirShow v2.0 — Flutter Companion Sender App (cross-platform screen mirror sender)
+**Researched:** 2026-03-30
+**Confidence:** MEDIUM — Flutter stack is HIGH confidence; platform-specific screen capture on desktop Linux is the weak link; receiver-side protocol additions are straightforward given existing GStreamer/appsrc pattern.
+
+---
+
+## Scope
+
+This document covers NEW stack additions for the v2.0 companion sender app only. The existing receiver stack (C++17 + Qt 6.8 LTS + GStreamer 1.26 + OpenSSL 3.x + CMake + vcpkg) is validated and unchanged.
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies
+### Sender App — Core Framework
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| **C++17** | C++17 standard | Implementation language | All serious protocol libraries in this space (UxPlay, libupnp, OpenSSL) are C/C++. Wrapping them in any other language adds friction. Qt, GStreamer, and OpenSSL all have first-class C++ APIs. The commercial reference (AirServer) is C++ + Qt. |
-| **Qt 6.8 LTS** | 6.8.x (LTS until 2029-10-08) | GUI framework + UI rendering | AirServer itself is built with Qt (Qt Core, Quick, Network, Quick Layouts, Multimedia). Qt 6.8 LTS is the right choice for a greenfield project — avoids the LGPL commercial issue of Qt 5, has native Windows/macOS/Linux support, and the LTS commitment avoids churn. Qt 6.10 exists but is not yet LTS. |
-| **GStreamer 1.26.x** | 1.26.5 (current stable) | Audio/video decoding pipeline | UxPlay uses GStreamer for all media output. GStreamer is the only cross-platform pipeline library that provides H.264/H.265 hardware decode via VAAPI (Linux/Intel), D3D11 (Windows), and VideoToolbox (macOS) with the same pipeline API. Version 1.26 is the current stable series (1.28.0 dropped in January 2026 but too new for stable distribution packaging). |
-| **OpenSSL** | 3.x (≥3.0.0) | TLS + AirPlay FairPlay crypto | AirPlay 2 mirroring requires TLS and FairPlay SRP authentication. OpenSSL 3.x is GPL-compatible and available everywhere. OpenSSL 1.1.1 reached EOL September 2023 — use 3.x. |
-| **CMake** | ≥3.28 | Build system | Standard for cross-platform C++ projects in 2026. Integrates with vcpkg for dependency management. Supports presets for per-platform configuration. All core dependencies ship CMake find-modules. |
+| **Flutter** | 3.41.5 (stable) | Cross-platform sender app UI + app logic | The only framework that targets Android + iOS + Windows + macOS + Linux from one Dart codebase with real native platform channel and dart:ffi access. React Native and Kotlin Multiplatform both have weaker Linux desktop support. Flutter 3.41 is the Feb 2026 stable release. |
+| **Dart** | 3.x (bundled with Flutter 3.41) | Application language | Ships with Flutter. dart:io provides raw TCP sockets for the custom AirShow protocol transport. |
 
-### Protocol Libraries
-
-| Library | Version | Protocol | Notes |
-|---------|---------|----------|-------|
-| **UxPlay** (embedded / forked) | 1.73.6 | AirPlay 2 mirroring | The only actively maintained, GPL-licensed AirPlay mirroring receiver for Linux/macOS/Windows. Depends on GStreamer + OpenSSL + libplist + Avahi/mDNSResponder. Embed as a submodule rather than link as a shared lib — it is an application, not a library, but its core logic is separable. |
-| **libplist** | ≥2.6 (2.7.0 released 2025-05) | Apple Property List parsing | Required by UxPlay. Cross-platform. Part of the libimobiledevice family. |
-| **openscreen (libcast)** | tip-of-tree | Google Cast streaming | Google's own open-source Cast protocol implementation. The `cast/streaming` module is standalone and handles Cast Streaming sessions (sender + receiver). **Critical caveat: see Cast Authentication note below.** |
-| **pupnp / libupnp** | ≥1.14.x | DLNA/UPnP DMR | The Portable UPnP SDK. C library with active maintenance (GitHub: pupnp/pupnp). Implements UPnP AV Media Renderer (DMR) needed for DLNA push. Platinum UPnP SDK is an alternative but last released 2020 — avoid. |
-| **MiracleCast / lazycast approach** | N/A | Miracast | **No viable cross-platform library exists.** See Miracast note below. |
-
-### Service Discovery
-
-| Library | Platform | Purpose | Notes |
-|---------|----------|---------|-------|
-| **Avahi** | Linux | mDNS/DNS-SD advertisement | Used by UxPlay on Linux. Required to advertise `_airplay._tcp` and `_raop._tcp`. LGPL license. |
-| **mDNSResponder (Bonjour)** | macOS + Windows | mDNS/DNS-SD advertisement | Apple's own implementation; built into macOS. On Windows, the Bonjour installer must be bundled or the user must have iTunes installed. |
-| **mjansson/mdns** (header-only) | All platforms | mDNS fallback / SSDP for DLNA | Single-file, public-domain, C99, no dependencies. Useful for DLNA SSDP advertisement and as a lightweight fallback if Avahi/Bonjour unavailable. |
-
-### Supporting Libraries
+### Sender App — mDNS Discovery
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| **libssl / libcrypto (OpenSSL)** | 3.x | Crypto primitives | Always — AirPlay FairPlay, Cast TLS, general cert handling |
-| **gst-plugins-base** | 1.26.x | GStreamer core plugins | Always — provides `videoconvert`, `audioconvert`, `autovideosink` |
-| **gst-plugins-good** | 1.26.x | RTP, RTSP, codec plugins | Always — `rtph264depay`, `rtpjitterbuffer`, `opusparse` |
-| **gst-plugins-bad** | 1.26.x | Hardware decode plugins | Always on desktop — `vaapidecodebin` (Linux), `d3d11h264dec` (Windows) |
-| **gst-libav** | 1.26.x | FFmpeg codec fallback | Always — software H.264/H.265/AAC decode when hardware unavailable |
-| **Qt QML qml6glsink** | Ships with GStreamer | Render GStreamer video into Qt QML | Use `qml6glsink` to get zero-copy video frames into the Qt scene graph. This is the correct integration pattern; `QMediaPlayer` is too opaque for custom pipelines. |
-| **protobuf** | 3.x or 4.x | Google Cast CASTV2 protocol | Cast uses protobuf over TLS for control messages. Use `libprotobuf` matching openscreen's requirement. |
-| **spdlog** | ≥1.13 | Structured logging | Header-only C++ logging. Not required but saves time. |
+| **multicast_dns** | 0.3.3 | Discover `_airshow._tcp` services on LAN | Use this. It is the flutter.dev-published, BSD-3-licensed package (3.2M+ downloads). Supports Android, iOS, Linux, macOS, Windows — all five sender targets. It does pure-Dart mDNS queries over multicast UDP (RFC 6762). |
+| **nsd** | 4.1.0 | mDNS service discovery AND registration | Use only if registration is also needed from the sender side (unlikely — sender discovers, receiver advertises). Does NOT support Linux. Avoid if Linux sender is a target. |
 
-### Development Tools
+**Decision: use `multicast_dns` 0.3.3.** It covers all five platforms including Linux. `nsd` is excluded because it drops Linux.
+
+### Sender App — Screen Capture
+
+Screen capture is the most platform-fragmented piece. There is no single Flutter plugin that provides live frame callbacks on all five platforms. The correct architecture is: platform-native capture via a thin Flutter plugin + dart:ffi for high-throughput pixel data transfer.
+
+| Platform | API | Flutter Integration | Confidence |
+|----------|-----|---------------------|------------|
+| **Android** | MediaProjection + foreground service (`FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`) | `media_projection_creator` plugin OR custom MethodChannel. Android 14+ requires calling `createScreenCaptureIntent()` BEFORE starting the foreground service — many existing plugins handle this incorrectly for API 34+. | HIGH |
+| **iOS** | ReplayKit 2 Broadcast Upload Extension | Custom app extension target + `RPSystemBroadcastPickerView` launcher. The broadcast extension is a separate process with a 50 MB memory cap. It cannot capture AVPlayer/DRM audio. Raw `CMSampleBuffer` frames are delivered as uncompressed YUV. | HIGH |
+| **Windows** | DXGI Desktop Duplication API (`IDXGIOutputDuplication`) + Media Foundation H.264 MFT encoder | C++ native plugin via dart:ffi. DXGI Desktop Duplication is the standard since Windows 8, gives GPU-accessible `ID3D11Texture2D` frames. Media Foundation `H264EncoderMFT` hardware-encodes them. | HIGH |
+| **macOS** | `ScreenCaptureKit` (macOS 12.3+) + VideoToolbox `VTCompressionSession` | C++ or ObjC native plugin via dart:ffi or MethodChannel. ScreenCaptureKit replaced deprecated CGDisplayStream in 2022 and is the current Apple-recommended API. Requires `NSScreenCaptureUsageDescription` in Info.plist. | HIGH |
+| **Linux** | X11: `XShm`/`XComposite`; Wayland: `xdg-desktop-portal` + PipeWire | C native plugin. X11 is straightforward (XShm shared memory). Wayland requires the portal; PipeWire delivers a video stream that must be consumed per-frame. VAAPI (`VA-API`) for H.264 hardware encode on Intel/AMD. | MEDIUM — Wayland portal UX is disruptive; each capture session requires user consent. |
+
+**No existing Flutter plugin does continuous live-frame delivery for the desktop platforms (Windows/macOS/Linux).** The `screen_capturer` plugin (0.2.3) only takes static screenshots. `flutter_webrtc` (1.4.1) handles `getDisplayMedia` on all five platforms and internally wraps these same OS APIs, but it encodes to WebRTC's internal codec pipeline — frames are not accessible as raw H.264 NAL units for reuse. See "Transport" section for why this matters.
+
+### Sender App — H.264 Encoding
+
+| Platform | API | Notes |
+|----------|-----|-------|
+| **Android** | `MediaCodec` (`android.media.MediaCodec`) | Part of the Android multimedia framework since API 16. Request `video/avc` (H.264) encoder, configure with target bitrate and keyframe interval. Runs in hardware on virtually all Android devices since 2014. |
+| **iOS** | `VideoToolbox` (`VTCompressionSession`) | Apple's hardware H.264 encoder. Called from the ReplayKit extension's `processSampleBuffer` callback. Configure `kVTProfileLevel_H264_High_AutoLevel` and `kVTEncodeFrameOptionKey_ForceKeyFrame` for IDR on demand. |
+| **Windows** | Media Foundation H.264 MFT (`CLSID_MSH264EncoderMFT`) | Hardware encoder on all modern Windows systems. DXGI texture flows directly into the MFT input via `IMFDXGIBuffer` — no CPU copy needed. |
+| **macOS** | `VideoToolbox` (`VTCompressionSession`) | Same as iOS. Apple Silicon has dedicated H.264 encoder hardware. |
+| **Linux** | GStreamer `vaapih264enc` or `x264enc` (software fallback) | For Linux sender, the simplest approach is to run a local GStreamer pipeline (`ximagesrc ! videoconvert ! vaapih264enc` or `x264enc`) and funnel the encoded NAL units over the custom AirShow protocol. Re-uses the same GStreamer already present on the system. Avoids needing a separate encoding library. |
+
+**Encoding abstraction strategy:** Write a thin Dart abstract class `H264Encoder` with platform implementations. On Android/iOS/Windows/macOS use native platform channel or dart:ffi to the OS encoder. On Linux desktop use a GStreamer subprocess or FFI to the existing GStreamer pipeline since GStreamer is already a project dependency.
+
+### Sender App — Transport Protocol (Custom AirShow Protocol)
+
+Do NOT implement WebRTC, RTP/RTSP, or RTMP for the sender-to-AirShow-receiver path. Those are correct for sending to third-party receivers. For sender-to-AirShow-receiver, use a purpose-built binary TCP protocol.
+
+**Rationale:** WebRTC adds libwebrtc dependency (~20 MB), signaling infrastructure, ICE/STUN complexity, and codec negotiation overhead. RTSP requires implementing an RTSP state machine. The AirShow receiver is controlled software — design the wire format to be simple.
+
+**AirShow Wire Protocol (recommended design):**
+
+```
+Frame header (8 bytes):
+  [0..3] uint32 BE  — payload length in bytes
+  [4]    uint8      — frame type: 0x01=H264_NAL, 0x02=AUDIO_AAC, 0x03=KEEPALIVE
+  [5]    uint8      — flags: bit0=keyframe, bit1=SPS/PPS prefix present
+  [6..7] uint16 BE  — sequence number (for receiver-side drop detection)
+
+Followed by `payload length` bytes of:
+  - H.264 NAL units in Annex B format (start codes) OR AVCC length-prefix format (negotiate at handshake)
+  - AAC-LC raw frames for audio
+```
+
+Handshake on TCP connect: sender sends a JSON greeting over the same connection before switching to binary frames. Receiver responds with session parameters (resolution caps, codec profile).
+
+This is simpler than AirPlay's 128-byte binary header and avoids the complexity of RTP sequence/timestamp for a local-network-only scenario with ~1 ms RTT.
+
+**Dart transport implementation:** `dart:io` `Socket` class for TCP. Use `Uint8List` + `ByteData` for binary framing. No third-party transport library needed.
+
+| Option | Verdict | Why |
+|--------|---------|-----|
+| Custom TCP binary framing | **USE THIS** | Simple, no dependencies, designed for the AirShow receiver, ~1 ms LAN RTT |
+| WebRTC (flutter_webrtc) | Avoid for AirShow protocol | ICE/STUN overhead, codec locked to WebRTC's negotiation, 20 MB lib | 
+| RTSP over TCP | Avoid | RTSP state machine complexity not justified for controlled sender+receiver pair |
+| RTP/UDP | Avoid as primary | Packet loss on busy Wi-Fi causes visible artifacts; TCP with keepalive sufficient for LAN |
+
+### Receiver Side — AirShowHandler
+
+The receiver needs a new protocol handler alongside the existing `AirPlayHandler`, `CastHandler`, `DlnaHandler`, `MiracastHandler`. The integration pattern is identical to AirPlay/Cast:
+
+| Component | What to Add |
+|-----------|-------------|
+| **mDNS advertisement** | Add `_airshow._tcp` service type to the existing Avahi/mDNSResponder advertisement. Port TBD (suggest 7777 to avoid collisions with 5000/AirPlay, 8008/Cast, 7250/Miracast). |
+| **TCP accept loop** | `QTcpServer` listening on the AirShow port. One `QTcpSocket` per sender connection. |
+| **Frame parser** | Read 8-byte header, accumulate payload, dispatch to GStreamer `appsrc`. Identical pattern to the existing AirPlay appsrc injection. |
+| **GStreamer pipeline** | `appsrc name=airshow_src ! h264parse ! avdec_h264 ! qml6glsink` — same pipeline skeleton as AirPlay. Hardware decode via `vaapidecodebin` or `d3d11h264dec` same as existing. |
+| **Session management** | AirShow sender will send a JSON handshake on connect. Parse with `QJsonDocument`. |
+
+No new C++ libraries are needed on the receiver side. All required pieces (Qt TCP, GStreamer appsrc, h264parse, qml6glsink) are already in the validated receiver stack.
+
+### Sender App — Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| **multicast_dns** | 0.3.3 | mDNS browse for `_airshow._tcp` | Always — receiver discovery |
+| **flutter_webrtc** | 1.4.1 | getDisplayMedia for screen capture on all platforms IF raw pixel access suffices for WebRTC path | Only if abandoning custom protocol for a WebRTC-based streaming path (see "Alternatives") |
+| **pigeon** | latest (pub.dev) | Type-safe platform channel code generation | Use for Android (Kotlin) and iOS (Swift) platform channel wrappers for MediaProjection + VideoToolbox calls |
+| **ffigen** | 15.x (pub.dev) | Generate dart:ffi bindings from C/C++ headers | Use for Windows/macOS/Linux native encode plugins |
+
+### Development Tools — Sender App Additions
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| **vcpkg** | C++ dependency management | Manifest mode (`vcpkg.json`) ensures reproducible builds across platforms. Better for open-source projects than Conan due to simpler setup and GitHub Actions integration. |
-| **Ninja** | Fast parallel build | Pair with CMake for fast incremental builds. `cmake -G Ninja` |
-| **clang-format** | Code formatting | Enforce consistent style across contributors |
-| **GStreamer gst-inspect-1.0** | Pipeline debugging | Verify plugins available at runtime |
-| **GitHub Actions** | CI/CD | Matrix builds for Linux/macOS/Windows in one workflow |
+| **Flutter 3.41 SDK** | Build sender app | `flutter create --platforms=android,ios,windows,macos,linux` |
+| **Android Studio / Gradle** | Android native plugin development | Required for MediaProjection foreground service implementation |
+| **Xcode 16+** | iOS/macOS native plugin + Broadcast Extension target | ReplayKit Broadcast Extension requires a separate app extension target in the same Xcode project |
+| **flutter pub run pigeon** | Generate platform channel bindings | Keeps Kotlin/Swift/C++ native interface type-safe |
+| **flutter pub run ffigen** | Generate dart:ffi bindings for Windows/Linux/macOS native code | Config via `ffigen.yaml` |
+| **ADB + Android 14 test device** | Validate MediaProjection foreground service API 34+ behavior | The API 34 foreground service change is the most common source of crash in this domain |
 
 ---
 
-## Critical Protocol Notes
+## Integration Points
 
-### AirPlay — HIGH confidence, viable
-
-UxPlay 1.73.6 works on Linux, macOS, and Windows (via MSYS2/MinGW-64). GPL v3. Its internals (the `lib/` subfolder containing `raop`, `mdns`, `playfair`) are the embeddable core. The dependency chain is well-understood:
+### How sender connects to receiver
 
 ```
-UxPlay core → OpenSSL 3.x + libplist 2.x + GStreamer 1.x + Avahi/mDNS
+Sender (Flutter app)
+  1. multicast_dns: browse _airshow._tcp
+  2. User selects receiver from list
+  3. dart:io Socket.connect(host, 7777)
+  4. Send JSON handshake: { "version": "1", "codec": "h264", "profile": "high", "level": "4.1" }
+  5. Receive JSON response: { "max_width": 1920, "max_height": 1080, "fps": 30 }
+  6. Start capture loop → encode → send binary frames
+
+Receiver (Qt/C++ AirShowHandler)
+  1. QTcpServer::listen(7777)
+  2. On newConnection: accept QTcpSocket
+  3. Read JSON handshake
+  4. Create GStreamer pipeline with appsrc
+  5. On readyRead: parse frame header → push to appsrc
+  6. qml6glsink renders into existing window
 ```
 
-The correct integration approach is to embed UxPlay's C library layer (not the top-level GStreamer application binary) and hook its video/audio callbacks into AirShow's own GStreamer pipeline.
+### Platform channel architecture for screen capture
 
-### Google Cast — MEDIUM confidence, legally/technically constrained
-
-**The fundamental problem:** Google Cast's device authentication requires a certificate chain signed by Google. Chrome sends a challenge; the receiver must prove it holds a Google-issued device cert. Independent receivers cannot obtain such certs legitimately.
-
-The only practical workarounds documented in the open-source community are:
-1. **Shanocast approach** — Extract pre-computed challenge signatures from AirReceiver APK. Works but is legally grey and requires periodic updates as signatures expire.
-2. **Use openscreen's standalone_receiver** demo as a base — same underlying problem with authentication.
-
-**Recommendation:** Implement Cast as Phase 2/3 after AirPlay + DLNA ship. Design the Cast module as a plugin so it can be swapped when/if the authentication situation changes. Flag this as the highest-risk protocol in the project.
-
-### Miracast — LOW confidence, practically broken on desktop Linux/Windows as a receiver
-
-Miracast uses Wi-Fi Direct (P2P) at the Wi-Fi layer. The **open-source MiracleCast project is explicitly stalled** — its developer documented that development is halted "until network managers provide a P2P API." There is no stable Linux userspace Wi-Fi P2P stack for an application-level receiver.
-
-On Windows, Miracast over Infrastructure (MS-MICE, TCP port 7250) is a better target: it works over standard LAN/Wi-Fi without Wi-Fi Direct, and is what Surface Hub and Windows PCs use. The MS-MICE protocol is publicly documented by Microsoft.
-
-**Recommendation:**
-- **v1:** Skip Wi-Fi Direct Miracast entirely. Too fragile.
-- **v1.5:** Implement Miracast over Infrastructure (MS-MICE) for Windows — this is achievable and covers modern Windows 10/11 sources.
-- **v2:** Reconsider Wi-Fi Direct Miracast if the kernel/wpa_supplicant P2P API situation improves.
-
-### DLNA — HIGH confidence, viable
-
-pupnp/libupnp implements UPnP AV DMR (Digital Media Renderer). DLNA push from phones/smart TVs sends HTTP URLs; the receiver fetches the URL and plays it via GStreamer. This is the simplest protocol in the stack. libnpupnp is a modern rewrite with fewer bugs but limited documentation — use pupnp for v1, migrate later.
-
----
-
-## Installation
-
-```bash
-# Linux (Ubuntu/Debian)
-sudo apt install \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  libgstreamer-plugins-bad1.0-dev gstreamer1.0-libav \
-  libssl-dev libplist-dev libavahi-client-dev \
-  libupnp-dev libprotobuf-dev protobuf-compiler \
-  qt6-base-dev qt6-declarative-dev cmake ninja-build
-
-# macOS (Homebrew)
-brew install gstreamer gst-plugins-base gst-plugins-good \
-  gst-plugins-bad gst-libav openssl libplist \
-  protobuf qt cmake ninja
-
-# Windows (MSYS2 MinGW-64)
-pacman -S \
-  mingw-w64-x86_64-gstreamer \
-  mingw-w64-x86_64-gst-plugins-base \
-  mingw-w64-x86_64-gst-plugins-good \
-  mingw-w64-x86_64-gst-plugins-bad \
-  mingw-w64-x86_64-gst-libav \
-  mingw-w64-x86_64-openssl \
-  mingw-w64-x86_64-protobuf \
-  mingw-w64-x86_64-qt6-base \
-  mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
-
-# vcpkg (cross-platform, for non-system deps)
-vcpkg install spdlog mdns
+```
+Dart (AirShowSender)
+  └─ ScreenCaptureService (abstract)
+       ├─ AndroidScreenCapture  (MethodChannel → Kotlin → MediaProjection → MediaCodec → H.264 bytes)
+       ├─ IosScreenCapture      (MethodChannel → Swift → ReplayKit Extension → VideoToolbox → H.264 bytes)
+       ├─ WindowsScreenCapture  (dart:ffi → C++ DLL → DXGI Duplication → MF H264 MFT → H.264 bytes)
+       ├─ MacosScreenCapture    (dart:ffi → ObjC dylib → ScreenCaptureKit → VideoToolbox → H.264 bytes)
+       └─ LinuxScreenCapture    (dart:ffi → C SO → XShm/PipeWire → GStreamer x264enc → H.264 bytes)
 ```
 
 ---
@@ -138,16 +165,13 @@ vcpkg install spdlog mdns
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| Qt 6.8 LTS | Electron / Tauri | Never for this use case — Electron can't sink GStreamer video into the renderer without a C++ native module, negating any benefit. Adds 200MB+ to binary size. |
-| Qt 6.8 LTS | wxWidgets | If you specifically need LGPL without Qt's GPL/commercial distinction. Missing QML and has weaker multimedia integration. |
-| GStreamer 1.26 | FFmpeg (libav) directly | If you don't need a pipeline abstraction and are writing a simple player, not a multi-source receiver. GStreamer's dynamic pipeline model is essential here for switching between protocols. |
-| GStreamer 1.26 | VLC libvlc | libvlc has no pipeline injection API — you can't feed raw RTP/RTSP demux output into it from AirPlay. GStreamer is the only option that allows protocol libraries to inject encoded frames. |
-| pupnp / libupnp | Platinum UPnP SDK | Platinum's last release was July 2020 and it requires SCons on Linux. Dead for new projects. |
-| pupnp / libupnp | libnpupnp | Viable future upgrade path (fewer historical bugs), but documentation is sparse and ecosystem is smaller than pupnp. |
-| UxPlay (embedded) | shairplay | shairplay is unmaintained and targets AirPlay 1 only. UxPlay supports AirPlay 2 mirroring. |
-| vcpkg | Conan 2 | Conan is faster for large enterprise dependency graphs. For this project vcpkg manifest mode is simpler and better supported in GitHub Actions. |
-| openscreen (libcast) | CastV2 reverse-engineering | Building your own CASTV2 protobuf parser from scratch takes months. Openscreen gives you the streaming layer for free, even if authentication is the unsolved piece. |
-| C++17 | Rust | Rust is a reasonable choice but all reference implementations (UxPlay, pupnp, openscreen) are C/C++. Wrapping them via FFI is more work than the type-safety benefit. Revisit for v2. |
+| Custom TCP binary protocol | WebRTC via flutter_webrtc | If the sender also needs to stream to non-AirShow receivers (Chromecast, etc.). WebRTC is universally understood but adds 20+ MB and ICE complexity. |
+| Custom TCP binary protocol | RTSP | If a third-party RTSP player (VLC) needs to receive the stream directly. Overkill for a controlled sender+receiver pair. |
+| Custom TCP binary protocol | RTP/UDP | If you need sub-50 ms latency and can tolerate frame drops. For local LAN, TCP with Nagle disabled achieves <5 ms with no drop risk. |
+| multicast_dns (flutter.dev) | nsd 4.1.0 | If you drop Linux desktop as a sender target. `nsd` uses native OS APIs (Bonjour, Avahi, NsdManager) which may be more robust but it explicitly excludes Linux. |
+| Platform-native H.264 encoders | FFmpeg via ffmpeg_kit_flutter_new | If uniform cross-platform encoding API is more important than zero binary bloat. `ffmpeg_kit_flutter_new` 4.1.0 supports h264_mediacodec (Android) and h264_videotoolbox (iOS/macOS) but bundles a large FFmpeg binary (~30-50 MB) and adds GPL/LGPL licensing surface. |
+| ScreenCaptureKit (macOS 12.3+) | AVFoundation CGDisplayStream | CGDisplayStream is deprecated since macOS 14.0 (Sonoma). Do not use. |
+| GStreamer pipeline (Linux) | V4L2 loopback + custom encode | v4l2loopback works but requires kernel module installation — bad UX for end users. GStreamer `ximagesrc ! x264enc` runs in userspace with no extra kernel dependencies. |
 
 ---
 
@@ -155,39 +179,46 @@ vcpkg install spdlog mdns
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **Platinum UPnP SDK** | Last released July 2020. Requires Visual Studio 2010 on Windows and SCons on Linux. Effectively abandoned. | `pupnp / libupnp` (GitHub: pupnp/pupnp) |
-| **OpenSSL 1.1.1** | Reached End of Life September 2023. Security vulnerabilities will not receive patches. | OpenSSL 3.x |
-| **Qt 5.x** | Qt 5.15 LTS commercial support ended. Many Linux distros shipping Qt 6 by default. Qt 5 multimedia backend is weaker. | Qt 6.8 LTS |
-| **WirelessDisplay (WirelessPresentation/WirelessDisplay)** | Java-heavy (80% Java), last release January 2022, no OSS license visible, Windows + Android only (no macOS). | Build protocol modules from reference libraries directly |
-| **Wi-Fi Direct Miracast (MiracleCast)** | Development explicitly stalled by maintainer. wpa_supplicant P2P API is not stable across distros. | Miracast over Infrastructure (MS-MICE) on Windows for v1 |
-| **RPiPlay (original FD-/RPiPlay)** | Pi-specific OpenMAX backend. Not portable to x86 Linux/macOS/Windows. | UxPlay (the FDH2 fork) which is the active cross-platform version |
-| **Node.js / Electron for core** | Cannot inject raw A/V frames from C protocol libraries into Chromium's renderer without a native addon that defeats the purpose. High memory overhead. | Qt + GStreamer |
-| **AirServer SDK (commercial)** | Proprietary, licensed per-seat. Contradicts the free/open-source core value of the project. | UxPlay + openscreen + pupnp as open-source building blocks |
-| **Qt QMediaPlayer for protocol video output** | Qt Multimedia's `QMediaPlayer` is a black box — it cannot accept raw encoded H.264 frames from a protocol library's callback. | `qml6glsink` + custom GStreamer pipeline |
+| **flutter_screen_recording** (file-based) | Records to MP4 file only — no live frame callback. Cannot stream to a TCP socket in real time. | Platform-native approach per OS (see Screen Capture table) |
+| **screen_capturer** (desktop screenshot) | Takes static screenshots, not continuous frame capture. No video pipeline. | DXGI/ScreenCaptureKit/XShm native plugin |
+| **nsd** for Linux sender | Does not support Linux platform. Will fail at build time on `flutter run -d linux`. | `multicast_dns` 0.3.3 (flutter.dev, all platforms) |
+| **CGDisplayStream (macOS)** | Deprecated since macOS 14.0 Sonoma. Apple will remove in a future OS release. | `ScreenCaptureKit` (macOS 12.3+) |
+| **MiracleCast / Wi-Fi Direct** | Already excluded from receiver for the same reason — stalled project, no stable P2P API. | Not applicable for sender either. |
+| **Platinum UPnP SDK** | Already excluded from receiver. Dead project. | Not needed in sender either. |
+| **React Native / KMP for sender** | React Native has no stable Linux desktop target. KMP mobile targets are strong but Linux desktop Flutter support is the only cross-platform option covering all five targets. | Flutter 3.41 |
+| **WebRTC as primary transport to AirShow receiver** | Introduces ICE/STUN/DTLS-SRTP stack purely for local LAN streaming where TCP is sufficient. Locks codec to WebRTC's internal VP8/VP9/H264 negotiation and loses direct NAL access needed for appsrc injection. | Custom AirShow TCP binary protocol |
+| **flutter_quick_video_encoder** | Outputs MP4 files, not streaming NAL units. Not designed for live streaming. Last published 18 months ago (before 2026). | Direct MediaCodec/VideoToolbox platform channel calls |
 
 ---
 
-## Stack Patterns by Variant
+## Stack Patterns by Platform
 
-**If targeting Linux only (v0 prototype):**
-- Use Avahi for all mDNS
-- Use GStreamer `autovideosink` (no QML overhead)
-- Skip Miracast entirely
-- This gets AirPlay + DLNA working fastest
+**Android sender:**
+- Custom MethodChannel → Kotlin → `MediaProjectionManager` + `MediaRecorder`/`MediaCodec`
+- Target SDK 34+ requires `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION` permission in manifest AND calling `createScreenCaptureIntent()` before foreground service start
+- Audio: `AudioRecord` with `REMOTE_SUBMIX` source captures system audio alongside screen on Android 10+
 
-**If targeting Windows first:**
-- Use the official GStreamer MSVC installer (not MSYS2 packages) for the release build
-- Bundle Bonjour (mDNSResponder) — it cannot be assumed present unless iTunes is installed
-- Implement Miracast over Infrastructure (MS-MICE) as the Windows-specific Miracast path
+**iOS sender:**
+- Broadcast Upload Extension (separate app target) handles ReplayKit delivery
+- Extension has 50 MB memory limit — keep encoded H.264 buffer pool small
+- `RPSystemBroadcastPickerView` triggers system picker UI; sender app cannot start capture programmatically without user interaction
+- No DRM audio: AVPlayer/Safari playback audio is blocked from capture
 
-**If targeting macOS:**
-- Bonjour is built-in (no bundling needed)
-- Use `vtdec` (VideoToolbox) GStreamer element for H.264/H.265 hardware decode
-- Qt 6.8 builds natively on Apple Silicon and Intel
+**Windows sender:**
+- C++ DLL plugin: DXGI Desktop Duplication → `ID3D11Texture2D` → GPU-copy to `NV12` staging surface → Media Foundation H264 MFT encoder
+- No cursor capture permission required; DXGI Duplication is available to any foreground-capable app
+- Bundle the C++ DLL as a Flutter plugin native asset (Flutter 3.x supports `--build-mode=release` with native plugins)
 
-**If Google Cast authentication is resolved:**
-- Drop in the openscreen `cast/streaming` receiver module
-- The GStreamer pipeline hookup is the same as AirPlay — the receiver callback delivers H.264 frames
+**macOS sender:**
+- ObjC/Swift plugin: `SCShareableContent` → `SCStream` (ScreenCaptureKit) → `VTCompressionSession` H.264 encoder
+- Requires `NSScreenCaptureUsageDescription` in Info.plist and user approval
+- App must be notarized for distribution
+
+**Linux sender:**
+- C plugin: detect display server at runtime (check `$WAYLAND_DISPLAY` vs `$DISPLAY`)
+- X11 path: `XOpenDisplay` → `XShmCreateImage` capture loop → GStreamer `x264enc` for software H.264 encode → VAAPI `vaapih264enc` if Intel/AMD GPU present
+- Wayland path: `xdg-desktop-portal` ScreenCast D-Bus API → PipeWire consumer → encode via GStreamer
+- Wayland requires user consent dialog per session — no silent capture
 
 ---
 
@@ -195,33 +226,37 @@ vcpkg install spdlog mdns
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| Qt 6.8.x | GStreamer 1.26.x via qml6glsink | `qml6glsink` ships in `gst-plugins-good`. Both must use the same OpenGL context. |
-| UxPlay 1.73.x | GStreamer ≥1.20 | UxPlay tests against GStreamer 1.22+ in practice. Use 1.26.x to match system packages. |
-| UxPlay 1.73.x | OpenSSL ≥1.1.1 | Prefers 3.x for GPL compatibility. Do not mix OpenSSL 1.x and 3.x in the same binary. |
-| pupnp/libupnp 1.14.x | Linux glibc ≥2.17, Windows ≥Vista, macOS ≥10.9 | No known conflicts with Qt or GStreamer. |
-| openscreen (libcast) | Chromium build toolchain (GN + Ninja) | Does NOT use CMake. Requires a separate build step or vendoring. Integration with a CMake project requires building openscreen first and linking the resulting static libs. |
-| protobuf 3.x vs 4.x | openscreen requires protobuf | Check openscreen's `DEPS` file for exact version. Protobuf 4.x (formerly 3.22+) has an API break from 3.21.x. Pin the version. |
+| Flutter 3.41.5 | Dart 3.x | Bundled — no separate Dart install needed |
+| multicast_dns 0.3.3 | Flutter 3.x, Dart 3.x | flutter.dev package, BSD-3, no native dependencies |
+| flutter_webrtc 1.4.1 | Flutter 3.x, Android API 21+, iOS 12+, macOS 10.15+, Windows 10+, Ubuntu 18.04+ | If used. Note: iOS build requires extra Xcode setting post-m104 WebRTC XCF change |
+| pigeon (latest) | Flutter 3.x | Use latest; pigeon API changes frequently — pin the version in pubspec.yaml |
+| nsd 4.1.0 | Flutter 3.x, Android/iOS/macOS/Windows ONLY | No Linux support — exclude from Linux build |
+| GStreamer 1.26.x (receiver) | Qt 6.8.x + qml6glsink | Unchanged from existing receiver stack; AirShowHandler reuses same pipeline pattern |
+| Qt 6.8.x QTcpServer | All platforms | Ships with Qt — no new dependency for receiver AirShowHandler |
 
 ---
 
 ## Sources
 
-- [UxPlay GitHub (FDH2/UxPlay)](https://github.com/FDH2/UxPlay) — Version 1.73.6, dependency chain, platform support confirmed HIGH confidence
-- [GStreamer Releases Page](https://gstreamer.freedesktop.org/releases/) — 1.26.x current stable, 1.28.0 released January 2026 HIGH confidence
-- [Qt 6.8 LTS Release Blog](https://www.qt.io/blog/qt-6.8-released) — LTS status, platform support HIGH confidence
-- [AirServer Built with Qt (Qt.io)](https://www.qt.io/development/airserver-universal-screen-mirroring-receiver-built-with-qt) — Confirmed commercial reference uses Qt Core, Quick, Network, Layouts, Multimedia MEDIUM confidence
-- [GStreamer qml6glsink documentation](https://gstreamer.freedesktop.org/documentation/qml6/qml6glsink.html) — Integration pattern for Qt 6 + GStreamer HIGH confidence
-- [Chromecast Device Authentication (Tristan Penman, 2025-03-22)](https://tristanpenman.com/blog/posts/2025/03/22/chromecast-device-authentication/) — Certificate chain requirement confirmed HIGH confidence
-- [Shanocast / Making a Chromecast receiver](https://xakcop.com/post/shanocast/) — Authentication bypass approach documented MEDIUM confidence
-- [openscreen libcast README](https://chromium.googlesource.com/openscreen/+/HEAD/cast/README.md) — Standalone streaming module confirmed HIGH confidence
-- [MiracleCast stalled development (maintainer statement)](https://github.com/albfan/miraclecast) — P2P API blocker confirmed HIGH confidence
-- [MS-MICE Miracast over Infrastructure (Microsoft Docs)](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-mice/9598ca72-d937-466c-95f6-70401bb10bdb) — Protocol spec is public HIGH confidence
-- [pupnp/libupnp GitHub](https://github.com/pupnp/pupnp) — Active maintenance confirmed MEDIUM confidence
-- [Platinum UPnP SDK GitHub](https://github.com/plutinosoft/Platinum) — Last release July 2020 confirmed HIGH confidence (reason to avoid)
-- [libplist 2.7.0 release (2025-05)](https://libimobiledevice.org/news/2025/05/14/libplist-2.7.0-release/) — Active maintenance confirmed HIGH confidence
-- [OpenSSL 1.1.1 EOL](https://www.openssl.org/blog/blog/2023/09/11/eol-111/) — EOL September 2023 HIGH confidence
+- [Flutter SDK Archive — flutter.dev](https://docs.flutter.dev/release/archive) — Flutter 3.41.5 confirmed as Feb 2026 stable HIGH confidence
+- [multicast_dns pub.dev](https://pub.dev/packages/multicast_dns) — 0.3.3, all five platforms, flutter.dev published HIGH confidence
+- [nsd pub.dev](https://pub.dev/packages/nsd) — 4.1.0, no Linux support confirmed HIGH confidence
+- [flutter_webrtc pub.dev](https://pub.dev/packages/flutter_webrtc) — 1.4.1, getDisplayMedia on all five platforms HIGH confidence
+- [flutter_screen_recording pub.dev](https://pub.dev/packages/flutter_screen_recording) — 2.0.25, file-only output, Android/iOS only HIGH confidence
+- [screen_capturer pub.dev](https://pub.dev/packages/screen_capturer) — 0.2.3, screenshot-only, no streaming HIGH confidence
+- [flutter_quick_video_encoder pub.dev](https://pub.dev/packages/flutter_quick_video_encoder) — 1.7.2, uses AVFoundation/MediaCodec, file output only HIGH confidence
+- [Android MediaProjection — Android Developers](https://developer.android.com/media/grow/media-projection) — API 34 foreground service type requirement HIGH confidence
+- [ReplayKit — Apple Developer Documentation](https://developer.apple.com/documentation/ReplayKit) — Broadcast Extension 50 MB memory cap, 15 fps cap, DRM audio exclusion HIGH confidence
+- [DXGI Desktop Duplication + Media Foundation H.264 MFT (alax.info)](https://alax.info/blog/1716) — Windows screen + hardware encode pattern confirmed MEDIUM confidence
+- [ScreenCaptureKit — Apple Developer Documentation (via WebSearch)] — macOS 12.3+ API, CGDisplayStream deprecated macOS 14 MEDIUM confidence
+- [Linux XShm + ximagesrc — GStreamer docs](https://gstreamer.freedesktop.org/documentation/ximagesrc/index.html) — X11 capture via XShm confirmed HIGH confidence
+- [xdg-desktop-portal PipeWire — ArchWiki Screen Capture](https://wiki.archlinux.org/title/Screen_capture) — Wayland portal + PipeWire pattern confirmed MEDIUM confidence
+- [Flutter Platform Channels — flutter.dev docs](https://docs.flutter.dev/platform-integration/platform-channels) — MethodChannel + dart:ffi approaches HIGH confidence
+- [ffigen — flutter.dev docs](https://docs.flutter.dev/platform-integration/bind-native-code) — dart:ffi build hooks recommended since Flutter 3.38 HIGH confidence
+- [H.264 Annex B vs AVCC framing — Membrane.stream](https://membrane.stream/learn/h264/3) — NAL unit framing for TCP transport HIGH confidence
+- [ffmpeg_kit_flutter_new GitHub](https://github.com/SerenityS/ffmpeg_kit_flutter_new) — v4.1.0 with FFmpeg 8.0.0, h264_videotoolbox + h264_mediacodec support MEDIUM confidence
 
 ---
 
-*Stack research for: cross-platform wireless display receiver (AirPlay + Cast + Miracast + DLNA)*
-*Researched: 2026-03-28*
+*Stack research for: AirShow v2.0 Flutter companion sender app*
+*Researched: 2026-03-30*
