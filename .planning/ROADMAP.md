@@ -171,7 +171,7 @@ Plans:
   5. NAL units pushed through the established connection appear on the receiver display via the existing GStreamer appsrc pipeline
 **Plans**: 2 plans
 Plans:
-- [ ] 09-01-PLAN.md — AirShowHandler TCP server, JSON handshake with quality negotiation, 16-byte binary frame parser, appsrc NAL injection, test scaffold
+- [x] 09-01-PLAN.md — AirShowHandler TCP server, JSON handshake with quality negotiation, 16-byte binary frame parser, appsrc NAL injection, test scaffold
 - [ ] 09-02-PLAN.md — _airshow._tcp mDNS advertisement, main.cpp handler wiring, Flutter sender scaffold, end-to-end verification
 
 ### Phase 10: Android Sender MVP
@@ -250,7 +250,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Google Cast | v1.0 | 3/3 | Complete | 2026-03-29 |
 | 7. Security & Hardening | v1.0 | 3/3 | Complete | 2026-03-30 |
 | 8. Miracast | v1.0 | 3/3 | Complete | 2026-03-30 |
-| 9. Receiver Protocol Foundation | v2.0 | 0/2 | Planned | - |
+| 9. Receiver Protocol Foundation | v2.0 | 1/2 | In Progress|  |
 | 10. Android Sender MVP | v2.0 | 0/? | Not started | - |
 | 11. iOS Sender MVP | v2.0 | 0/? | Not started | - |
 | 12. macOS Sender | v2.0 | 0/? | Not started | - |

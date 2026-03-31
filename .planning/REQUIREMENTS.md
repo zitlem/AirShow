@@ -57,9 +57,9 @@ All v1 requirements delivered across Phases 1-8.
 Requirements for companion sender app milestone. Each maps to roadmap phases.
 
 ### Receiver Protocol Extension
-- [ ] **RECV-01**: AirShow receiver accepts connections from companion sender app via custom AirShow protocol on port 7400
+- [x] **RECV-01**: AirShow receiver accepts connections from companion sender app via custom AirShow protocol on port 7400
 - [ ] **RECV-02**: AirShow receiver advertises `_airshow._tcp` via mDNS so sender apps discover it automatically
-- [ ] **RECV-03**: Protocol handshake includes quality negotiation (resolution, bitrate, latency mode)
+- [x] **RECV-03**: Protocol handshake includes quality negotiation (resolution, bitrate, latency mode)
 
 ### Sender App — Mobile
 - [ ] **SEND-01**: User can mirror their Android device screen to AirShow via the companion sender app
