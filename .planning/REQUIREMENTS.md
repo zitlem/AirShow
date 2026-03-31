@@ -1,4 +1,4 @@
-# Requirements: MyAirShow
+# Requirements: AirShow
 
 **Defined:** 2026-03-28
 **Core Value:** Any device can mirror its screen to any computer, for free
@@ -25,28 +25,28 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### AirPlay
 
-- [x] **AIRP-01**: User can mirror their iPhone/iPad screen to MyAirShow via AirPlay
-- [x] **AIRP-02**: User can mirror their macOS screen to MyAirShow via AirPlay
+- [x] **AIRP-01**: User can mirror their iPhone/iPad screen to AirShow via AirPlay
+- [x] **AIRP-02**: User can mirror their macOS screen to AirShow via AirPlay
 - [x] **AIRP-03**: AirPlay mirroring includes synchronized audio and video
 - [x] **AIRP-04**: AirPlay connection maintains stable A/V sync during extended sessions
 
 ### Google Cast
 
-- [x] **CAST-01**: User can cast their Android device screen to MyAirShow via Google Cast
-- [x] **CAST-02**: User can cast a Chrome browser tab to MyAirShow via Google Cast
+- [x] **CAST-01**: User can cast their Android device screen to AirShow via Google Cast
+- [x] **CAST-02**: User can cast a Chrome browser tab to AirShow via Google Cast
 - [x] **CAST-03**: Google Cast mirroring includes synchronized audio and video
 
 ### Miracast
 
-- [x] **MIRA-01**: User can mirror their Windows device screen to MyAirShow via Miracast
-- [x] **MIRA-02**: User can mirror their Android device screen to MyAirShow via Miracast (where supported)
+- [x] **MIRA-01**: User can mirror their Windows device screen to AirShow via Miracast
+- [x] **MIRA-02**: User can mirror their Android device screen to AirShow via Miracast (where supported)
 - [x] **MIRA-03**: Miracast mirroring includes synchronized audio and video
 
 ### DLNA
 
-- [x] **DLNA-01**: User can push video files from a DLNA controller to MyAirShow for playback
-- [x] **DLNA-02**: User can push audio files from a DLNA controller to MyAirShow for playback
-- [x] **DLNA-03**: MyAirShow appears as a DLNA Media Renderer (DMR) in DLNA controller apps
+- [x] **DLNA-01**: User can push video files from a DLNA controller to AirShow for playback
+- [x] **DLNA-02**: User can push audio files from a DLNA controller to AirShow for playback
+- [x] **DLNA-03**: AirShow appears as a DLNA Media Renderer (DMR) in DLNA controller apps
 
 ### Display
 

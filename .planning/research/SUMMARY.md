@@ -1,13 +1,13 @@
 # Project Research Summary
 
-**Project:** MyAirShow
+**Project:** AirShow
 **Domain:** Cross-platform wireless display receiver (AirPlay + Google Cast + Miracast + DLNA)
 **Researched:** 2026-03-28
 **Confidence:** MEDIUM — AirPlay and DLNA are HIGH confidence; Google Cast and Miracast carry significant technical and legal constraints that reduce overall confidence to MEDIUM.
 
 ## Executive Summary
 
-MyAirShow is a cross-platform screen mirroring receiver targeting the unoccupied market position of a free, open-source application that handles all four major wireless display protocols (AirPlay, Google Cast, Miracast, DLNA) on Linux, macOS, and Windows. No existing free tool covers all four protocols; the commercial alternatives (AirServer, Reflector 4) cost $15–20+ per device and exclude Linux entirely. The recommended implementation approach is C++17 with Qt 6.8 LTS for the UI, GStreamer 1.26.x for cross-platform media decoding, and protocol-specific open-source libraries embedded per protocol (UxPlay for AirPlay, openscreen/pupnp for Cast/DLNA). All media paths converge on a shared GStreamer pipeline via `appsrc` injection — this is the key architectural decision that makes multi-protocol support tractable.
+AirShow is a cross-platform screen mirroring receiver targeting the unoccupied market position of a free, open-source application that handles all four major wireless display protocols (AirPlay, Google Cast, Miracast, DLNA) on Linux, macOS, and Windows. No existing free tool covers all four protocols; the commercial alternatives (AirServer, Reflector 4) cost $15–20+ per device and exclude Linux entirely. The recommended implementation approach is C++17 with Qt 6.8 LTS for the UI, GStreamer 1.26.x for cross-platform media decoding, and protocol-specific open-source libraries embedded per protocol (UxPlay for AirPlay, openscreen/pupnp for Cast/DLNA). All media paths converge on a shared GStreamer pipeline via `appsrc` injection — this is the key architectural decision that makes multi-protocol support tractable.
 
 The recommended build strategy is to ship AirPlay + DLNA first (both are HIGH confidence and well-documented), add Google Cast in a second phase, and treat Miracast as a later milestone. Google Cast's device authentication requires a Google-signed certificate chain that independent receivers cannot obtain legitimately — the only viable workarounds are legally grey. Miracast's standard implementation (Wi-Fi Direct) is practically broken on desktop Linux and kills the host machine's internet connection, making Miracast over Infrastructure (MS-MICE, Windows-only) the only sensible v1 path. These two protocols must be scoped carefully to avoid blocking the rest of the product.
 
@@ -109,7 +109,7 @@ Based on combined research, the architecture's own suggested build order maps di
 ### Phase 3: AirPlay Protocol Handler
 
 **Rationale:** AirPlay is the highest-traffic use case, the most thoroughly reverse-engineered protocol, and has the most mature open-source reference (UxPlay 1.73.6). It proves the complete path: discovery → authentication → RTP decode → GStreamer → display. All subsequent protocols follow the same shape.
-**Delivers:** iOS and macOS devices can mirror their screen to MyAirShow; audio and video in sync (AirPlay NTP implemented correctly); AES-CTR decryption working; DRM refusal produces a user-visible error message; Session Manager state machine in place.
+**Delivers:** iOS and macOS devices can mirror their screen to AirShow; audio and video in sync (AirPlay NTP implemented correctly); AES-CTR decryption working; DRM refusal produces a user-visible error message; Session Manager state machine in place.
 **Addresses:** AirPlay reception (P1 table stakes); audio playback with A/V sync; DRM content handling (Pitfall 6); AirPlay protocol fragility isolation (Pitfall 1); AirBorne vulnerability family (authentication not skipped).
 **Implements:** AirPlay Protocol Handler satisfying `ProtocolHandler` interface; Session Manager; shared GStreamer clock for A/V sync.
 **Avoids:** Implementing AirPlay directly against the UI layer; `sync=false` shortcut; skipping NTP implementation.
@@ -126,7 +126,7 @@ Based on combined research, the architecture's own suggested build order maps di
 ### Phase 5: Google Cast Protocol Handler
 
 **Rationale:** Cast is the second highest-value protocol and covers the entire Android and Chrome ecosystem. It must come after AirPlay is stable because the authentication problem requires a deliberate pluggable design. The Cast streaming layer (openscreen) is usable even if the authentication backend is initially the legally-grey workaround.
-**Delivers:** Android and Chrome browser can cast to MyAirShow; TLS on port 8009 working; protobuf CASTV2 framing; Cast streaming session via openscreen; authentication backend is swappable without touching the rest of the handler.
+**Delivers:** Android and Chrome browser can cast to AirShow; TLS on port 8009 working; protobuf CASTV2 framing; Cast streaming session via openscreen; authentication backend is swappable without touching the rest of the handler.
 **Addresses:** Google Cast reception (P1 table stakes); Cast certificate authentication constraint (designed as a plugin, not hardcoded).
 **Avoids:** Building Cast's authentication as an inseparable part of the handler; openscreen GN/Ninja build toolchain not integrated with CMake project.
 **Research flag:** Needs deep research — openscreen integration with a CMake project (separate build step + static lib linking), exact protobuf version pinning, authentication workaround options and legal assessment.
@@ -142,7 +142,7 @@ Based on combined research, the architecture's own suggested build order maps di
 ### Phase 7: Miracast (Windows — Miracast over Infrastructure First)
 
 **Rationale:** Miracast is the most complex protocol and is architecturally isolated from all others (Wi-Fi Direct vs. standard network). Wi-Fi Direct Miracast is explicitly deferred — MiracleCast is stalled, and standard Miracast kills the host's internet connection. Miracast over Infrastructure (MS-MICE) on Windows is the achievable v1 path.
-**Delivers:** Windows 10/11 sources can Miracast to MyAirShow over the existing LAN (no Wi-Fi Direct); RTSP capability exchange; RTP/H.264 stream decoded by existing GStreamer pipeline.
+**Delivers:** Windows 10/11 sources can Miracast to AirShow over the existing LAN (no Wi-Fi Direct); RTSP capability exchange; RTP/H.264 stream decoded by existing GStreamer pipeline.
 **Addresses:** Miracast reception (P2 on Windows); Miracast Wi-Fi adapter conflict documented (Pitfall 2); MS-MICE protocol (publicly documented by Microsoft).
 **Avoids:** Wi-Fi Direct Miracast on Linux (MiracleCast is stalled); standard Miracast as the default (kills internet).
 **Research flag:** Needs deep research — MS-MICE protocol implementation details, Windows WFD API surface, wpa_supplicant P2P interface status for future Linux work.

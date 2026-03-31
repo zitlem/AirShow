@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-namespace myairshow {
+namespace airshow {
 
 static constexpr uint16_t kAirPlayPort   = 7000;
 static constexpr uint16_t kCastPort      = 8009;
@@ -86,7 +86,7 @@ bool DiscoveryManager::start() {
     std::vector<TxtRecord> castTxt = {
         {"id", castIdNoHyphens},
         {"ve", "02"},
-        {"md", "MyAirShow"},
+        {"md", "AirShow"},
         {"fn", name},
         {"ic", "/icon.png"},
         {"ca", "5"},
@@ -191,4 +191,4 @@ std::string DiscoveryManager::getOrCreateUuid(const std::string& settingsKey) {
     return s.value(key).toString().toStdString();
 }
 
-} // namespace myairshow
+} // namespace airshow

@@ -10,7 +10,7 @@
 #include <gst/gst.h>
 #include <QDebug>
 
-namespace myairshow {
+namespace airshow {
 
 ReceiverWindow::ReceiverWindow(MediaPipeline& pipeline, AppSettings& settings)
     : m_pipeline(pipeline), m_settings(settings) {}
@@ -42,7 +42,7 @@ bool ReceiverWindow::load() {
     m_engine.rootContext()->setContextProperty("appSettings", settingsBridge);
 
     // Load QML (GstGLQt6VideoItem is now registered, all context properties set)
-    m_engine.load(QUrl(QStringLiteral("qrc:/MyAirShow/qml/main.qml")));
+    m_engine.load(QUrl(QStringLiteral("qrc:/AirShow/qml/main.qml")));
 
     if (m_engine.rootObjects().isEmpty()) {
         qWarning("ReceiverWindow::load — QML engine failed to load main.qml");
@@ -84,4 +84,4 @@ bool ReceiverWindow::load() {
     return true;
 }
 
-} // namespace myairshow
+} // namespace airshow

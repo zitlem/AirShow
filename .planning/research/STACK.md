@@ -71,7 +71,7 @@ UxPlay 1.73.6 works on Linux, macOS, and Windows (via MSYS2/MinGW-64). GPL v3. I
 UxPlay core → OpenSSL 3.x + libplist 2.x + GStreamer 1.x + Avahi/mDNS
 ```
 
-The correct integration approach is to embed UxPlay's C library layer (not the top-level GStreamer application binary) and hook its video/audio callbacks into MyAirShow's own GStreamer pipeline.
+The correct integration approach is to embed UxPlay's C library layer (not the top-level GStreamer application binary) and hook its video/audio callbacks into AirShow's own GStreamer pipeline.
 
 ### Google Cast — MEDIUM confidence, legally/technically constrained
 

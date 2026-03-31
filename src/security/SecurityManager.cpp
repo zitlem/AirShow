@@ -16,7 +16,7 @@
 #include <QSemaphore>
 #include <QUuid>
 
-namespace myairshow {
+namespace airshow {
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -228,4 +228,4 @@ QString SecurityManager::pin() const {
     return m_settings.pin();
 }
 
-} // namespace myairshow
+} // namespace airshow

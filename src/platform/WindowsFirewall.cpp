@@ -22,7 +22,7 @@ HRESULT addRule(INetFwRules* pRules, const wchar_t* name,
     if (FAILED(hr)) return hr;
 
     pRule->put_Name(SysAllocString(name));
-    pRule->put_Description(SysAllocString(L"MyAirShow discovery port"));
+    pRule->put_Description(SysAllocString(L"AirShow discovery port"));
     pRule->put_Protocol(proto);
     pRule->put_LocalPorts(SysAllocString(ports));
     pRule->put_Direction(NET_FW_RULE_DIR_IN);
@@ -39,7 +39,7 @@ HRESULT addRule(INetFwRules* pRules, const wchar_t* name,
 
 #endif // _WIN32
 
-namespace myairshow {
+namespace airshow {
 
 bool WindowsFirewall::registerRules() {
 #ifdef _WIN32
@@ -62,10 +62,10 @@ bool WindowsFirewall::registerRules() {
     INetFwRules* pRules = nullptr;
     pPolicy->get_Rules(&pRules);
 
-    addRule(pRules, L"MyAirShow mDNS",    NET_FW_IP_PROTOCOL_UDP, L"5353");
-    addRule(pRules, L"MyAirShow SSDP",    NET_FW_IP_PROTOCOL_UDP, L"1900");
-    addRule(pRules, L"MyAirShow AirPlay", NET_FW_IP_PROTOCOL_TCP, L"7000");
-    addRule(pRules, L"MyAirShow Cast",    NET_FW_IP_PROTOCOL_TCP, L"8009");
+    addRule(pRules, L"AirShow mDNS",    NET_FW_IP_PROTOCOL_UDP, L"5353");
+    addRule(pRules, L"AirShow SSDP",    NET_FW_IP_PROTOCOL_UDP, L"1900");
+    addRule(pRules, L"AirShow AirPlay", NET_FW_IP_PROTOCOL_TCP, L"7000");
+    addRule(pRules, L"AirShow Cast",    NET_FW_IP_PROTOCOL_TCP, L"8009");
 
     if (pRules)  pRules->Release();
     if (pPolicy) pPolicy->Release();
@@ -88,4 +88,4 @@ bool WindowsFirewall::rulesAlreadyRegistered() {
 #endif
 }
 
-} // namespace myairshow
+} // namespace airshow

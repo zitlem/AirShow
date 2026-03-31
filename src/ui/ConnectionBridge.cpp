@@ -1,6 +1,6 @@
 #include "ui/ConnectionBridge.h"
 
-namespace myairshow {
+namespace airshow {
 
 ConnectionBridge::ConnectionBridge(QObject* parent)
     : QObject(parent) {}
@@ -62,4 +62,4 @@ void ConnectionBridge::clearApprovalRequest()
     emit approvalPendingChanged(false);
 }
 
-} // namespace myairshow
+} // namespace airshow

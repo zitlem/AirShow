@@ -9,7 +9,7 @@
 class QTcpServer;
 class QTcpSocket;
 
-namespace myairshow {
+namespace airshow {
 
 class ConnectionBridge;
 class MediaPipeline;
@@ -155,4 +155,4 @@ private:
     QByteArray        m_rtspBuffer;
 };
 
-} // namespace myairshow
+} // namespace airshow

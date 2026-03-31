@@ -3,7 +3,7 @@
 #include "discovery/AvahiAdvertiser.h"
 #endif
 
-namespace myairshow {
+namespace airshow {
 
 std::unique_ptr<ServiceAdvertiser> ServiceAdvertiser::create() {
 #ifdef __linux__
@@ -19,4 +19,4 @@ std::unique_ptr<ServiceAdvertiser> ServiceAdvertiser::create() {
 #endif
 }
 
-} // namespace myairshow
+} // namespace airshow

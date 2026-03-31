@@ -19,7 +19,7 @@
 // Reference: https://xakcop.com/post/shanocast/
 //            https://tristanpenman.com/blog/posts/2025/03/22/chromecast-device-authentication/
 
-namespace myairshow::cast {
+namespace airshow::cast {
 
 // Number of 48-hour windows covered by the precomputed signature table.
 // 795 signatures x 48h = ~96 days of coverage, repeating cyclically.
@@ -260,4 +260,4 @@ static const uint8_t kCastAuthPeerCert[] = {
 };
 static constexpr size_t kCastAuthPeerCertSize = sizeof(kCastAuthPeerCert);
 
-} // namespace myairshow::cast
+} // namespace airshow::cast

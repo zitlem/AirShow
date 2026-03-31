@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(MyAirShow LANGUAGES CXX C)  # C required for UxPlay lib/ C sources
+project(AirShow LANGUAGES CXX C)  # C required for UxPlay lib/ C sources
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,7 +43,7 @@ message(STATUS "Protobuf version: ${Protobuf_VERSION}")
 message(STATUS "Protobuf include dirs: ${Protobuf_INCLUDE_DIRS}")
 
 # CASTV2 protobuf code generation
-# Generated files land in ${CMAKE_CURRENT_BINARY_DIR}; added to myairshow and test_cast targets.
+# Generated files land in ${CMAKE_CURRENT_BINARY_DIR}; added to airshow and test_cast targets.
 protobuf_generate_cpp(CAST_PROTO_SRCS CAST_PROTO_HDRS src/cast/cast_channel.proto)
 # Make available to tests/CMakeLists.txt via cache
 set(CAST_PROTO_SRCS "${CAST_PROTO_SRCS}" CACHE INTERNAL "CASTV2 protobuf generated sources")
@@ -69,7 +69,7 @@ add_subdirectory(vendor/uxplay/lib/playfair)
 add_subdirectory(vendor/uxplay/lib)
 
 # Main executable
-qt_add_executable(myairshow
+qt_add_executable(airshow
   src/main.cpp
   src/pipeline/MediaPipeline.cpp
   src/ui/ReceiverWindow.cpp
@@ -92,8 +92,8 @@ qt_add_executable(myairshow
   src/platform/WindowsFirewall.cpp
 )
 
-qt_add_qml_module(myairshow
-  URI MyAirShow
+qt_add_qml_module(airshow
+  URI AirShow
   VERSION 1.0
   QML_FILES
     qml/main.qml
@@ -102,14 +102,14 @@ qt_add_qml_module(myairshow
     qml/ApprovalDialog.qml
 )
 
-target_include_directories(myairshow PRIVATE
+target_include_directories(airshow PRIVATE
   src
   vendor/uxplay/lib
   ${CMAKE_CURRENT_BINARY_DIR}
   ${Protobuf_INCLUDE_DIRS}
 )
 
-target_link_libraries(myairshow PRIVATE
+target_link_libraries(airshow PRIVATE
   Qt6::Core
   Qt6::Gui
   Qt6::Quick
@@ -125,17 +125,17 @@ target_link_libraries(myairshow PRIVATE
 )
 
 if(GST_WEBRTC_FOUND)
-  target_link_libraries(myairshow PRIVATE PkgConfig::GST_WEBRTC)
-  target_compile_definitions(myairshow PRIVATE GST_USE_UNSTABLE_API)
+  target_link_libraries(airshow PRIVATE PkgConfig::GST_WEBRTC)
+  target_compile_definitions(airshow PRIVATE GST_USE_UNSTABLE_API)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(myairshow PRIVATE PkgConfig::AVAHI)
+  target_link_libraries(airshow PRIVATE PkgConfig::AVAHI)
 endif()
 
 if(spdlog_FOUND)
-  target_link_libraries(myairshow PRIVATE spdlog::spdlog)
-  target_compile_definitions(myairshow PRIVATE HAVE_SPDLOG)
+  target_link_libraries(airshow PRIVATE spdlog::spdlog)
+  target_compile_definitions(airshow PRIVATE HAVE_SPDLOG)
 endif()
 
 # Copy DLNA device description XML to build directory so UpnpAdvertiser can find it at runtime

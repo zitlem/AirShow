@@ -5,7 +5,7 @@
 #include <avahi-common/alternative.h>
 #include <glib.h>
 
-namespace myairshow {
+namespace airshow {
 
 AvahiAdvertiser::AvahiAdvertiser() {
     m_poll = avahi_threaded_poll_new();
@@ -162,7 +162,7 @@ void AvahiAdvertiser::groupCallback(AvahiEntryGroup* /*group*/,
             g_message("AvahiAdvertiser: services registered successfully");
             break;
         case AVAHI_ENTRY_GROUP_COLLISION: {
-            // Two MyAirShow receivers on the same LAN — rename with suffix
+            // Two AirShow receivers on the same LAN — rename with suffix
             char* alt = avahi_alternative_service_name(self->m_activeName.c_str());
             g_warning("AvahiAdvertiser: name collision, using '%s'", alt);
             self->m_activeName = alt;
@@ -274,5 +274,5 @@ AvahiStringList* AvahiAdvertiser::buildTxtList(const std::vector<TxtRecord>& txt
     return list;
 }
 
-} // namespace myairshow
+} // namespace airshow
 #endif // __linux__

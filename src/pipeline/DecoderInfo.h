@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace myairshow {
+namespace airshow {
 
 enum class DecoderType {
     Hardware,
@@ -13,4 +13,4 @@ struct DecoderInfo {
     DecoderType type;
 };
 
-} // namespace myairshow
+} // namespace airshow

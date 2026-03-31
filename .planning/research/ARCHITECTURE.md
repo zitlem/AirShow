@@ -109,7 +109,7 @@ src/
 
 **What:** Each protocol handler implements a common `ProtocolHandler` interface with `advertise()`, `start_session()`, `stop_session()` methods. A plugin registry holds all active handlers; the session manager calls the interface, not concrete types.
 
-**When to use:** Any time a new protocol needs to be added without touching the media pipeline or session manager. This is the correct architecture for MyAirShow from day one.
+**When to use:** Any time a new protocol needs to be added without touching the media pipeline or session manager. This is the correct architecture for AirShow from day one.
 
 **Trade-offs:** Adds interface indirection but prevents the alternative (a giant switch statement throughout the codebase). The overhead is negligible.
 
@@ -165,7 +165,7 @@ gst_app_src_push_buffer(GST_APP_SRC(appsrc), buf);
 ### Screen Mirroring Session (AirPlay example — all protocols follow the same shape)
 
 ```
-[iOS Device]                        [MyAirShow Receiver]
+[iOS Device]                        [AirShow Receiver]
      │                                      │
      │── mDNS browse ─────────────────────> │ (Discovery: mDNS advertisement running)
      │<─ mDNS response (name, IP, port) ─── │
@@ -197,7 +197,7 @@ gst_app_src_push_buffer(GST_APP_SRC(appsrc), buf);
 ### Google Cast Data Flow (differences from AirPlay)
 
 ```
-[Android / Chrome]                 [MyAirShow Receiver]
+[Android / Chrome]                 [AirShow Receiver]
      │── SSDP / mDNS browse ──────────────> │ Cast Handler: mDNS + SSDP advertisement
      │── TLS connect port 8009 ──────────>  │ Cast Handler: TLS server
      │── protobuf CONNECT message ────────> │
@@ -212,7 +212,7 @@ gst_app_src_push_buffer(GST_APP_SRC(appsrc), buf);
 ### Miracast Data Flow (differs: transport-level is Wi-Fi Direct)
 
 ```
-[Windows / Android]                [MyAirShow Receiver]
+[Windows / Android]                [AirShow Receiver]
      │── P2P probe (Wi-Fi Direct) ────────> │ Miracast Handler: wpa_supplicant P2P
      │── P2P group negotiate ─────────────> │ (receiver acts as P2P Group Owner)
      │── TCP connect (RTSP port 7236) ────> │ RTSP capability exchange
@@ -223,7 +223,7 @@ gst_app_src_push_buffer(GST_APP_SRC(appsrc), buf);
 ### DLNA Data Flow (pull model — different from others)
 
 ```
-[Phone / Smart TV app]             [MyAirShow Receiver]
+[Phone / Smart TV app]             [AirShow Receiver]
      │── SSDP M-SEARCH ──────────────────> │ DLNA Handler: SSDP advertisement
      │<─ SSDP NOTIFY (device description)─ │
      │── UPnP Browse device ─────────────> │
@@ -346,5 +346,5 @@ This is a local-network desktop application; traditional web-service scaling is 
 - DLNA/DMR specification context: https://en.wikipedia.org/wiki/DLNA
 
 ---
-*Architecture research for: MyAirShow — cross-platform screen mirroring receiver*
+*Architecture research for: AirShow — cross-platform screen mirroring receiver*
 *Researched: 2026-03-28*

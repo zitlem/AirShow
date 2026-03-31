@@ -2,16 +2,16 @@
 #include <QString>
 #include <QStringList>
 
-namespace myairshow {
+namespace airshow {
 
 // QSettings wrapper for application-level settings.
 // Requires QCoreApplication::setOrganizationName() and setApplicationName()
 // to be called before construction (done in main.cpp).
 //
 // Uses QSettings::NativeFormat (platform default):
-//   Windows: HKCU\Software\MyAirShow\MyAirShow
-//   macOS:   ~/Library/Preferences/com.myairshow.MyAirShow.plist
-//   Linux:   ~/.config/MyAirShow/MyAirShow.conf
+//   Windows: HKCU\Software\AirShow\AirShow
+//   macOS:   ~/Library/Preferences/com.airshow.AirShow.plist
+//   Linux:   ~/.config/AirShow/AirShow.conf
 class AppSettings {
 public:
     AppSettings();
@@ -67,4 +67,4 @@ private:
     static QString defaultReceiverName();
 };
 
-} // namespace myairshow
+} // namespace airshow

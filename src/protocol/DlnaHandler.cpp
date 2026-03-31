@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-namespace myairshow {
+namespace airshow {
 
 // ── File-scope service type constants ─────────────────────────────────────────
 
@@ -624,4 +624,4 @@ int DlnaHandler::onGetProtocolInfo(const void* /*req*/, void** result) {
     return UPNP_E_SUCCESS;
 }
 
-} // namespace myairshow
+} // namespace airshow

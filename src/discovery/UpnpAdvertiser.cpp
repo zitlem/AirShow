@@ -15,7 +15,7 @@
 #include <sstream>
 #include <cstdio>
 
-namespace myairshow {
+namespace airshow {
 
 UpnpAdvertiser::UpnpAdvertiser(AppSettings* settings,
                                const std::string& deviceXmlTemplatePath)
@@ -246,7 +246,7 @@ int UpnpAdvertiser::upnpCallback(Upnp_EventType_e eventType,
     // Phase 5: Route SOAP action events to DlnaHandler via cookie pointer (Pattern 1).
     // cookie is the DlnaHandler* passed to UpnpRegisterRootDevice as the user data.
     if (eventType == UPNP_CONTROL_ACTION_REQUEST && cookie) {
-        auto* handler = static_cast<myairshow::DlnaHandler*>(cookie);
+        auto* handler = static_cast<airshow::DlnaHandler*>(cookie);
         return handler->handleSoapAction(event);
     }
     if (eventType == UPNP_CONTROL_ACTION_REQUEST) {
@@ -278,13 +278,13 @@ std::string UpnpAdvertiser::writeRuntimeXml(const std::string& receiverName,
             pos += to.size();
         }
     };
-    replaceAll(xml, "<friendlyName>MyAirShow</friendlyName>",
+    replaceAll(xml, "<friendlyName>AirShow</friendlyName>",
                     "<friendlyName>" + receiverName + "</friendlyName>");
     replaceAll(xml, "<UDN>uuid:00000000-0000-0000-0000-000000000000</UDN>",
                     "<UDN>" + udn + "</UDN>");
 
     // Write to temp file in system temp directory
-    std::string tmpPath = QDir::tempPath().toStdString() + "/myairshow_dlna.xml";
+    std::string tmpPath = QDir::tempPath().toStdString() + "/airshow_dlna.xml";
     std::ofstream out(tmpPath);
     if (!out.is_open()) {
         g_critical("UpnpAdvertiser: cannot write runtime XML to %s", tmpPath.c_str());
@@ -294,4 +294,4 @@ std::string UpnpAdvertiser::writeRuntimeXml(const std::string& receiverName,
     return tmpPath;
 }
 
-} // namespace myairshow
+} // namespace airshow

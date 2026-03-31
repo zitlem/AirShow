@@ -81,20 +81,20 @@ int main(int argc, char* argv[]) {
     checkRequiredPlugins();
 
     // Set organization/app name so QSettings uses correct native path
-    QCoreApplication::setOrganizationName("MyAirShow");
-    QCoreApplication::setApplicationName("MyAirShow");
+    QCoreApplication::setOrganizationName("AirShow");
+    QCoreApplication::setApplicationName("AirShow");
 
     QGuiApplication app(argc, argv);
 
-    myairshow::AppSettings settings;
+    airshow::AppSettings settings;
 
     // Phase 7: SecurityManager — must outlive all protocol handlers.
     // Constructed after AppSettings (dependency injection) and before any handler.
-    myairshow::SecurityManager securityManager(settings);
+    airshow::SecurityManager securityManager(settings);
 
     // Windows firewall rules — first launch only (D-12/D-13/D-14)
     if (settings.isFirstLaunch()) {
-        if (!myairshow::WindowsFirewall::registerRules()) {
+        if (!airshow::WindowsFirewall::registerRules()) {
             // D-13: permission denied — show actionable message
             qCritical("Firewall rules could not be registered automatically. "
                       "Please open the following ports manually:\n"
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
         settings.setFirstLaunchComplete();
     }
 
-    myairshow::DiscoveryManager discovery(&settings);
+    airshow::DiscoveryManager discovery(&settings);
     if (!discovery.start()) {
         qWarning("Discovery failed to start — receiver will not appear in device pickers");
     }
@@ -113,10 +113,10 @@ int main(int argc, char* argv[]) {
     const std::string dlnaXmlPath =
         QCoreApplication::applicationDirPath().toStdString()
         + "/resources/dlna/MediaRenderer.xml";
-    myairshow::UpnpAdvertiser upnpAdvertiser(&settings, dlnaXmlPath);
+    airshow::UpnpAdvertiser upnpAdvertiser(&settings, dlnaXmlPath);
 
-    myairshow::MediaPipeline pipeline;
-    myairshow::ReceiverWindow window(pipeline, settings);
+    airshow::MediaPipeline pipeline;
+    airshow::ReceiverWindow window(pipeline, settings);
 
     // Phase 6: Pre-register pipeline for Cast WebRTC deferred pipeline creation.
     // ReceiverWindow::load() calls pipeline.setQmlVideoItem(videoItem) again with
@@ -125,25 +125,25 @@ int main(int argc, char* argv[]) {
     pipeline.setQmlVideoItem(nullptr);  // will be overridden by ReceiverWindow after QML loads
 
     if (!window.load()) {
-        qCritical("Failed to start MyAirShow");
+        qCritical("Failed to start AirShow");
         return 1;
     }
 
     // Phase 7: Wire SecurityManager to ConnectionBridge (approval dialog state) and
     // expose it as a QML context property so QML can call resolveApproval().
-    QObject::connect(&securityManager, &myairshow::SecurityManager::requestApproval,
+    QObject::connect(&securityManager, &airshow::SecurityManager::requestApproval,
                      window.connectionBridge(),
-                     &myairshow::ConnectionBridge::showApprovalRequest);
+                     &airshow::ConnectionBridge::showApprovalRequest);
     window.engine()->rootContext()->setContextProperty(
         QStringLiteral("securityManager"), &securityManager);
 
     // Protocol manager owns all protocol handlers
-    myairshow::ProtocolManager protocolManager(&pipeline);
+    airshow::ProtocolManager protocolManager(&pipeline);
 
     // DLNA handler (Phase 5) — must be created before upnpAdvertiser.start()
     // so the SOAP callback cookie points to a live handler.
     {
-        auto dlnaHandler = std::make_unique<myairshow::DlnaHandler>(window.connectionBridge());
+        auto dlnaHandler = std::make_unique<airshow::DlnaHandler>(window.connectionBridge());
         auto* dlnaRawPtr = dlnaHandler.get(); // raw ptr for UpnpAdvertiser before ownership transfer
 
         // Phase 7: Wire SecurityManager for SOAP action approval + RFC1918 filter
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
         // Ensure the directory exists
         QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
 
-        auto airplay = std::make_unique<myairshow::AirPlayHandler>(
+        auto airplay = std::make_unique<airshow::AirPlayHandler>(
             window.connectionBridge(),   // ConnectionBridge* for HUD updates
             &discovery,                  // DiscoveryManager* for pk TXT record update
             deviceId,
@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
 
     // Google Cast handler (Phase 6)
     {
-        auto castHandler = std::make_unique<myairshow::CastHandler>(
+        auto castHandler = std::make_unique<airshow::CastHandler>(
             window.connectionBridge());
         // Phase 7: Wire SecurityManager for async approval + RFC1918 filter
         castHandler->setSecurityManager(&securityManager);
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
 
     // Miracast (MS-MICE) handler (Phase 8) — Windows wireless display mirroring (MIRA-01)
     {
-        auto miracastHandler = std::make_unique<myairshow::MiracastHandler>(
+        auto miracastHandler = std::make_unique<airshow::MiracastHandler>(
             window.connectionBridge());
         // Phase 7: Wire SecurityManager for connection approval + RFC1918 filter
         miracastHandler->setSecurityManager(&securityManager);

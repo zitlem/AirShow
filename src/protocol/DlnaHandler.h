@@ -7,7 +7,7 @@
 // gint64 forward: include gst types via glib primitives to avoid full GStreamer pull in header
 #include <glib.h>
 
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline;
 class ConnectionBridge;
@@ -78,4 +78,4 @@ private:
     std::mutex        m_stateMutex;
 };
 
-} // namespace myairshow
+} // namespace airshow

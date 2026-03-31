@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace myairshow {
+namespace airshow {
 
 struct TxtRecord {
     std::string key;
@@ -48,4 +48,4 @@ public:
     static std::unique_ptr<ServiceAdvertiser> create();
 };
 
-} // namespace myairshow
+} // namespace airshow

@@ -1,4 +1,4 @@
-# MyAirShow
+# AirShow
 
 A free, open-source, cross-platform screen mirroring receiver. Turn any computer into a wireless display that accepts screen mirrors from phones, tablets, and other computers.
 
@@ -74,7 +74,7 @@ The script will tell you which MSYS2 packages to install if missing.
 ```bash
 cmake --preset linux-debug    # or macos-debug / windows-msys2-debug
 cmake --build build/linux-debug
-./build/linux-debug/myairshow
+./build/linux-debug/airshow
 ```
 
 ## Architecture
@@ -130,7 +130,7 @@ qml/
 
 ## Security
 
-MyAirShow includes three security layers:
+AirShow includes three security layers:
 
 1. **Device Approval** --- new devices trigger an Allow/Deny dialog before mirroring starts. Approved devices are remembered.
 2. **PIN Pairing** --- optional 4-digit PIN displayed on the receiver. Devices must enter the correct PIN to connect.

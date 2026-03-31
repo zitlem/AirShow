@@ -25,7 +25,7 @@ using extensions::api::cast_channel::CastMessage;
 using extensions::api::cast_channel::DeviceAuthMessage;
 using extensions::api::cast_channel::AuthResponse;
 
-namespace myairshow {
+namespace airshow {
 
 // ── Namespace constants ────────────────────────────────────────────────────────
 
@@ -776,4 +776,4 @@ QByteArray CastSession::buildReceiverStatus(int requestId) const {
     return QJsonDocument(status).toJson(QJsonDocument::Compact);
 }
 
-} // namespace myairshow
+} // namespace airshow

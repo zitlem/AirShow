@@ -19,14 +19,14 @@ TEST_F(DisplayTest, test_display_aspect_ratio) {
 // DISP-02 + DISP-03: ConnectionBridge state machine
 TEST_F(DisplayTest, test_connection_bridge_initial_state) {
     // RED: ConnectionBridge.cpp does not exist yet — will FAIL to link until Plan 02
-    myairshow::ConnectionBridge bridge;
+    airshow::ConnectionBridge bridge;
     EXPECT_FALSE(bridge.isConnected());
     EXPECT_TRUE(bridge.deviceName().isEmpty());
     EXPECT_TRUE(bridge.protocol().isEmpty());
 }
 
 TEST_F(DisplayTest, test_connection_bridge_set_connected) {
-    myairshow::ConnectionBridge bridge;
+    airshow::ConnectionBridge bridge;
     bridge.setConnected(true, "iPhone 15", "AirPlay");
     EXPECT_TRUE(bridge.isConnected());
     EXPECT_EQ(bridge.deviceName(), "iPhone 15");
@@ -34,7 +34,7 @@ TEST_F(DisplayTest, test_connection_bridge_set_connected) {
 }
 
 TEST_F(DisplayTest, test_connection_bridge_set_disconnected) {
-    myairshow::ConnectionBridge bridge;
+    airshow::ConnectionBridge bridge;
     bridge.setConnected(true, "iPhone 15", "AirPlay");
     bridge.setConnected(false);
     EXPECT_FALSE(bridge.isConnected());
@@ -44,15 +44,15 @@ TEST_F(DisplayTest, test_connection_bridge_set_disconnected) {
 
 // DISP-03: SettingsBridge reads receiverName from AppSettings
 TEST_F(DisplayTest, test_settings_bridge_receiver_name) {
-    QCoreApplication::setOrganizationName("MyAirShowTest");
-    QCoreApplication::setApplicationName("MyAirShowTest");
+    QCoreApplication::setOrganizationName("AirShowTest");
+    QCoreApplication::setApplicationName("AirShowTest");
     {
         QSettings s;
         s.setValue("receiver/name", "TestReceiver");
         s.sync();
     }
-    myairshow::AppSettings settings;
-    myairshow::SettingsBridge bridge(settings);
+    airshow::AppSettings settings;
+    airshow::SettingsBridge bridge(settings);
     EXPECT_EQ(bridge.receiverName(), "TestReceiver");
     {
         QSettings s;

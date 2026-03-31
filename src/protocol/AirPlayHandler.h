@@ -9,7 +9,7 @@
 struct raop_s;
 typedef struct raop_s raop_t;
 
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline;
 class ConnectionBridge;
@@ -82,4 +82,4 @@ private:
     bool              m_audioCapsSet     = false;
 };
 
-} // namespace myairshow
+} // namespace airshow

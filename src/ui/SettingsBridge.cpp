@@ -1,7 +1,7 @@
 #include "ui/SettingsBridge.h"
 #include "settings/AppSettings.h"
 
-namespace myairshow {
+namespace airshow {
 
 SettingsBridge::SettingsBridge(AppSettings& settings, QObject* parent)
     : QObject(parent), m_settings(settings) {}
@@ -60,4 +60,4 @@ void SettingsBridge::clearTrustedDevices() {
     emit trustedDevicesChanged(QStringList());
 }
 
-} // namespace myairshow
+} // namespace airshow

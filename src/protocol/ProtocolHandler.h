@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline;  // forward declare — do not include MediaPipeline.h here
 
@@ -26,4 +26,4 @@ public:
     virtual void setMediaPipeline(MediaPipeline* pipeline) = 0;
 };
 
-} // namespace myairshow
+} // namespace airshow

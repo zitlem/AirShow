@@ -8,7 +8,7 @@
 #include <functional>
 #include <memory>
 
-namespace myairshow {
+namespace airshow {
 
 class AppSettings;
 
@@ -126,4 +126,4 @@ private:
     QHash<QString, std::function<void(bool)>>          m_asyncCallbacks;
 };
 
-} // namespace myairshow
+} // namespace airshow

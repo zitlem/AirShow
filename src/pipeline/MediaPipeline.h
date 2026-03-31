@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline {
 public:
@@ -166,4 +166,4 @@ private:
     static void onElementAdded(GstBin* bin, GstElement* element, gpointer userData);
 };
 
-} // namespace myairshow
+} // namespace airshow

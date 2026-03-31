@@ -29,28 +29,28 @@ testing::Environment* const env =
 // ── DlnaHandler name and lifecycle tests ──────────────────────────────────────
 
 TEST(DlnaHandlerTest, NameReturnsDlna) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     EXPECT_EQ(handler.name(), "dlna");
 }
 
 TEST(DlnaHandlerTest, NotRunningInitially) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     EXPECT_FALSE(handler.isRunning());
 }
 
 TEST(DlnaHandlerTest, StartReturnsTrueAndIsRunning) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     EXPECT_TRUE(handler.start());
     EXPECT_TRUE(handler.isRunning());
     handler.stop();
 }
 
 TEST(DlnaHandlerTest, StopMakesNotRunning) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     EXPECT_TRUE(handler.start());
     EXPECT_TRUE(handler.isRunning());
     handler.stop();
@@ -62,20 +62,20 @@ TEST(DlnaHandlerTest, StopMakesNotRunning) {
 TEST(DlnaHandlerTest, ParseTimeStringBasic) {
     // "1:23:45" = 1*3600 + 23*60 + 45 = 5025 seconds
     gint64 expected = (gint64)(1 * 3600 + 23 * 60 + 45) * GST_SECOND;
-    EXPECT_EQ(myairshow::DlnaHandler::parseTimeString("1:23:45"), expected);
+    EXPECT_EQ(airshow::DlnaHandler::parseTimeString("1:23:45"), expected);
 }
 
 TEST(DlnaHandlerTest, ParseTimeStringZero) {
-    EXPECT_EQ(myairshow::DlnaHandler::parseTimeString("0:00:00"), (gint64)0);
+    EXPECT_EQ(airshow::DlnaHandler::parseTimeString("0:00:00"), (gint64)0);
 }
 
 TEST(DlnaHandlerTest, FormatGstTimeRoundTrip) {
     // 150 seconds = 0:02:30
     gint64 ns = (gint64)150 * GST_SECOND;
-    std::string formatted = myairshow::DlnaHandler::formatGstTime(ns);
+    std::string formatted = airshow::DlnaHandler::formatGstTime(ns);
     EXPECT_EQ(formatted, "0:02:30");
     // Round-trip: parse the formatted string back
-    gint64 reparsed = myairshow::DlnaHandler::parseTimeString(formatted);
+    gint64 reparsed = airshow::DlnaHandler::parseTimeString(formatted);
     EXPECT_EQ(reparsed, ns);
 }
 
@@ -83,9 +83,9 @@ TEST(DlnaHandlerTest, FormatGstTimeRoundTrip) {
 
 TEST(DlnaHandlerTest, SetPipelineNocrash) {
     // DlnaHandlerSetPipeline: setMediaPipeline must not crash with a valid pipeline ptr
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
-    myairshow::MediaPipeline pipeline;
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
+    airshow::MediaPipeline pipeline;
     // Should not crash or throw
     handler.setMediaPipeline(&pipeline);
     SUCCEED();
@@ -93,9 +93,9 @@ TEST(DlnaHandlerTest, SetPipelineNocrash) {
 
 TEST(DlnaHandlerTest, StartStopWithPipeline) {
     // DlnaHandlerStartStop: handler is running after start, not running after stop
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
-    myairshow::MediaPipeline pipeline;
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
+    airshow::MediaPipeline pipeline;
     handler.setMediaPipeline(&pipeline);
     EXPECT_TRUE(handler.start());
     EXPECT_TRUE(handler.isRunning());

@@ -56,47 +56,47 @@ static void clearTestSettings() {
 class IsLocalNetworkTest : public ::testing::Test {};
 
 TEST_F(IsLocalNetworkTest, RFC1918TenNet) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("10.0.0.1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("10.0.0.1")));
 }
 
 TEST_F(IsLocalNetworkTest, RFC1918TenNetBroadcast) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("10.255.255.255")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("10.255.255.255")));
 }
 
 TEST_F(IsLocalNetworkTest, RFC1918OneSevenTwo) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("172.16.5.1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("172.16.5.1")));
 }
 
 TEST_F(IsLocalNetworkTest, RFC1918OneSevenTwoEnd) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("172.31.255.255")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("172.31.255.255")));
 }
 
 TEST_F(IsLocalNetworkTest, RFC1918OneNineTwo) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("192.168.1.1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("192.168.1.1")));
 }
 
 TEST_F(IsLocalNetworkTest, LinkLocal) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("169.254.1.1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("169.254.1.1")));
 }
 
 TEST_F(IsLocalNetworkTest, LoopbackAllowed) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("127.0.0.1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("127.0.0.1")));
 }
 
 TEST_F(IsLocalNetworkTest, IPv6LoopbackAllowed) {
-    EXPECT_TRUE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("::1")));
+    EXPECT_TRUE(airshow::SecurityManager::isLocalNetwork(QHostAddress("::1")));
 }
 
 TEST_F(IsLocalNetworkTest, PublicIPRejected) {
-    EXPECT_FALSE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("8.8.8.8")));
+    EXPECT_FALSE(airshow::SecurityManager::isLocalNetwork(QHostAddress("8.8.8.8")));
 }
 
 TEST_F(IsLocalNetworkTest, PublicIPRejected2) {
-    EXPECT_FALSE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("1.2.3.4")));
+    EXPECT_FALSE(airshow::SecurityManager::isLocalNetwork(QHostAddress("1.2.3.4")));
 }
 
 TEST_F(IsLocalNetworkTest, PublicIPRejected3) {
-    EXPECT_FALSE(myairshow::SecurityManager::isLocalNetwork(QHostAddress("203.0.113.1")));
+    EXPECT_FALSE(airshow::SecurityManager::isLocalNetwork(QHostAddress("203.0.113.1")));
 }
 
 // ---------------------------------------------------------------------------
@@ -109,39 +109,39 @@ protected:
 };
 
 TEST_F(AppSettingsPinTest, RequireApprovalDefault) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     EXPECT_TRUE(s.requireApproval());
 }
 
 TEST_F(AppSettingsPinTest, PinEnabledDefault) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     EXPECT_FALSE(s.pinEnabled());
 }
 
 TEST_F(AppSettingsPinTest, PinDefault) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     EXPECT_EQ(s.pin(), QString());
 }
 
 TEST_F(AppSettingsPinTest, TrustedDevicesDefault) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     EXPECT_TRUE(s.trustedDevices().isEmpty());
 }
 
 TEST_F(AppSettingsPinTest, PinSettingsRoundTrip) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.setPinEnabled(true);
     EXPECT_TRUE(s.pinEnabled());
 }
 
 TEST_F(AppSettingsPinTest, PinValueRoundTrip) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.setPin("1234");
     EXPECT_EQ(s.pin(), "1234");
 }
 
 TEST_F(AppSettingsPinTest, RequireApprovalRoundTrip) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.setRequireApproval(false);
     EXPECT_FALSE(s.requireApproval());
 }
@@ -157,16 +157,16 @@ protected:
 
 TEST_F(AppSettingsTrustedDeviceTest, TrustedDevicePersists) {
     {
-        myairshow::AppSettings s;
+        airshow::AppSettings s;
         s.addTrustedDevice("AA:BB:CC:DD:EE:FF");
     }
     // New instance reads from same QSettings backing store
-    myairshow::AppSettings s2;
+    airshow::AppSettings s2;
     EXPECT_TRUE(s2.trustedDevices().contains("AA:BB:CC:DD:EE:FF"));
 }
 
 TEST_F(AppSettingsTrustedDeviceTest, ClearTrustedDevices) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.addTrustedDevice("AA:BB:CC:DD:EE:FF");
     s.addTrustedDevice("11:22:33:44:55:66");
     s.clearTrustedDevices();
@@ -174,7 +174,7 @@ TEST_F(AppSettingsTrustedDeviceTest, ClearTrustedDevices) {
 }
 
 TEST_F(AppSettingsTrustedDeviceTest, RemoveTrustedDevice) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.addTrustedDevice("AA:BB:CC");
     s.addTrustedDevice("DD:EE:FF");
     s.removeTrustedDevice("AA:BB:CC");
@@ -183,7 +183,7 @@ TEST_F(AppSettingsTrustedDeviceTest, RemoveTrustedDevice) {
 }
 
 TEST_F(AppSettingsTrustedDeviceTest, AddTrustedDeviceNoDuplicate) {
-    myairshow::AppSettings s;
+    airshow::AppSettings s;
     s.addTrustedDevice("AA:BB:CC");
     s.addTrustedDevice("AA:BB:CC");
     EXPECT_EQ(s.trustedDevices().size(), 1);
@@ -196,9 +196,9 @@ class SecurityManagerCheckTest : public ::testing::Test {
 protected:
     void SetUp() override {
         clearTestSettings();
-        settings = std::make_unique<myairshow::AppSettings>();
+        settings = std::make_unique<airshow::AppSettings>();
         // Use a short timeout for tests (100 ms) to keep test suite fast
-        manager  = std::make_unique<myairshow::SecurityManager>(*settings);
+        manager  = std::make_unique<airshow::SecurityManager>(*settings);
         manager->setApprovalTimeoutMs(100);
     }
     void TearDown() override {
@@ -207,8 +207,8 @@ protected:
         clearTestSettings();
     }
 
-    std::unique_ptr<myairshow::AppSettings>   settings;
-    std::unique_ptr<myairshow::SecurityManager> manager;
+    std::unique_ptr<airshow::AppSettings>   settings;
+    std::unique_ptr<airshow::SecurityManager> manager;
 };
 
 TEST_F(SecurityManagerCheckTest, RequireApprovalFalseSkipsPrompt) {
@@ -239,7 +239,7 @@ TEST_F(SecurityManagerCheckTest, ResolveApprovalGrants) {
     manager->setApprovalTimeoutMs(2000);
 
     // Connect: when requestApproval fires on the Qt thread, immediately resolve it
-    QObject::connect(manager.get(), &myairshow::SecurityManager::requestApproval,
+    QObject::connect(manager.get(), &airshow::SecurityManager::requestApproval,
                      manager.get(), [&](const QString& requestId, const QString&, const QString&) {
                          manager->resolveApproval(requestId, true);
                      }, Qt::DirectConnection);

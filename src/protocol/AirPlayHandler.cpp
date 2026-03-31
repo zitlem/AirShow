@@ -38,42 +38,42 @@
 // UxPlay headers (stream.h etc.) in the public AirPlayHandler.h header.
 //
 static void raop_cb_video_process(void* cls, raop_ntp_t* /*ntp*/, video_decode_struct* data) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onVideoFrame(data);
+    static_cast<airshow::AirPlayHandler*>(cls)->onVideoFrame(data);
 }
 
 static void raop_cb_audio_process(void* cls, raop_ntp_t* /*ntp*/, audio_decode_struct* data) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onAudioFrame(data);
+    static_cast<airshow::AirPlayHandler*>(cls)->onAudioFrame(data);
 }
 
 static void raop_cb_conn_init(void* cls) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onConnectionInit();
+    static_cast<airshow::AirPlayHandler*>(cls)->onConnectionInit();
 }
 
 static void raop_cb_conn_destroy(void* cls) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onConnectionDestroy();
+    static_cast<airshow::AirPlayHandler*>(cls)->onConnectionDestroy();
 }
 
 static void raop_cb_conn_teardown(void* cls, bool* teardown_96, bool* teardown_110) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onConnTeardown(teardown_96, teardown_110);
+    static_cast<airshow::AirPlayHandler*>(cls)->onConnTeardown(teardown_96, teardown_110);
 }
 
 static void raop_cb_audio_get_format(void* cls, unsigned char* ct, unsigned short* spf,
                                      bool* usingScreen, bool* isMedia, uint64_t* audioFormat) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onAudioGetFormat(ct, spf, usingScreen, isMedia, audioFormat);
+    static_cast<airshow::AirPlayHandler*>(cls)->onAudioGetFormat(ct, spf, usingScreen, isMedia, audioFormat);
 }
 
 static void raop_cb_report_client_request(void* cls, char* deviceid, char* model,
                                           char* name, bool* admit) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onReportClientRequest(deviceid, model, name, admit);
+    static_cast<airshow::AirPlayHandler*>(cls)->onReportClientRequest(deviceid, model, name, admit);
 }
 
 static void raop_cb_display_pin(void* cls, char* pin) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
+    static_cast<airshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace myairshow {
+namespace airshow {
 
 // ── Constructor / Destructor ──────────────────────────────────────────────────
 
@@ -178,7 +178,7 @@ bool AirPlayHandler::start() {
 
     // 3. Generate/load Ed25519 keypair and write PEM keyfile.
     //    nohold=0 → normal (non-hold) mode.
-    //    We do NOT call raop_set_dnssd() — MyAirShow's DiscoveryManager already advertises
+    //    We do NOT call raop_set_dnssd() — AirShow's DiscoveryManager already advertises
     //    _airplay._tcp and _raop._tcp (Pitfall 7: prevent duplicate mDNS entries).
     int keyfileResult = raop_init2(m_raop, 0, m_deviceId.c_str(), m_keyfilePath.c_str());
     if (keyfileResult < 0) {
@@ -445,7 +445,7 @@ std::string AirPlayHandler::readPublicKeyFromKeyfile() const {
 // Invoked by raop_cb_display_pin when UxPlay activates PIN pairing mode.
 // The PIN to display is already stored in AppSettings (via SecurityManager::pin()).
 // IdleScreen.qml shows appSettings.pin automatically when appSettings.pinEnabled is true.
-// This callback is a no-op in MyAirShow's architecture — the PIN display is driven
+// This callback is a no-op in AirShow's architecture — the PIN display is driven
 // by QML property bindings, not by runtime UxPlay notifications.
 //
 void AirPlayHandler::onDisplayPin(const std::string& pin) {
@@ -456,4 +456,4 @@ void AirPlayHandler::onDisplayPin(const std::string& pin) {
     }
 }
 
-} // namespace myairshow
+} // namespace airshow

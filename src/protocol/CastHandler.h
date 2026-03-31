@@ -12,7 +12,7 @@
 class QSslServer;
 class QSslSocket;
 
-namespace myairshow {
+namespace airshow {
 
 class ConnectionBridge;
 class CastSession;
@@ -67,4 +67,4 @@ private:
     bool                         m_running          = false;
 };
 
-} // namespace myairshow
+} // namespace airshow

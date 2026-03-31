@@ -1,7 +1,7 @@
 #include "ui/AudioBridge.h"
 #include "pipeline/MediaPipeline.h"
 
-namespace myairshow {
+namespace airshow {
 
 AudioBridge::AudioBridge(MediaPipeline& pipeline, QObject* parent)
     : QObject(parent), m_pipeline(pipeline) {}
@@ -16,4 +16,4 @@ void AudioBridge::setMuted(bool muted) {
     emit mutedChanged(muted);
 }
 
-} // namespace myairshow
+} // namespace airshow
