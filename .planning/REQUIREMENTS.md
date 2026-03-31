@@ -119,16 +119,18 @@ Requirements for companion sender app milestone. Each maps to roadmap phases.
 | CAST-01 through CAST-03 | Phase 6 | Complete |
 | SEC-01 through SEC-03 | Phase 7 | Complete |
 | MIRA-01 through MIRA-03 | Phase 8 | Complete |
-| RECV-01 through RECV-03 | TBD | Pending |
-| SEND-01 through SEND-05 | TBD | Pending |
-| DISC-06 through DISC-08 | TBD | Pending |
-| WEB-01 through WEB-03 | TBD | Pending |
+| RECV-01, RECV-02, RECV-03 | Phase 9 | Pending |
+| SEND-01, SEND-05, DISC-06, DISC-07 | Phase 10 | Pending |
+| SEND-02, DISC-08 | Phase 11 | Pending |
+| SEND-03 | Phase 12 | Pending |
+| SEND-04 | Phase 13 | Pending |
+| WEB-01, WEB-02, WEB-03 | Phase 14 | Pending |
 
 **Coverage:**
 - v1 requirements: 29 total — all complete
-- v2 requirements: 14 total — all pending
+- v2 requirements: 14 total — all pending, all mapped
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-31 — v2.0 requirements added*
+*Last updated: 2026-03-30 — v2.0 traceability mapped to Phases 9-14*

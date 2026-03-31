@@ -1,10 +1,14 @@
 # Roadmap: AirShow
 
-## Overview
+## Milestones
 
-AirShow is built from the ground up as a multi-protocol screen mirroring receiver. The journey starts with the render pipeline and window that all protocols target, then layers in discovery/advertisement infrastructure, then proves the full end-to-end path with AirPlay, extends to DLNA (simpler second protocol to validate the abstraction), then Google Cast and Miracast. Security and hardening runs last to lock down the complete product before v1 release.
+- ✅ **v1.0 Multi-Protocol Receiver** - Phases 1-8 (shipped 2026-03-30)
+- 🚧 **v2.0 Companion Sender** - Phases 9-14 (in progress)
 
 ## Phases
+
+<details>
+<summary>✅ v1.0 Multi-Protocol Receiver (Phases 1-8) - SHIPPED 2026-03-30</summary>
 
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
@@ -20,8 +24,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Google Cast** - Android and Chrome browser casting with synchronized A/V and swappable auth backend (completed 2026-03-29)
 - [x] **Phase 7: Security & Hardening** - Connection approval, PIN pairing, LAN-only binding, and 30-minute A/V stability (completed 2026-03-30)
 - [x] **Phase 8: Miracast** - Windows and Android screen mirroring via Miracast over Infrastructure (completed 2026-03-30)
-
-## Phase Details
 
 ### Phase 1: Foundation
 **Goal**: The application builds and runs on all three platforms with a working media pipeline that can receive and display video frames and audio
@@ -140,18 +142,114 @@ Plans:
 - [x] 08-02-PLAN.md — MS-MICE SOURCE_READY + WFD RTSP M1-M7 client state machine, SecurityManager integration
 - [x] 08-03-PLAN.md — main.cpp wiring, GStreamer plugin checks, integration tests, end-to-end Windows verification
 
+</details>
+
+---
+
+## v2.0 Companion Sender (Phases 9-14)
+
+**Milestone Goal:** Build a Flutter-based companion sender app that discovers AirShow receivers on the local network and mirrors the device screen to them, with a custom AirShow protocol giving full control over quality and latency. Targets Android, iOS, macOS, and Windows from a single Dart codebase.
+
+- [ ] **Phase 9: Receiver Protocol Foundation** - AirShowHandler on port 7400, `_airshow._tcp` mDNS advertisement, handshake with quality negotiation, monorepo structure
+- [ ] **Phase 10: Android Sender MVP** - Flutter app skeleton (BLoC, discovery, connection UI), Android screen capture + H.264 encode, audio streaming, auto-discovery and manual IP entry
+- [ ] **Phase 11: iOS Sender MVP** - iOS Broadcast Upload Extension with VideoToolbox encode, ReplayKit launcher, QR code connect flow
+- [ ] **Phase 12: macOS Sender** - ScreenCaptureKit native plugin, VideoToolbox H.264 encode, stable Developer ID signing
+- [ ] **Phase 13: Windows Sender** - Windows.Graphics.Capture primary + DXGI fallback, Media Foundation H.264 MFT encoder
+- [ ] **Phase 14: Web Interface & Distribution** - Qt HTTP server on port 7401, installer download page, QR code display on receiver idle screen
+
+## Phase Details
+
+### Phase 9: Receiver Protocol Foundation
+**Goal**: The AirShow receiver accepts connections from the companion sender app via a custom protocol, advertises itself via mDNS, and the monorepo structure exists so Flutter and C++ development can proceed in parallel
+**Depends on**: Phase 8
+**Requirements**: RECV-01, RECV-02, RECV-03
+**Success Criteria** (what must be TRUE):
+  1. A raw TCP client connecting to port 7400 and sending a valid handshake JSON receives a handshake response with codec, resolution, and bitrate fields
+  2. AirShow appears in a `dns-sd` or `avahi-browse` listing as `_airshow._tcp` on the local network
+  3. The handshake round-trip includes quality negotiation fields (resolution cap, target bitrate, FPS) that the receiver echoes back with accepted values
+  4. A `sender/` Flutter project directory exists in the repo alongside `src/` with a passing `flutter analyze` and placeholder screen
+  5. NAL units pushed through the established connection appear on the receiver display via the existing GStreamer appsrc pipeline
+**Plans**: TBD
+
+### Phase 10: Android Sender MVP
+**Goal**: An Android user can open the companion app, see AirShow receivers on the network, tap one, and have their screen mirrored to the receiver with audio
+**Depends on**: Phase 9
+**Requirements**: SEND-01, SEND-05, DISC-06, DISC-07
+**Success Criteria** (what must be TRUE):
+  1. An Android device opens the sender app and within 10 seconds shows a list of AirShow receivers discovered on the local network
+  2. Tapping a receiver starts mirroring — the Android screen appears on the receiver display within 5 seconds
+  3. Audio from the Android device plays through the receiver's speakers alongside the video mirror
+  4. A "Stop" button (and Android notification action) ends mirroring and returns the app to the receiver list
+  5. When mDNS discovery finds nothing after 10 seconds, the user sees a manual IP entry field and can connect by entering the receiver's IP address
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: iOS Sender MVP
+**Goal**: An iOS user can launch the companion app, initiate a broadcast, and have their iPhone or iPad screen mirrored to an AirShow receiver — including a QR code scan path for networks where mDNS is blocked
+**Depends on**: Phase 10
+**Requirements**: SEND-02, DISC-08
+**Success Criteria** (what must be TRUE):
+  1. An iPhone or iPad can start mirroring to an AirShow receiver via the companion app's broadcast picker within 10 seconds of tapping "Start Mirroring"
+  2. The iOS screen appears on the receiver display while the Broadcast Upload Extension is active, with the receiver showing the device name
+  3. The receiver displays a QR code on its idle screen; scanning it with the sender app connects without manual IP entry
+  4. Stopping the iOS system broadcast (from Control Center or in-app) cleanly disconnects the session without crashing the extension
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 12: macOS Sender
+**Goal**: A macOS user can select their screen (or a specific window) in the companion app and mirror it to an AirShow receiver using ScreenCaptureKit
+**Depends on**: Phase 11
+**Requirements**: SEND-03
+**Success Criteria** (what must be TRUE):
+  1. A macOS user opens the sender app, grants screen recording permission when prompted, and sees their screen mirrored on the receiver within 5 seconds of clicking "Start"
+  2. The macOS sender encodes video using VideoToolbox hardware H.264 acceleration (logged at session start)
+  3. TCC screen recording permission granted to a stable Developer ID build persists across app relaunches and does not require re-granting after a rebuild
+  4. Stopping mirroring from the macOS app cleanly tears down the session and the receiver returns to its idle screen
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 13: Windows Sender
+**Goal**: A Windows user can mirror their desktop to an AirShow receiver using the companion app, with a DXGI fallback that handles DX12 applications and elevated windows that the primary capture path cannot capture
+**Depends on**: Phase 12
+**Requirements**: SEND-04
+**Success Criteria** (what must be TRUE):
+  1. A Windows user opens the sender app and starts mirroring — the Windows desktop appears on the receiver display within 5 seconds
+  2. When a DX12 application (e.g., a game or 3D app) is on screen, the stream continues without blank frames (DXGI fallback active)
+  3. The sender app captures and encodes video using Media Foundation hardware H.264 MFT (logged at session start)
+  4. Stopping mirroring from the Windows app cleanly tears down the session and the receiver returns to its idle screen
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 14: Web Interface & Distribution
+**Goal**: Anyone on the local network can open a browser, navigate to the receiver's IP address, see the AirShow landing page, download the companion app installer for their platform, and scan the QR code to connect — all without internet access
+**Depends on**: Phase 13
+**Requirements**: WEB-01, WEB-02, WEB-03
+**Success Criteria** (what must be TRUE):
+  1. Opening `http://<receiver-ip>:7401` in a browser on the local network shows the AirShow web page with the receiver name and a QR code
+  2. The web page offers download links for the Android APK and desktop installers that work without any internet connection (files served from the receiver's local storage)
+  3. Scanning the QR code displayed on the web page (or on the receiver's idle screen) with the sender app connects to the receiver without manual IP entry
+  4. The web interface is served by the receiver process itself with no external web server dependency
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Foundation | 3/3 | Complete   | 2026-03-28 |
-| 2. Discovery & Protocol Abstraction | 3/3 | Complete   | 2026-03-28 |
-| 3. Display & Receiver UI | 3/3 | Complete   | 2026-03-28 |
-| 4. AirPlay | 3/3 | Complete   | 2026-03-28 |
-| 5. DLNA | 3/3 | Complete   | 2026-03-29 |
-| 6. Google Cast | 3/3 | Complete   | 2026-03-29 |
-| 7. Security & Hardening | 3/3 | Complete   | 2026-03-30 |
-| 8. Miracast | 3/3 | Complete   | 2026-03-30 |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Foundation | v1.0 | 3/3 | Complete | 2026-03-28 |
+| 2. Discovery & Protocol Abstraction | v1.0 | 3/3 | Complete | 2026-03-28 |
+| 3. Display & Receiver UI | v1.0 | 3/3 | Complete | 2026-03-28 |
+| 4. AirPlay | v1.0 | 3/3 | Complete | 2026-03-28 |
+| 5. DLNA | v1.0 | 3/3 | Complete | 2026-03-29 |
+| 6. Google Cast | v1.0 | 3/3 | Complete | 2026-03-29 |
+| 7. Security & Hardening | v1.0 | 3/3 | Complete | 2026-03-30 |
+| 8. Miracast | v1.0 | 3/3 | Complete | 2026-03-30 |
+| 9. Receiver Protocol Foundation | v2.0 | 0/? | Not started | - |
+| 10. Android Sender MVP | v2.0 | 0/? | Not started | - |
+| 11. iOS Sender MVP | v2.0 | 0/? | Not started | - |
+| 12. macOS Sender | v2.0 | 0/? | Not started | - |
+| 13. Windows Sender | v2.0 | 0/? | Not started | - |
+| 14. Web Interface & Distribution | v2.0 | 0/? | Not started | - |
