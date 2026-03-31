@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: companion-sender
-status: defining-requirements
-stopped_at: Milestone v2.0 started
+status: roadmap-created
+stopped_at: Roadmap created for v2.0 — ready to plan Phase 9
 last_updated: "2026-03-30T22:00:00.000Z"
 last_activity: 2026-03-30
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,138 +18,39 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-28)
+See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Milestone v2.0 — AirShow Companion Sender
+**Current focus:** Milestone v2.0 — Phase 9: Receiver Protocol Foundation
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-30 — Milestone v2.0 started
-Last activity: 2026-03-30
+Phase: 9 of 14 (Receiver Protocol Foundation)
+Plan: Not yet planned
+Status: Ready to plan
+Last activity: 2026-03-30 — v2.0 roadmap created (Phases 9-14)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 
 ## Performance Metrics
 
-**Velocity:**
+**Velocity (v1.0 reference):**
+- Total plans completed (v1.0): 24
+- Average duration: ~9 min/plan
+- Total execution time: ~3.6 hours
 
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-**Recent Trend:**
-
-- Last 5 plans: -
-- Trend: -
-
-*Updated after each plan completion*
-| Phase 01-foundation P01 | 11 | 2 tasks | 13 files |
-| Phase 01-foundation P02 | 6 | 2 tasks | 9 files |
-| Phase 01-foundation P03 | 3m | 1 tasks | 2 files |
-| Phase 02-discovery-protocol-abstraction P01 | 2 | 2 tasks | 9 files |
-| Phase 02-discovery-protocol-abstraction P02 | 15 | 2 tasks | 13 files |
-| Phase 02-discovery-protocol-abstraction P03 | 30 | 2 tasks | 9 files |
-| Phase 03-display-receiver-ui P01 | 3 | 2 tasks | 4 files |
-| Phase 03-display-receiver-ui PP02 | 2 | 2 tasks | 6 files |
-| Phase 03-display-receiver-ui P03 | 1 | 3 tasks | 4 files |
-| Phase 04-airplay P01 | 7 | 2 tasks | 10 files |
-| Phase 04-airplay P02 | 15 | 2 tasks | 3 files |
-| Phase 04-airplay P03 | 5 | 2 tasks | 7 files |
-| Phase 05-dlna P01 | 35 | 3 tasks | 12 files |
-| Phase 05-dlna P02 | 2 | 2 tasks | 1 files |
-| Phase 05-dlna P03 | 10 | 2 tasks | 2 files |
-| Phase 06-google-cast P01 | 10 | 2 tasks | 9 files |
-| Phase 06-google-cast P02 | 8 | 2 tasks | 9 files |
-| Phase 06-google-cast P03 | 5 | 2 tasks | 2 files |
-| Phase 07-security-hardening P07-01 | 14 | 2 tasks | 9 files |
-| Phase 07-security-hardening P07-03 | 15 | 2 tasks | 9 files |
-| Phase 07-security-hardening P07-02 | 10 | 2 tasks | 9 files |
-| Phase 08-miracast P01 | 15 | 2 tasks | 8 files |
-| Phase 08-miracast P02 | 1 | 2 tasks | 3 files |
-| Phase 08-miracast P03 | 2 | 2 tasks | 2 files |
+**v2.0 — no plans completed yet**
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Stack chosen: C++17 + Qt 6.8 LTS + GStreamer 1.26.x + OpenSSL 3.x + CMake + vcpkg (from research)
-- AirPlay first: Prove full end-to-end before adding second protocol
-- DLNA before Cast: Simpler pull-model protocol validates abstraction layer at lower risk
-- Miracast last: OS-level Wi-Fi Direct complexity isolated; MS-MICE (Windows) only for v1
-- [Phase 01-foundation]: pkg-config used for GStreamer detection in CMakeLists.txt (not Qt6's FindGStreamer.cmake)
-- [Phase 01-foundation]: MediaPipeline.cpp included in test target directly (not as library) — appropriate for stub phase
-- [Phase 01-foundation]: Ninja installed via pip --user (not apt) to avoid sudo requirement
-- [Phase 01-foundation]: OpenSSL linked in Phase 1 to avoid header-change task when AirPlay crypto lands in Phase 4
-- [Phase 01-foundation]: glupload inserted between videoconvert and qml6glsink to bridge video/x-raw to GL memory caps
-- [Phase 01-foundation]: fakesink used for video branch when qmlVideoItem is nullptr (headless test mode)
-- [Phase 01-foundation]: glib.h (g_warning) used in MediaPipeline.cpp instead of QDebug for test target compatibility
-- [Phase 01-foundation]: Named static struct PadAddedHelper used for GStreamer pad-added callback (g_signal_connect macro takes 4 args; inline lambda commas confuse preprocessor)
-- [Phase 01-foundation]: x264enc unavailability handled as D-12 software fallback: avdec_h264 set directly, return true (not a failure)
-- [Phase 02-discovery-protocol-abstraction]: ProtocolHandler uses pure virtual interface with no base state — handlers own all protocol-specific state
-- [Phase 02-discovery-protocol-abstraction]: ServiceAdvertiser::create() factory defers platform backend selection to Plan 02 — no #ifdefs in the header
-- [Phase 02-discovery-protocol-abstraction]: test_discovery target has no GStreamer dependency — discovery phase does not touch GStreamer
-- [Phase 02-discovery-protocol-abstraction]: Avahi dev headers vendored under vendor/avahi/ via deb extraction — libavahi-client-dev not system-installed and sudo unavailable; CMakePresets.json PKG_CONFIG_PATH injects vendor path
-- [Phase 02-discovery-protocol-abstraction]: DiscoveryManager advertises _airplay._tcp, _raop._tcp, _googlecast._tcp using exact TXT values from RESEARCH.md with 128-char zero placeholder pk for Phase 4
-- [Phase 02-discovery-protocol-abstraction]: libupnp dev headers extracted to /tmp workaround when sudo unavailable; build requires PKG_CONFIG_PATH at cmake configure time
-- [Phase 02-discovery-protocol-abstraction]: UpnpAdvertiser SOAP callback uses Upnp_EventType_e (not int) to match Upnp_FunPtr typedef exactly; header includes <upnp/upnp.h> directly
-- [Phase 03-display-receiver-ui]: ConnectionBridge.setConnected() declared in header only — .cpp implementation deferred to Plan 02 (expected RED link failure)
-- [Phase 03-display-receiver-ui]: SettingsBridge reads receiverName at startup only; NOTIFY signal is forward-compatible hook for Phase 7 settings panel
-- [Phase 03-display-receiver-ui]: test_display target links Qt6::Core only (no GStreamer) consistent with test_discovery isolation pattern
-- [Phase 03-display-receiver-ui]: ConnectionBridge::setConnected() clears deviceName and protocol unconditionally on disconnect — enforces invariant that disconnected state has no device info
-- [Phase 03-display-receiver-ui]: ConnectionBridge.cpp and SettingsBridge.cpp added to airshow CMakeLists.txt qt_add_executable source list (fix: main target failed to link without them)
-- [Phase 03-display-receiver-ui]: HudOverlay uses visible:opacity>0 (not connectionBridge.connected) to prevent mouse-event blocking at opacity 0 (RESEARCH.md Pitfall 3)
-- [Phase 03-display-receiver-ui]: Mute button restyled as Item+Rectangle+Text+MouseArea to match dark overlay aesthetic without changing AudioBridge wiring
-- [Phase 04-airplay]: UxPlay lib/ requires llhttp and playfair subdirs added before lib/ itself
-- [Phase 04-airplay]: libplist and avahi-compat-libdns_sd vendored via deb extraction — sudo unavailable; vendor/ tree with fixed .pc prefix paths
-- [Phase 04-airplay]: initAppsrcPipeline() starts in GST_STATE_PAUSED — AirPlayHandler transitions to PLAYING on first frame for A/V sync
-- [Phase 04-airplay]: File-scope C trampolines for raop_callbacks_t — avoids leaking UxPlay anonymous struct types into public header
-- [Phase 04-airplay]: LANGUAGES C added to project() — required for UxPlay lib/ C sources to compile under CMake LANGUAGES CXX-only was silently skipping C files
-- [Phase 04-airplay]: readPublicKeyFromKeyfile() uses OpenSSL PEM_read_PrivateKey + EVP_PKEY_get_raw_public_key — UxPlay writes PEM not 64-byte binary
-- [Phase 04-airplay]: DiscoveryManager::deviceId() added as public method - cleanest accessor for AirPlayHandler pairing without exposing internal readMacAddress static
-- [Phase 04-airplay]: test_airplay links full source chain including AvahiAdvertiser + PkgConfig::AVAHI on Linux - ServiceAdvertiser.cpp conditionally includes AvahiAdvertiser.h requiring avahi headers
-- [Phase 05-dlna]: DlnaHandler header uses glib.h for gint64 type (avoids full GStreamer pull in header)
-- [Phase 05-dlna]: parseTimeString/formatGstTime made public static for direct unit testing without friend declarations
-- [Phase 05-dlna]: writeScpdFiles uses inline static string literals for runtime SCPD content (simpler, no applicationDirPath dependency)
-- [Phase 05-dlna]: URI pipeline pre-links static audio/video chains before pad-added fires — uridecodebin pads connect via type-checked pad-added callback
-- [Phase 05-dlna]: Volume conversion: std::stoi with try/catch fallback and std::max/min clamp, then divide by 100.0 for GStreamer
-- [Phase 05-dlna]: GetCurrentTransportActions returns empty string when STOPPED with no URI, full action list otherwise
-- [Phase 05-dlna]: SinkProtocolInfo expanded to 14 MIME types including video/x-msvideo, audio/L16, video/x-flv, video/3gpp
-- [Phase 05-dlna]: upnpAdvertiser.start() deferred until after DlnaHandler wiring — SOAP callback cookie must point to live handler (D-02)
-- [Phase 05-dlna]: DlnaHandler wiring uses scoped block with raw ptr capture before ownership transfer to ProtocolManager
-- [Phase 06-google-cast]: libprotobuf vendored to /tmp/protobuf-dev via apt-get download + dpkg-deb; protoc wrapped in /tmp/protoc-wrapper.sh with LD_LIBRARY_PATH for libprotoc.so.32
-- [Phase 06-google-cast]: CastSession TCP framing uses accumulation buffer state machine (ReadState enum) — never blocking socket reads per Pitfall 6
-- [Phase 06-google-cast]: Cast auth bypass: (QDateTime::currentSecsSinceEpoch()/172800)%795 indexes into 795x256-byte precomputed RSA-2048 signature table from cast_auth_sigs.h; placeholder data pending AirReceiver APK extraction
-- [Phase 06-google-cast]: buildSdpFromOffer() made public static for unit test access without friend declarations
-- [Phase 06-google-cast]: AES-CTR decrypt chain not inserted in pipeline — keys stored but decrypt step deferred pending field testing (RESEARCH.md Open Question 1)
-- [Phase 06-google-cast]: play() extended to also transition m_webrtcPipeline to PLAYING — avoids adding playWebrtcPipeline() to public API
-- [Phase 06-google-cast]: Fatal vs non-fatal Cast plugin checks: webrtcbin/rtpvp8depay/rtpopusdepay/opusdec fatal; vp8dec non-fatal (avdec_vp8 fallback); nicesrc non-fatal (Cast optional)
-- [Phase 07-security-hardening]: SecurityManager uses constructor dependency injection (AppSettings& ref), not singleton — consistent with SettingsBridge and ConnectionBridge patterns
-- [Phase 07-security-hardening]: ResolveApprovalGrants test uses std::thread + processEvents loop to exercise QueuedConnection dispatch; Qt6::Concurrent unavailable on dev machine
-- [Phase 07-security-hardening]: clearApprovalRequest() marked Q_INVOKABLE in ConnectionBridge.h — required for QML button handlers to dismiss approval dialog
-- [Phase 07-security-hardening]: onDisplayPin() is a no-op in AirPlayHandler — PIN display driven by appSettings.pinEnabled QML binding, not UxPlay callback
-- [Phase 07-security-hardening]: ApprovalDialog uses opacity/visible guard matching HudOverlay pattern (RESEARCH.md Pitfall 3) — prevents mouse-event blocking at opacity 0
-- [Phase 07-security-hardening]: AirPlay/DLNA use synchronous checkConnection (non-Qt protocol threads); Cast uses checkConnectionAsync (Qt main thread avoids event loop deadlock)
-- [Phase 07-security-hardening]: display_pin callback is no-op in AirShow — PIN display driven by QML bindings to AppSettings, not UxPlay runtime callback
-- [Phase 08-miracast]: parseSourceReady() and buildRtspResponse() exposed as public static methods for unit testability (same pattern as DlnaHandler::parseTimeString)
-- [Phase 08-miracast]: _display._tcp mDNS advertisement added to DiscoveryManager with VerMgmt/VerMin TXT records from MS-MICE spec revision 6.0
-- [Phase 08-miracast]: m_miracastPipeline is a separate GstElement* member consistent with m_uriPipeline and m_webrtcPipeline isolation pattern
-- [Phase 08-miracast]: sendRtspRequest() takes extraHeaders param for Transport/Require headers; parseNextRtspMessage() unified request+response parser with isRequest boolean
-- [Phase 08-miracast]: teardown() resets to WaitingSourceReady (not Idle) when m_running=true — server stays listening for next session
-- [Phase 08-miracast]: Fatal Miracast plugin checks (rtpmp2tdepay, tsparse, tsdemux) vs non-fatal (vaapidecodebin, aacparse) following Phase 6 Cast pattern
-- [Phase 08-miracast]: MiracastHandler setQmlVideoItem(nullptr) at wiring time — deferred pointer, real value set by ReceiverWindow after sceneGraphInitialized
+- v2.0 stack: Flutter 3.41.5 for sender app (only cross-platform option covering all 5 targets); receiver stack unchanged (C++17 + Qt 6.8 + GStreamer)
+- Protocol transport: custom 16-byte binary TCP framing (type 1B + flags 1B + length 4B + PTS 8B); no third-party transport library
+- Native-handles-media rule: Dart controls only session state; native plugin handles capture + encode + socket send (MethodChannel too slow for 30fps frame data)
+- Phase order: Receiver first (hard dependency), then Android (highest value, most confident), iOS (dedicated phase — extension IPC is unique), macOS, Windows, web interface last
+- mDNS package: `multicast_dns` 0.3.3 (flutter.dev) — covers all 5 platforms; `nsd` dropped for lacking Linux support
+- Port 7400 for AirShow protocol; port 7401 for local web interface
 
 ### Pending Todos
 
@@ -157,13 +58,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 2: Windows Bonjour SDK bundling approach and Firewall API integration need research before planning
-- Phase 4: UxPlay lib/ subfolder embedding approach and current RAOP auth handshake need research before planning
-- Phase 6: openscreen CMake integration and Cast auth legal assessment need deep research before planning
-- Phase 8: MS-MICE implementation feasibility unknown — needs research; may need to defer to v2
+- Phase 11 (iOS): ReplayKit Broadcast Extension + direct outbound socket in Flutter context is sparsely documented — needs `/gsd:research-phase` before planning
+- Phase 12 (macOS): TCC + code-signing identity interaction during CI/CD (GitHub Actions rebuilds may invalidate TCC permission) — needs signing decision before planning
+- Port 7400 conflict: verify no conflict with SIP systems common on target networks before Phase 9 planning
 
 ## Session Continuity
 
-Last session: 2026-03-30T19:10:03.177Z
-Stopped at: Completed 08-miracast-03-PLAN.md
+Last session: 2026-03-30T22:00:00.000Z
+Stopped at: v2.0 roadmap created — ROADMAP.md appended with Phases 9-14, REQUIREMENTS.md traceability updated
 Resume file: None
