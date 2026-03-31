@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: companion-sender
-status: roadmap-created
-stopped_at: Roadmap created for v2.0 — ready to plan Phase 9
-last_updated: "2026-03-30T22:00:00.000Z"
-last_activity: 2026-03-30
+milestone_name: Companion Sender
+status: executing
+stopped_at: Completed 09-01-PLAN.md — AirShowHandler TCP receiver, JSON handshake, binary framing, appsrc injection
+last_updated: "2026-03-31T16:00:19.601Z"
+last_activity: 2026-03-31
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,20 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Milestone v2.0 — Phase 9: Receiver Protocol Foundation
+**Current focus:** Phase 09 — receiver-protocol-foundation
 
 ## Current Position
 
-Phase: 9 of 14 (Receiver Protocol Foundation)
-Plan: Not yet planned
-Status: Ready to plan
-Last activity: 2026-03-30 — v2.0 roadmap created (Phases 9-14)
+Phase: 09 (receiver-protocol-foundation) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 
 ## Performance Metrics
 
 **Velocity (v1.0 reference):**
+
 - Total plans completed (v1.0): 24
 - Average duration: ~9 min/plan
 - Total execution time: ~3.6 hours
@@ -51,6 +52,8 @@ Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 - Phase order: Receiver first (hard dependency), then Android (highest value, most confident), iOS (dedicated phase — extension IPC is unique), macOS, Windows, web interface last
 - mDNS package: `multicast_dns` 0.3.3 (flutter.dev) — covers all 5 platforms; `nsd` dropped for lacking Linux support
 - Port 7400 for AirShow protocol; port 7401 for local web interface
+- [Phase 09]: AirShow protocol: newline-terminated JSON handshake (HELLO/HELLO_ACK) followed by 16-byte binary frame streaming on TCP port 7400
+- [Phase 09]: Echo-back quality negotiation in HELLO_ACK: receiver accepts sender-requested codec/resolution/bitrate/fps unchanged in v1; arbitration deferred to Phase 10
 
 ### Pending Todos
 
@@ -64,6 +67,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T22:00:00.000Z
-Stopped at: v2.0 roadmap created — ROADMAP.md appended with Phases 9-14, REQUIREMENTS.md traceability updated
+Last session: 2026-03-31T16:00:19.597Z
+Stopped at: Completed 09-01-PLAN.md — AirShowHandler TCP receiver, JSON handshake, binary framing, appsrc injection
 Resume file: None
