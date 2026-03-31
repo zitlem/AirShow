@@ -1,8 +1,20 @@
 # Feature Research
 
-**Domain:** Cross-platform screen mirroring receiver (AirServer alternative)
-**Researched:** 2026-03-28
-**Confidence:** MEDIUM-HIGH (competitor analysis verified via official sites; protocol details from official specs and open-source implementations)
+**Domain:** Cross-platform screen mirroring sender app (Flutter companion to AirShow receiver)
+**Researched:** 2026-03-30
+**Confidence:** MEDIUM — competitive analysis from live apps, protocol mechanics from official specs; Flutter-specific screen capture implementation details have some LOW-confidence gaps due to platform API churn
+
+---
+
+## Context: Scope of This Research
+
+This is the **companion sender app** for the existing AirShow receiver. It is NOT a general-purpose app that speaks AirPlay or Cast natively — it speaks a **custom AirShow protocol** over a local network, discovered via mDNS. The receiver side already handles AirPlay/Cast/DLNA/Miracast from third-party senders. This app handles the "mirror FROM this device TO an AirShow receiver" direction.
+
+Existing receiver features (already shipped, NOT in scope here):
+- Multi-protocol receiver (AirPlay, Cast, Miracast, DLNA)
+- mDNS discovery and advertisement
+- Security controls, fullscreen UI
+- GStreamer decode pipeline
 
 ---
 
@@ -10,137 +22,115 @@
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete or broken.
+Features every screen mirroring sender app must have. Missing one = product feels broken.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| AirPlay screen mirroring reception | iOS/macOS users expect any AirPlay-capable display receiver to "just work" | HIGH | AirPlay 2 TLS/certificate auth adds complexity; UxPlay implements AirPlay 1 which covers screen mirroring; AirPlay 2 adds multi-room audio (out of scope for v1) |
-| Google Cast screen mirroring reception | Android/Chrome users expect Cast to work on any receiver app | HIGH | Google Cast uses TLS with device certificates; open-source shanocast/openscreen exist but certificate chain is the key challenge |
-| Miracast reception | Windows and Android devices use Miracast natively; users expect it to work | HIGH | Requires Wi-Fi Direct (P2P) — the most complex of the three protocols; MiracleCast and GNOME Network Displays exist as Linux references |
-| DLNA media push (DMR) | Smart-TV-style "push media" use case; users with DLNA clients expect to push video/audio | MEDIUM | DLNA/UPnP DMR is for media push, NOT live screen mirroring; clearly distinct from AirPlay/Cast/Miracast; implementation via UPnP MediaRenderer profile |
-| Audio playback from mirrored device | Users casting video or audio expect to hear it from the receiver | MEDIUM | Audio sync with video is a known pain point; A/V sync must be explicitly managed |
-| Mute/unmute audio control | Users want to silence the receiver without stopping the mirror | LOW | Simple UI toggle; must persist across reconnects |
-| Auto-discovery via mDNS/Bonjour | Sender devices discover receivers via mDNS — no manual IP entry expected | MEDIUM | AirPlay uses `_airplay._tcp.local`; Google Cast uses `_googlecast._tcp.local`; Miracast uses Wi-Fi Direct P2P discovery (different stack); all must be advertised simultaneously |
-| Receiver name display on screen | Users see the receiver's name in their device's casting list | LOW | Name shown in AirPlay/Cast picker on sender device; customizable name is a user comfort feature |
-| Fullscreen display mode | Users expect cast content to fill the screen like an Apple TV | LOW | Standard window management; must handle aspect ratio and letterboxing |
-| Connection status indication | Users need visual feedback that a device is connected or waiting | LOW | On-screen overlay or status bar element showing protocol and source device name |
-| Works on same local network, no internet | Privacy expectation; users do not want cloud routing | LOW | mDNS is link-local by design; no cloud infrastructure needed or wanted |
-| Run on Linux, macOS, Windows | "Cross-platform" is the core promise; single protocol support is not enough | HIGH | Single codebase; different platform APIs for audio, rendering, and Wi-Fi Direct |
+| **Auto-discover AirShow receivers via mDNS** | Users expect zero-config LAN discovery (AirPlay, Cast, Chromecast all do this). Manual IP entry is unacceptable as the default flow. | MEDIUM | Use `nsd` Flutter package (v4.1.0, supports Android/iOS/macOS/Windows). Discovers `_airshow._tcp` service type. Receiver side must also advertise this new service type — prerequisite work on the receiver. |
+| **Device picker list UI** | Users need to see which receivers are available before connecting. All competitors (AirServer Connect, LetsView, ApowerMirror) show a scrollable list of discovered receivers. | LOW | Show display name + IP. Refresh/rescan button. Handle empty state ("No AirShow receivers found on this network"). |
+| **One-tap connect and start mirroring** | Mirroring should start in 3 taps or fewer from app launch. AirServer Connect starts mirroring automatically after QR scan. LetsView bills itself as "one-click casting." | MEDIUM | After selecting a receiver, immediately request screen capture permission and begin streaming. Don't require extra confirmation dialogs beyond OS-required permission prompts. |
+| **Screen capture permission request** | Every platform requires explicit user permission before an app can capture the screen. Users expect a clear explanation of why it is needed. | LOW | Android: `MediaProjection` API, requires foreground service + `FOREGROUND_SERVICE_MEDIA_PROJECTION` permission (Android 14+). iOS: ReplayKit broadcast extension (separate process, 50 MB memory limit, ~15 fps cap). macOS/Windows/Linux: OS-level screen recording permission prompts. |
+| **Stop mirroring control** | Users must be able to stop cleanly. Competitors surface "Stop Mirroring" prominently. Android requires a persistent foreground notification with a stop action while mirroring is active. | LOW | In-app stop button. Android: foreground notification with "Stop" action. iOS: system-level broadcast stop from Control Center — app must respond to `broadcastFinished()`. |
+| **Connection status indicator** | User must know: disconnected / connecting / mirroring / error. AirServer Connect uses a state label; LetsView uses color-coded icons. | LOW | Three states minimum: idle, connecting, mirroring. Show receiver name while connected. Surface error messages (receiver unreachable, permission denied, connection lost). |
+| **QR code fallback for complex networks** | On corporate/school networks where mDNS is blocked by VLAN segmentation, QR code connection is the de-facto fallback. AirServer Connect, LetsView, Kingshiper, and Mirroring360 all provide QR codes on the receiver side. | MEDIUM | Receiver displays a QR code encoding its IP + port + auth token. Sender app has a "Scan QR Code" button that bypasses mDNS. Requires camera permission on mobile. Desktop sender: allow manual IP + port entry instead. |
+| **Auto-reconnect on brief disconnect** | Wi-Fi dropouts are common. Users expect the app to silently reconnect within seconds rather than forcing a manual restart. | MEDIUM | Implement reconnect backoff (1s, 2s, 5s). Show "Reconnecting..." state in the status indicator. Give up after ~30s and return to device picker. |
 
 ---
 
 ### Differentiators (Competitive Advantage)
 
-Features that set AirShow apart. Not required, but create value over existing options.
+Features that set AirShow Companion apart. None are required for launch, but they compound the "free and open" value proposition.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| All four protocols in one app (AirPlay + Cast + Miracast + DLNA) | No existing free/open-source tool covers all four; UxPlay is AirPlay-only; FCast is Cast-centric | HIGH | This is the primary market gap AirShow fills; the "one app" promise for heterogeneous device rooms |
-| Completely free, no license key, no paywalls | AirServer costs $20+/device; Reflector 4 is paid; LonelyScreen is paid; all alternatives have friction | LOW (product decision, not technical) | Open-source license removes all license management complexity; builds trust with Linux community |
-| Linux support | AirServer/Reflector don't support Linux at all; Linux users are chronically underserved for receiver software | MEDIUM | Requires careful platform abstraction; GStreamer is the natural Linux media backend |
-| Customizable receiver name | Users in multi-receiver environments (classrooms, offices) need named receivers that appear correctly in device pickers | LOW | Name is broadcast via mDNS service record; trivially configurable in settings |
-| Multi-device simultaneous display | AirServer and Reflector support this; it is differentiating vs. simpler tools like LonelyScreen | HIGH | Requires tiling/split-screen layout in the receiver window; complex state management for N concurrent streams |
-| Connection approval prompt (allow/deny) | Security-conscious users and IT admins need to control who can cast | LOW | Simple modal dialog on incoming connection; prevents rogue casts in shared spaces |
-| PIN-based pairing | Additional security layer: only devices that know the PIN can connect | MEDIUM | Must be implemented per-protocol (AirPlay PIN, Miracast PIN); not all protocols support PINs natively |
+| **Adjustable stream quality (bitrate + resolution presets)** | Paid competitors (ApowerMirror paid tier, AirServer Connect) lock quality settings behind upsells. AirShow is free — exposing bitrate/resolution gives power users control competitors charge for. | MEDIUM | Low (720p/2 Mbps), Medium (1080p/4 Mbps), High (1080p/8 Mbps) presets. Advanced: manual slider. Store preference per-receiver. Receiver-side AirShowHandler must accept quality negotiation in the handshake — this is a protocol design decision. |
+| **Desktop sender (Windows/macOS/Linux)** | Competitors focus on mobile-to-TV. AirShow targets computer-to-computer mirroring (e.g., laptop to desktop). No free tool does this cleanly without USB cables or remote desktop software. | HIGH | Flutter desktop screen capture via `screen_capturer` package. Windows: DirectX Desktop Duplication API. macOS: ScreenCaptureKit (macOS 12.3+) or CGDisplayStream. Linux: PipeWire `xdg-desktop-portal`. Each platform needs a separate capture adapter. |
+| **Multi-display source selection** | Power users with multiple monitors want to choose which display to cast. Most competitors cast the primary display only. | MEDIUM | Enumerate displays at connection time. Show display picker before mirroring starts. Desktop only (mobile has one screen). Depends on "Desktop sender" feature being implemented first. |
+| **Audio mirroring on desktop platforms** | AirServer Connect has no audio on Android (documented limitation — no system audio capture API). AirShow can support audio on platforms where the API exists (macOS, Windows, Linux). | HIGH | macOS: AVAudioEngine tap or loopback virtual device. Windows: WASAPI loopback capture. Linux: PipeWire source sink. Android: no system audio capture without root — document this limitation clearly. iOS: ReplayKit captures app audio only (not all system audio). Encode as Opus (low latency) or AAC. |
+| **Low-latency mode toggle** | Power users (presenters, gamers) want sub-100ms latency. Standard streaming buffers 200–500ms for smoothness. Competitive differentiation for presentation use cases. | HIGH | Reduce encoder B-frames, disable or minimize jitter buffer on receiver side, tune RTP clock. Expose as a toggle, not the default (trades smoothness for latency). Receiver side must explicitly support the mode. |
+| **Receiver health display (latency, bitrate, packet loss)** | No competitor surfaces this to users. Useful for diagnosing "why is my mirror laggy?" without guessing. | MEDIUM | Receiver sends RTCP-style feedback or a sidecar stats message over the AirShow protocol. Display as a collapsible panel in the sender app. |
+| **Stream to multiple receivers simultaneously** | ApowerMirror supports 4 simultaneous mirrors as a paid feature. AirShow can offer this free. | HIGH | Each receiver gets its own TCP/UDP stream. CPU/GPU encode load multiplies per-receiver. Only useful for classroom/presentation scenarios. Defer to v2. |
 
 ---
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but should be deliberately avoided or deferred.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Session recording / screen capture | Users want to capture presentations or tutorials delivered over mirror | Adds FFmpeg/libav dependency, increases binary size significantly, creates legal questions about recording consent, and is entirely out of scope for a receiver — use OBS or OS-level recording instead | Document that users should use OBS or OS screen recorder to capture the receiver window |
-| Streaming FROM the computer to other devices (sender mode) | Users conflate sender and receiver; some want both directions | Completely different product category; doubles scope, adds Chromecast sender SDK, AirPlay sender complexity; destroys "receiver only" positioning clarity | Out of scope for v1; could be a v2 product or separate tool |
-| Remote/internet mirroring (over internet, not LAN) | Remote work users want to cast over VPN or internet | Requires relay infrastructure (TURN server), dramatically increases latency, creates privacy/security surface, and contradicts the "local network only" constraint that keeps the product simple and free to operate | Not planned; direct users to solutions like Moonlight/Parsec for remote use cases |
-| Mobile app receiver (iOS/Android) | Some users want to cast TO a phone rather than a computer | Entirely different platform target; app store distribution complexity; Apple restrictions on AirPlay receiver APIs on iOS | Desktop only; this is a deliberate constraint |
-| Cloud sync / account system | Enterprise IT wants central management | Adds server infrastructure, auth complexity, privacy risk; contradicts open-source/free positioning | Use mDNS-based discovery; no accounts needed |
-| Annotation / drawing over mirrored content | Education users request this | High UI complexity; out of scope for a lean receiver; distracts from the core "just display it" mission | Defer to v2+ if education use case is validated |
-| Recording with device frame overlays | Reflector 4 differentiates on this | Adds significant UI complexity and recording pipeline; scope-creep for MVP | Recording is explicitly out of scope for v1 per PROJECT.md |
-| DRM-protected content mirroring (Netflix, etc.) | Users try to mirror streaming apps | DRM (Widevine, FairPlay) explicitly blocks screen mirroring; implementation is legally fraught and technically blocked at the protocol level | Document this as a known limitation; not a bug |
+| **Cloud relay for remote mirroring over the internet** | "I want to mirror to a colleague's computer over the internet" | Contradicts the "local network only" core constraint. Adds server infrastructure costs, privacy concerns, and legal risk. Every cloud relay either costs money (defeats the free mission) or becomes a DDoS target. | Document clearly: AirShow is LAN-only by design. For internet use, direct users to RustDesk or similar remote desktop tools. |
+| **Reverse control (control sender device from receiver)** | LetsView and ApowerMirror offer this as a premium feature | Requires a second bidirectional input injection channel. On iOS, impossible without a jailbreak. On Android, requires `INJECT_EVENTS` system permission (not grantable to Play Store apps without device owner). Large attack surface for a mirroring tool. | Out of scope permanently. Document why if requested. |
+| **Built-in screen recorder on the sender** | Users conflate "mirroring" with "recording" | Adds storage permission, background file write, codec complexity, and consent questions. Scope creep that delays the core mirroring use case. | The receiver can optionally save the mirrored stream — a separate receiver-side feature. |
+| **Whiteboard/annotation overlay on the stream** | LetsView ships this as a drawing tool over mirrored content | Requires a second compositing layer before encoding, adding latency. Scope and complexity far exceed the value for a basic mirroring app. | Suggest OS-native annotation tools (macOS Markup, Windows Snip and Sketch) on the receiving end. |
+| **Account or login system** | Users familiar with commercial apps may expect cloud accounts | Contradicts the "no internet required" and "no paywalls" constraints. Accounts imply a backend service, which requires maintenance and creates a fragile dependency on the AirShow project staying funded/maintained. | Zero accounts, zero login. Discovery is mDNS-local. Security is handled by PIN/QR pairing at connection time. |
+| **Native AirPlay/Miracast/Cast sender** | "Can the app speak AirPlay natively to send to any AirPlay receiver?" | Apple does not publish the AirPlay sender protocol. Reverse-engineering violates Apple's ToS and DMCA. Cast sender requires Google device certification. Miracast sender requires Wi-Fi Direct kernel support that is unreliable on desktop. | The custom AirShow protocol is the correct path — full control over quality, latency, and features without legal risk. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[mDNS/Bonjour advertisement]
-    └──required-by──> [AirPlay reception]
-    └──required-by──> [Google Cast reception]
+[mDNS Auto-Discovery (_airshow._tcp)]
+    └──required for──> [Device Picker List UI]
+                           └──required for──> [One-Tap Connect]
+                                                  └──required for──> [Screen Capture Permission Request]
+                                                                         └──required for──> [Start Mirroring / Stream]
+                                                                                                └──required for──> [Stop Mirroring Control]
+                                                                                                └──required for──> [Connection Status Indicator]
+                                                                                                └──required for──> [Auto-Reconnect]
 
-[Wi-Fi Direct / P2P stack]
-    └──required-by──> [Miracast reception]
+[QR Code Fallback]
+    └──alternative path to──> [One-Tap Connect]  (bypasses mDNS when VLAN blocks it)
 
-[UPnP/SSDP discovery]
-    └──required-by──> [DLNA media push reception]
+[Desktop Sender (screen_capturer integration)]
+    └──enables──> [Multi-Display Source Selection]
+    └──enables──> [Audio Toggle on macOS/Windows/Linux]
 
-[AirPlay reception]
-    └──required-by──> [Audio playback from AirPlay]
-    └──enables──>     [AirPlay PIN pairing]
+[Adjustable Stream Quality]
+    └──depends on──> [Receiver-side AirShowHandler quality negotiation field in handshake]
 
-[Google Cast reception]
-    └──required-by──> [Audio playback from Cast]
+[Low-Latency Mode]
+    └──depends on──> [Receiver-side jitter buffer tuning]  (receiver must be updated)
 
-[Miracast reception]
-    └──required-by──> [Audio playback from Miracast]
-
-[Audio playback]
-    └──requires──>    [A/V sync management]
-    └──enables──>     [Mute toggle]
-
-[Fullscreen display mode]
-    └──enhances──>    [Multi-device simultaneous display]
-                          └──conflicts-with──> [Simple single-window layout]
-
-[Connection approval prompt]
-    └──enhances──>    [PIN-based pairing]
-
-[Receiver name advertisement]
-    └──requires──>    [mDNS/Bonjour advertisement]
-    └──enhances──>    [Connection status display]
+[Audio Toggle]
+    └──not available on──> [Android sender]  (no system audio capture API without root)
+    └──iOS ReplayKit captures app audio only (not full system audio)
 ```
 
 ### Dependency Notes
 
-- **mDNS advertisement must precede all AirPlay/Cast features:** Without correct mDNS service records, sender devices cannot discover the receiver at all. This is the lowest-level dependency in the whole system.
-- **Miracast is independent of mDNS:** It uses Wi-Fi Direct P2P, a separate discovery and connection stack entirely. This is the most architecturally isolated protocol — it cannot share the mDNS foundation of AirPlay and Cast.
-- **DLNA uses SSDP (UPnP), not mDNS:** DLNA discovery is separate from Bonjour. The two stacks can coexist but must both be running for full protocol coverage.
-- **Multi-device display conflicts with simple layout:** A single-stream fullscreen layout is straightforward; supporting N simultaneous streams requires a tiling/compositor layer, which adds state complexity and is a separate implementation milestone.
-- **A/V sync is a hard sub-requirement of audio:** Users will report audio problems before video problems. The audio pipeline needs explicit sync management from the start — it cannot be bolted on later.
+- **mDNS requires receiver to advertise `_airshow._tcp`**: The existing receiver's mDNS advertisement code must be extended with a new service type. This is a prerequisite receiver-side change before the sender app can find anything on the network.
+- **Screen capture on iOS requires a Broadcast Upload Extension**: iOS ReplayKit runs the capture in a separate process. The Flutter app must coordinate with the extension via App Groups shared container. This is architecturally unlike any other platform and must be treated as a separate scope of work — it cannot be done with a standard Flutter plugin alone.
+- **Quality negotiation and low-latency mode require protocol design decisions now**: The custom AirShow protocol handshake must include capability negotiation fields from the start. These cannot be bolted on later without breaking backward compatibility between sender and receiver versions.
+- **Audio on desktop is three separate implementations**: macOS (AVAudioEngine/CoreAudio), Windows (WASAPI loopback), and Linux (PipeWire) each have entirely different APIs. A clean platform-channel abstraction layer is needed or audio becomes three independent maintenance burdens.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1)
+### Launch With (v1 — validates the concept)
 
-Minimum viable product — what's needed to validate the concept.
-
-- [ ] AirPlay screen mirroring reception (iOS/macOS → computer) — the most common use case; highest validation value
-- [ ] Google Cast screen mirroring reception (Android/Chrome → computer) — second most common; covers non-Apple users
-- [ ] mDNS/Bonjour advertisement for both protocols — prerequisite for discovery; no discovery = nothing works
-- [ ] Audio playback with mute toggle — silence on mirrored audio is a fatal usability bug
-- [ ] Fullscreen receiver window with connection status — core display experience
-- [ ] Runs on Linux, macOS, Windows — the cross-platform promise is the product's reason to exist
-- [ ] Customizable receiver name — needed so users can distinguish this receiver in their device pickers
+- [ ] **mDNS discovery of `_airshow._tcp` receivers** — core discovery mechanic; without it the app is useless on a standard home network. Requires receiver-side advertisement change as a prerequisite.
+- [ ] **Device picker UI** — scrollable list of discovered receivers with name and IP, refresh/rescan button, empty state message.
+- [ ] **QR code fallback connection** — essential for corporate/school networks; this is industry-standard and needed from day one, not a later addition.
+- [ ] **Screen capture + H.264 encode + stream to receiver** — the core mirroring. Android (MediaProjection) and iOS (ReplayKit) are the highest-value platforms. macOS as the third target due to ScreenCaptureKit stability.
+- [ ] **Connection status indicator** — idle / connecting / mirroring / error states with receiver name shown while connected.
+- [ ] **Stop mirroring** — in-app button plus Android foreground notification with "Stop" action.
+- [ ] **Auto-reconnect (basic)** — retry up to 3 times on disconnect before returning to device picker.
 
 ### Add After Validation (v1.x)
 
-Features to add once the AirPlay + Cast core is stable and validated.
-
-- [ ] Miracast reception — adds Windows/Android coverage; architecturally separate from AirPlay/Cast; add once mDNS stack is proven
-- [ ] DLNA media push (DMR) — covers smart-TV push use case; add when core mirroring is stable
-- [ ] Connection approval prompt (allow/deny) — security feature; important for shared/professional use
-- [ ] PIN-based pairing — add after approval prompt is in place
+- [ ] **Adjustable stream quality presets** — add once basic streaming is confirmed stable; requires quality negotiation field to be designed into the AirShow protocol handshake from the start.
+- [ ] **Desktop sender (macOS first, then Windows)** — macOS is easier (ScreenCaptureKit is stable); Windows (DirectX duplication) second. Linux defer to v2.
+- [ ] **Audio toggle on macOS/Windows** — add after video-only mirroring is reliable; audio sync adds a separate complexity that should not block the video milestone.
+- [ ] **Multi-display source selection (desktop)** — add once the desktop sender is working and validated.
 
 ### Future Consideration (v2+)
 
-Features to defer until product-market fit is established.
-
-- [ ] Multi-device simultaneous display (picture-in-picture / tiling) — high complexity; validates if education/meeting room use case is real
-- [ ] Annotation / drawing overlay — only if education market is confirmed as primary audience
-- [ ] Remote/internet mirroring — would require fundamental infrastructure changes; revisit only if users strongly demand it
+- [ ] **Low-latency mode** — requires receiver-side jitter buffer work; defer until presenter use cases create real demand.
+- [ ] **Stream to multiple receivers simultaneously** — high GPU/CPU cost; only valuable for classroom/presentation scenarios; validate that use case before building.
+- [ ] **Receiver health/stats display** — add when debugging becomes a user-reported pain point, not before.
+- [ ] **Linux sender screen capture** — PipeWire `xdg-desktop-portal` is the correct path but portal availability varies across distributions; defer until Linux desktop environment stabilizes.
+- [ ] **Audio on Android** — no viable API without root; only reconsider if Android opens a system audio capture API.
 
 ---
 
@@ -148,91 +138,115 @@ Features to defer until product-market fit is established.
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| AirPlay reception | HIGH | HIGH | P1 |
-| Google Cast reception | HIGH | HIGH | P1 |
-| mDNS advertisement | HIGH | MEDIUM | P1 |
-| Audio playback + mute | HIGH | MEDIUM | P1 |
-| Fullscreen receiver window | HIGH | LOW | P1 |
-| Cross-platform (Linux/macOS/Windows) | HIGH | HIGH | P1 |
-| Receiver name customization | MEDIUM | LOW | P1 |
-| Miracast reception | MEDIUM | HIGH | P2 |
-| DLNA DMR reception | MEDIUM | MEDIUM | P2 |
-| Connection approval prompt | MEDIUM | LOW | P2 |
-| PIN-based pairing | MEDIUM | MEDIUM | P2 |
-| Multi-device simultaneous display | MEDIUM | HIGH | P3 |
-| Annotation overlay | LOW | HIGH | P3 |
+| mDNS auto-discovery | HIGH | MEDIUM | P1 |
+| Device picker list UI | HIGH | LOW | P1 |
+| One-tap connect + start mirroring | HIGH | MEDIUM | P1 |
+| Screen capture: Android (MediaProjection) | HIGH | HIGH | P1 |
+| Screen capture: iOS (ReplayKit extension) | HIGH | HIGH | P1 |
+| Screen capture: macOS (ScreenCaptureKit) | HIGH | MEDIUM | P1 |
+| Stop mirroring + foreground notification | HIGH | LOW | P1 |
+| Connection status indicator | HIGH | LOW | P1 |
+| QR code fallback | MEDIUM | MEDIUM | P1 |
+| Auto-reconnect | MEDIUM | MEDIUM | P1 |
+| Adjustable stream quality presets | MEDIUM | MEDIUM | P2 |
+| Desktop sender: Windows | MEDIUM | HIGH | P2 |
+| Audio toggle: macOS/Windows | MEDIUM | HIGH | P2 |
+| Multi-display selection (desktop) | LOW | MEDIUM | P2 |
+| Low-latency mode | LOW | HIGH | P3 |
+| Multi-receiver simultaneous streaming | LOW | HIGH | P3 |
+| Receiver stats/health display | LOW | MEDIUM | P3 |
 
 **Priority key:**
 - P1: Must have for launch
-- P2: Should have, add when possible
+- P2: Should have, add when core is stable
 - P3: Nice to have, future consideration
 
 ---
 
 ## Competitor Feature Analysis
 
-| Feature | AirServer | Reflector 4 | LonelyScreen | UxPlay (OSS) | AirShow |
-|---------|-----------|-------------|--------------|--------------|-----------|
-| AirPlay | Yes | Yes | Yes | Yes | Yes (target) |
-| Google Cast | Yes | Yes | No | No | Yes (target) |
-| Miracast | Yes | Yes (Windows only) | No | No | Yes (target) |
-| DLNA | No | No | No | No | Yes (target) |
-| Linux support | No (embedded only) | No | No | Yes | Yes (target) |
-| Free | No ($20+) | No ($15+) | No | Yes | Yes |
-| Open source | No | No | No | Yes | Yes |
-| Multi-device simultaneous | Yes | Yes | No | No | v1.x |
-| Recording | Yes | Yes | No | No | Out of scope v1 |
-| Connection approval | Yes | Yes | No | No | v1.x |
-| PIN pairing | Yes | Partial | No | No | v1.x |
-| Receiver name customization | Yes | Yes | No | Yes | Yes (target) |
+| Feature | AirServer Connect | LetsView | ApowerMirror | scrcpy | AirShow Companion (plan) |
+|---------|-------------------|----------|--------------|--------|--------------------------|
+| **Discovery method** | QR code (primary) | mDNS auto + PIN code | mDNS auto + USB | ADB (USB or TCP/IP) | mDNS primary + QR fallback |
+| **Android sender** | Yes (via Cast to AirServer) | Yes | Yes | Yes (Android only) | Yes (MediaProjection) |
+| **iOS sender** | Yes (via AirPlay to AirServer) | Yes | Yes | No | Yes (ReplayKit extension) |
+| **macOS sender** | No dedicated app | Yes | Yes | No | Yes (ScreenCaptureKit) |
+| **Windows sender** | No dedicated app | Yes | Yes | No | Yes (DirectX duplication) |
+| **Linux sender** | No | No | No | Yes (USB/ADB only) | Yes (PipeWire, v2) |
+| **Audio support** | No audio on Android (documented) | Yes (app audio) | Yes (paid tier) | Yes (via sndcpy companion) | macOS/Windows yes; Android no |
+| **Stream quality settings** | No | Basic | Yes (paid) | Yes (via CLI flags) | Yes (free, presets) |
+| **Multi-display selection** | No | No | No | Yes (via CLI) | Yes (desktop, v1.x) |
+| **Protocol** | Cast / AirPlay (3rd-party protocol) | Proprietary | Proprietary | H.264 over ADB socket | Custom AirShow protocol |
+| **Reverse control** | No | Yes (paid) | Yes (paid) | Yes (core feature) | Never (security/legal) |
+| **Price** | Free (limited) / paid features | Free (with ads) / paid | Freemium | Free, open source | Free, open source |
+| **Open source** | No | No | No | Yes (GPLv2) | Yes |
 
-**Gap analysis:** The combination of (AirPlay + Cast + Miracast + DLNA) + Linux + free + open source is unoccupied by any existing product. That is the differentiation.
+**Key competitive observations:**
+
+1. No competitor offers a clean free desktop-to-desktop mirroring sender. scrcpy mirrors desktop TO Android (inverted direction) over USB. The desktop sender is a genuine unoccupied space.
+2. Android system audio capture is a universal limitation — every competitor either omits it or requires payment for a platform that does support it (macOS/Windows). Do not attempt to solve it on Android; document it.
+3. QR code pairing is industry-standard and expected from day one, not a "nice to have." Every major competitor ships it.
+4. iOS sender via ReplayKit is the most complex platform to implement due to the broadcast extension architecture running in a separate process. Plan for it to take more time than the Android implementation.
 
 ---
 
-## Protocol-Specific Feature Notes
+## Platform-Specific Screen Capture Notes
 
-### AirPlay
-- AirPlay 1 (screen mirroring): Uses RAOP + additional mirroring stream over TCP/UDP; implemented by UxPlay and others; MEDIUM confidence this is achievable
-- AirPlay 2 (multi-room audio): Different protocol; requires additional TLS certificate infrastructure; NOT needed for screen mirroring use case — AirPlay 1 mirroring is what iOS devices use for screen mirror
-- FairPlay DRM: Blocks mirroring of DRM-protected content at the protocol level; document as known limitation
+These are implementation constraints that affect feature scope per platform.
 
-### Google Cast
-- Uses TLS with device certificate signed by Google CA; open-source receivers (shanocast) exist and work without full Google cert by disabling authentication on the sender side — this is a known workaround; MEDIUM confidence
-- Sender apps (Android Chrome, Chrome browser) are permissive about receiver cert validation in practice for local network receivers
+### Android
+- API: `MediaProjection` (Android 5.0+, stable)
+- Requires a foreground service with `mediaProjection` foreground service type declared in the manifest (Android 14+)
+- System shows a mandatory permission dialog ("This app will capture everything displayed on your screen")
+- **No system-wide audio capture without root** — this is a hard platform limitation, not a missing library
+- Flutter integration: `media_projection_creator` package + custom platform channel for encoding pipeline
+- **Confidence: HIGH** — stable API, well-documented, widely used in commercial apps
 
-### Miracast
-- Wi-Fi Direct is NOT regular Wi-Fi; requires driver/kernel support; most challenging protocol on Linux
-- MiracleCast and GNOME Network Displays are reference implementations; both are experimental quality
-- May need to scope Miracast to Windows/macOS first and treat Linux Miracast as v2 work
+### iOS
+- API: ReplayKit broadcast extension (runs as a separate extension process, not the main Flutter app)
+- Memory limit: 50 MB for the extension process — a hard constraint that limits buffering and resolution choices
+- Frame rate: capped at approximately 15 fps by ReplayKit, variable; not guaranteed
+- App audio is captured but not system-wide audio from unrelated apps
+- Flutter coordination: App Groups shared container between main app and extension; `flutter_replay_kit_launcher` package for triggering the system picker
+- Screen recording permission must be enabled by user in iOS Settings > Privacy & Security
+- **Confidence: MEDIUM** — API is stable but the 50 MB and 15 fps limits are hard constraints that affect quality claims in marketing
 
-### DLNA
-- DLNA DMR (Digital Media Renderer) = media push, NOT live screen mirroring
-- DLNA does not support live screen cast; it pushes media files from a DLNA server to a renderer
-- Appropriate for "push video/audio file" use case; clearly documented distinction needed
+### macOS
+- API: `ScreenCaptureKit` (macOS 12.3+); `CGDisplayStream` fallback for older macOS
+- Screen Recording permission required in System Settings > Privacy & Security
+- Hardware H.264 encode via VideoToolbox (same GPU pipeline already used by the receiver)
+- Flutter integration: `screen_capturer` package, but its maturity on macOS is LOW; may need a custom platform channel via FFI
+- **Confidence: MEDIUM** — ScreenCaptureKit itself is high-confidence; the Flutter ecosystem around it is lower
+
+### Windows
+- API: DirectX Desktop Duplication API (Windows 8+) — the standard used by OBS, Teams screen share, Discord
+- Hardware H.264 encode via MediaFoundation, NVENC (NVIDIA), or Intel QuickSync
+- Flutter integration: `screen_capturer` package wraps the native API, or custom FFI
+- **Confidence: MEDIUM** — DirectX duplication is stable and well-understood; Flutter desktop plugin ecosystem is still maturing as of early 2026
+
+### Linux
+- API: PipeWire `xdg-desktop-portal` (Wayland); X11 XCB for legacy X11 sessions
+- PipeWire portal availability varies: good in Flatpak environments, inconsistent in bare installs depending on distro and compositor
+- **Confidence: LOW** — defer to v2; too many environment variables (Wayland vs X11, portal version, distro packaging) to guarantee a reliable experience across the Linux user base
 
 ---
 
 ## Sources
 
-- [AirServer Overview](https://www.airserver.com/Overview) — official feature list
-- [AirServer Features Analysis 2026](https://appmus.com/software/airserver)
-- [Reflector 4 Features - Mac and Windows](https://www.airsquirrels.com/reflector/features/mac-and-windows) — official feature list
-- [Introducing Reflector 4](https://blog.airsquirrels.com/introducing-new-reflector-4-most-powerful-screen-mirroring-streaming-receiver-yet)
-- [LonelyScreen vs AirServer comparison](https://appmus.com/vs/lonelyscreen-vs-airserver)
-- [AirServer Alternatives - AlternativeTo](https://alternativeto.net/software/airserver/)
-- [UxPlay - AirPlay Unix mirroring server](https://github.com/antimof/UxPlay)
-- [Shanocast - Google Cast receiver OSS](https://github.com/rgerganov/shanocast)
-- [MiracleCast - Miracast implementation](https://github.com/albfan/miraclecast)
-- [OpenWFD - Open Source WiFi-Display](https://www.freedesktop.org/wiki/Software/openwfd/)
-- [GNOME Network Displays - Miracast for GNOME](https://github.com/benzea/gnome-network-displays)
-- [AirPlay Service Discovery spec](https://openairplay.github.io/airplay-spec/service_discovery.html)
-- [Screen Mirroring Protocols Guide 2025](https://www.airdroid.com/screen-mirror/screen-mirroring-protocols/)
-- [DLNA Wikipedia](https://en.wikipedia.org/wiki/DLNA)
-- [Reflector vs AirServer comparison](https://www.airsquirrels.com/reflector/resources/reflector-vs-airserver)
-- [Screen Mirroring Security - Kingshiper](https://www.kingshiper.com/screen-mirroring/is-screen-mirroring-safe.html)
-- [Building Cross-Platform Wireless Display Solutions 2025](https://www.blog.brightcoding.dev/2025/12/31/the-ultimate-developer-guide-building-cross-platform-wireless-display-solutions-with-airplay-miracast-google-cast-sdks/)
+- [AirDroid: 4 Major Screen Mirroring Protocols](https://www.airdroid.com/screen-mirror/screen-mirroring-protocols/) — protocol mechanics, codec specs MEDIUM confidence
+- [AirServer Connect: How to screen mirror using the sender app](https://support.airserver.com/support/solutions/articles/43000537120) — QR code flow, competitor feature set HIGH confidence
+- [LetsView: Free Screen Mirroring](https://letsview.com/screen-mirroring) — competitor feature set MEDIUM confidence
+- [ApowerMirror Review 2025 - AirDroid](https://www.airdroid.com/screen-mirror/apowermirror-review/) — competitor analysis MEDIUM confidence
+- [scrcpy GitHub (Genymobile/scrcpy)](https://github.com/Genymobile/scrcpy) — architecture: ADB + H.264 + server-on-device HIGH confidence
+- [NSD Flutter package (pub.dev v4.1.0)](https://pub.dev/packages/nsd) — Android/iOS/macOS/Windows support confirmed HIGH confidence
+- [Apple Developer: ReplayKit limitations](https://developer.apple.com/documentation/ReplayKit) — 50 MB memory cap, ~15 fps cap HIGH confidence
+- [Android MediaProjection API developer docs](https://developer.android.com/media/grow/media-projection) — permission requirements, foreground service type HIGH confidence
+- [Kingshiper: QR code and PIN code connection flows](https://www.kingshiper.com/support/287.html) — industry-standard fallback patterns MEDIUM confidence
+- [AirDroid: Best Screen Mirroring Apps 2025](https://deskin.io/resource/blog/best-screen-mirroring-app) — competitor overview MEDIUM confidence
+- [Mirroring360: QR and Meeting ID fallback](https://www.mirroring360.com/mirroring-assist) — fallback connection patterns MEDIUM confidence
+- [Android foreground notification requirements (developer.android.com)](https://developer.android.com/develop/ui/views/notifications) — foreground service notification requirements HIGH confidence
 
 ---
-*Feature research for: Cross-platform screen mirroring receiver (AirShow)*
-*Researched: 2026-03-28*
+
+*Feature research for: AirShow Companion Sender App (Flutter cross-platform sender)*
+*Researched: 2026-03-30*
