@@ -201,6 +201,27 @@ endif()
 
 gtest_discover_tests(test_miracast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
+# Phase 09 Plan 01 — AirShow protocol handler unit tests (RECV-01, RECV-03)
+add_executable(test_airshow
+  test_airshow.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/AirShowHandler.cpp
+  ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
+  ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
+  ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
+)
+target_include_directories(test_airshow PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_airshow PRIVATE
+  GTest::gtest_main GTest::gmock
+  Qt6::Core Qt6::Network PkgConfig::GST
+  OpenSSL::SSL OpenSSL::Crypto
+)
+if(GST_WEBRTC_FOUND)
+  target_link_libraries(test_airshow PRIVATE PkgConfig::GST_WEBRTC)
+  target_compile_definitions(test_airshow PRIVATE GST_USE_UNSTABLE_API)
+endif()
+gtest_discover_tests(test_airshow TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
+
 # Phase 07 Plan 01 — SecurityManager unit tests (SEC-01, SEC-02, SEC-03)
 add_executable(test_security
   test_security.cpp
