@@ -20,6 +20,7 @@ namespace airshow {
 static constexpr uint16_t kAirPlayPort   = 7000;
 static constexpr uint16_t kCastPort      = 8009;
 static constexpr uint16_t kMiracastPort  = 7250;  // MS-MICE control port (D-04)
+static constexpr uint16_t kAirShowPort   = 7400;  // AirShow custom protocol (RECV-02)
 
 DiscoveryManager::DiscoveryManager(AppSettings* settings)
     : m_settings(settings)
@@ -104,6 +105,13 @@ bool DiscoveryManager::start() {
         {"VerMin",  "0x0100"},  // MS-MICE minimum version
     };
     m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
+
+    // --- _airshow._tcp (RECV-02 -- AirShow companion sender discovery) ---
+    std::vector<TxtRecord> airshowTxt = {
+        {"ver", "1"},    // protocol version
+        {"fn",  name},   // friendly name (matches other services)
+    };
+    m_advertiser->advertise("_airshow._tcp", name, kAirShowPort, airshowTxt);
 
     m_running = true;
     g_message("DiscoveryManager: started advertising as '%s'", name.c_str());

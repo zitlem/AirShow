@@ -82,6 +82,7 @@ qt_add_executable(airshow
   src/protocol/CastHandler.cpp
   src/protocol/CastSession.cpp
   src/protocol/MiracastHandler.cpp
+  src/protocol/AirShowHandler.cpp
   ${CAST_PROTO_SRCS}
   src/settings/AppSettings.cpp
   src/security/SecurityManager.cpp
