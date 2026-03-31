@@ -1,6 +1,6 @@
 #pragma once
 
-namespace myairshow {
+namespace airshow {
 
 // Windows Firewall rule registration for first-launch discovery setup (D-12, D-13).
 // On Linux and macOS (D-14): all methods are no-ops that return true immediately.
@@ -23,4 +23,4 @@ public:
     static bool rulesAlreadyRegistered();
 };
 
-} // namespace myairshow
+} // namespace airshow

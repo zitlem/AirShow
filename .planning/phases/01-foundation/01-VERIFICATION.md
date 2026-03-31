@@ -21,7 +21,7 @@ re_verification: false
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Running `cmake --build` on Linux, macOS, and Windows produces a launchable binary without manual dependency steps | VERIFIED (Linux confirmed; macOS/Windows via presets+CI) | `build/linux-debug/myairshow` exists; `cmake --preset linux-debug && cmake --build build/linux-debug` exits 0; `CMakePresets.json` has `macos-debug` and `windows-msys2-debug` presets; `.github/workflows/build.yml` contains the linux-debug CI pipeline |
+| 1 | Running `cmake --build` on Linux, macOS, and Windows produces a launchable binary without manual dependency steps | VERIFIED (Linux confirmed; macOS/Windows via presets+CI) | `build/linux-debug/airshow` exists; `cmake --preset linux-debug && cmake --build build/linux-debug` exits 0; `CMakePresets.json` has `macos-debug` and `windows-msys2-debug` presets; `.github/workflows/build.yml` contains the linux-debug CI pipeline |
 | 2 | The application window opens fullscreen and renders a GStreamer test video source with visible moving frames | VERIFIED (automated evidence of wiring; visual requires human) | `qml/main.qml` contains `GstGLQt6VideoItem`, `visibility: Window.FullScreen`; `MediaPipeline.cpp` creates `videotestsrc -> videoconvert -> glupload -> qml6glsink`; `test_video_pipeline` PASSED (pipeline enters GST_STATE_PLAYING within 2s); `ReceiverWindow::load()` calls `m_pipeline.init(videoItem)` |
 | 3 | Audio from a GStreamer test audio source plays through system speakers | VERIFIED (automated evidence; audible playback requires human) | `MediaPipeline.cpp` creates `audiotestsrc -> audioconvert -> autoaudiosink`; `test_audio_pipeline` PASSED; `SmokeTest.required_plugins_available` PASSED confirming `autoaudiosink` plugin present |
 | 4 | The mute/unmute toggle silences and restores audio during playback | VERIFIED (automated state test; audible silence requires human) | `AudioBridge.h` exposes `Q_PROPERTY(bool muted ...)`; `qml/main.qml` binds `audioBridge.muted` and calls `audioBridge.setMuted()`; `MediaPipeline::setMuted()` calls `g_object_set(m_audioSink, "volume", ...)` ; `test_mute_toggle` PASSED |
@@ -58,7 +58,7 @@ re_verification: false
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `CMakeLists.txt` | `src/main.cpp` | `qt_add_executable` | WIRED | `qt_add_executable(myairshow src/main.cpp ...)` present |
+| `CMakeLists.txt` | `src/main.cpp` | `qt_add_executable` | WIRED | `qt_add_executable(airshow src/main.cpp ...)` present |
 | `CMakeLists.txt` | `tests/CMakeLists.txt` | `add_subdirectory` | WIRED | `add_subdirectory(tests)` present |
 | `tests/CMakeLists.txt` | `tests/test_pipeline.cpp` | `gtest_discover_tests` | WIRED | `gtest_discover_tests(test_pipeline ...)` present |
 
@@ -94,7 +94,7 @@ re_verification: false
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
 | All 5 ctest tests pass | `ctest --test-dir build/linux-debug --output-on-failure` | 5/5 passed, 0 failed, 0 skipped in 0.09s | PASS |
-| Binary exists after build | `ls build/linux-debug/myairshow` | File exists at expected path | PASS |
+| Binary exists after build | `ls build/linux-debug/airshow` | File exists at expected path | PASS |
 | Build from preset exits 0 | `cmake --preset linux-debug && cmake --build build/linux-debug` | Exits 0 (configure + build succeed) | PASS |
 | No GTEST_SKIP stubs remaining | grep GTEST_SKIP tests/test_pipeline.cpp | No matches — all 4 pipeline stubs fully implemented | PASS |
 | No TODO/FIXME/placeholder anti-patterns in src/ | grep TODO/FIXME/HACK in src/ | No matches | PASS |
@@ -106,7 +106,7 @@ re_verification: false
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| FOUND-01 | 01-01-PLAN.md | Application builds and runs on Linux, macOS, and Windows from a single codebase | SATISFIED | `CMakeLists.txt` compiles on Linux; `CMakePresets.json` has all three platform presets; `.github/workflows/build.yml` runs Linux CI; binary `build/linux-debug/myairshow` exists |
+| FOUND-01 | 01-01-PLAN.md | Application builds and runs on Linux, macOS, and Windows from a single codebase | SATISFIED | `CMakeLists.txt` compiles on Linux; `CMakePresets.json` has all three platform presets; `.github/workflows/build.yml` runs Linux CI; binary `build/linux-debug/airshow` exists |
 | FOUND-02 | 01-02-PLAN.md | Application renders video frames from GStreamer pipeline in a Qt fullscreen window | SATISFIED | `MediaPipeline.cpp` builds `videotestsrc -> videoconvert -> glupload -> qml6glsink`; `qml/main.qml` contains `GstGLQt6VideoItem`; `test_video_pipeline` PASSED (GST_STATE_PLAYING confirmed) |
 | FOUND-03 | 01-02-PLAN.md | Application plays audio from mirrored device through system speakers | SATISFIED | `MediaPipeline.cpp` builds `audiotestsrc -> audioconvert -> autoaudiosink`; `test_audio_pipeline` PASSED; `SmokeTest` confirms `autoaudiosink` plugin present |
 | FOUND-04 | 01-02-PLAN.md | User can mute/unmute audio with a toggle control | SATISFIED | `AudioBridge` Q_PROPERTY wired to `MediaPipeline::setMuted` via `g_object_set(volume)`; QML mute button wired to `audioBridge.setMuted`; `test_mute_toggle` PASSED |
@@ -131,13 +131,13 @@ No blockers found. The memory leak in the PadAddedHelper path is a warning-level
 
 #### 1. Fullscreen Video Pattern Visible
 
-**Test:** Launch `./build/linux-debug/myairshow` on the Linux dev machine with a display connected
+**Test:** Launch `./build/linux-debug/airshow` on the Linux dev machine with a display connected
 **Expected:** Application opens fullscreen on the primary display showing an animated GStreamer test pattern (colour bars or SMPTE pattern) with visible motion
 **Why human:** Visual rendering of `GstGLQt6VideoItem` content cannot be verified programmatically without a display server and GPU context
 
 #### 2. Audible Test Tone on Launch
 
-**Test:** Launch `./build/linux-debug/myairshow` — do not mute
+**Test:** Launch `./build/linux-debug/airshow` — do not mute
 **Expected:** A sine-wave test tone (audiotestsrc default) is audible through system speakers immediately
 **Why human:** Audio output verification requires a human listener; automated tests use headless fakesink/audio only
 

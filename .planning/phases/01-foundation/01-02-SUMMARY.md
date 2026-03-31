@@ -86,7 +86,7 @@ Critical order (must not be changed):
 
 1. `gst_element_factory_make("qml6glsink", nullptr)` — registers `GstGLQt6VideoItem` QML type as a side-effect
 2. `m_engine.rootContext()->setContextProperty("audioBridge", audioBridge)` — exposes QObject to QML
-3. `m_engine.load(QUrl("qrc:/qt/qml/MyAirShow/qml/main.qml"))` — loads QML with type registered
+3. `m_engine.load(QUrl("qrc:/qt/qml/AirShow/qml/main.qml"))` — loads QML with type registered
 4. `rootObject->findChild<QObject*>("videoItem")` — retrieves `GstGLQt6VideoItem` by `objectName`
 5. `m_pipeline.init(videoItem)` — passes the QML item to the pipeline
 

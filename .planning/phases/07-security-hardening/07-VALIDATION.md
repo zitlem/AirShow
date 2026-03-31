@@ -28,7 +28,7 @@ created: 2026-03-30
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Approval dialog appears on new device connect | SEC-01 | Requires real protocol connection + GUI | 1. Start MyAirShow 2. Connect from phone 3. See dialog |
+| Approval dialog appears on new device connect | SEC-01 | Requires real protocol connection + GUI | 1. Start AirShow 2. Connect from phone 3. See dialog |
 | PIN pairing blocks unauthorized device | SEC-02 | Requires real device PIN entry | 1. Enable PIN 2. Connect without PIN 3. Verify rejected |
 | VPN traffic rejected | SEC-03 | Requires active VPN connection | 1. Start VPN 2. Attempt connect from VPN IP 3. Verify rejected |
 

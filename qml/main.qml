@@ -12,7 +12,7 @@ Window {
     width: 1280
     height: 720
     color: "black"
-    title: "MyAirShow"
+    title: "AirShow"
     visible: true
 
     // GstGLQt6VideoItem hosts the qml6glsink render output.

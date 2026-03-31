@@ -51,9 +51,9 @@ None — discussion stayed within phase scope
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| DLNA-01 | User can push video files from a DLNA controller to MyAirShow for playback | D-04 (uridecodebin), D-08 (AVTransport), D-05 (URI pull model) |
-| DLNA-02 | User can push audio files from a DLNA controller to MyAirShow for playback | D-04 (uridecodebin handles audio containers), D-08 (AVTransport), D-07 (SinkProtocolInfo audio MIME types) |
-| DLNA-03 | MyAirShow appears as a DLNA Media Renderer (DMR) in DLNA controller apps | D-11 (SCPD XMLs must exist and be served), D-08/D-09/D-10 (all three required services implemented) |
+| DLNA-01 | User can push video files from a DLNA controller to AirShow for playback | D-04 (uridecodebin), D-08 (AVTransport), D-05 (URI pull model) |
+| DLNA-02 | User can push audio files from a DLNA controller to AirShow for playback | D-04 (uridecodebin handles audio containers), D-08 (AVTransport), D-07 (SinkProtocolInfo audio MIME types) |
+| DLNA-03 | AirShow appears as a DLNA Media Renderer (DMR) in DLNA controller apps | D-11 (SCPD XMLs must exist and be served), D-08/D-09/D-10 (all three required services implemented) |
 </phase_requirements>
 
 ---
@@ -130,7 +130,7 @@ int UpnpAdvertiser::upnpCallback(Upnp_EventType_e eventType,
                                  const void* event,
                                  void* cookie) {
     if (eventType == UPNP_CONTROL_ACTION_REQUEST && cookie) {
-        auto* handler = static_cast<myairshow::DlnaHandler*>(cookie);
+        auto* handler = static_cast<airshow::DlnaHandler*>(cookie);
         return handler->handleSoapAction(event);
     }
     return UPNP_E_SUCCESS;
@@ -359,7 +359,7 @@ MediaRenderer.xml already declares the three SCPD URLs:
 - `/rc-scpd.xml`
 - `/cm-scpd.xml`
 
-libupnp's built-in HTTP server serves files from the directory containing the registered device XML. Since `UpnpAdvertiser` already writes `myairshow_dlna.xml` to `QDir::tempPath()`, placing the three SCPD files in the **same directory** (`QDir::tempPath()`) before calling `UpnpRegisterRootDevice` makes them automatically available.
+libupnp's built-in HTTP server serves files from the directory containing the registered device XML. Since `UpnpAdvertiser` already writes `airshow_dlna.xml` to `QDir::tempPath()`, placing the three SCPD files in the **same directory** (`QDir::tempPath()`) before calling `UpnpRegisterRootDevice` makes them automatically available.
 
 Alternatively, copy them at startup to the same temp path as the runtime XML.
 
@@ -403,7 +403,7 @@ Alternatively, copy them at startup to the same temp path as the runtime XML.
 
 libupnp's HTTP server serves files from the directory it is initialized with. The device XML is registered via `UpnpRegisterRootDevice(path, ...)`. The server root is implicitly the directory containing that XML file.
 
-Since `UpnpAdvertiser::writeRuntimeXml()` writes to `QDir::tempPath() + "/myairshow_dlna.xml"`, place SCPD files at:
+Since `UpnpAdvertiser::writeRuntimeXml()` writes to `QDir::tempPath() + "/airshow_dlna.xml"`, place SCPD files at:
 - `QDir::tempPath() + "/avt-scpd.xml"`
 - `QDir::tempPath() + "/rc-scpd.xml"`
 - `QDir::tempPath() + "/cm-scpd.xml"`
@@ -556,7 +556,7 @@ std::string durStr = (dur > 0) ? formatGstTime(dur) : "NOT_IMPLEMENTED";
 // Forward declarations
 struct Upnp_Action_Request;  // or include <upnp/upnp.h> in .cpp only
 
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline;
 class ConnectionBridge;
@@ -605,7 +605,7 @@ private:
     std::mutex        m_stateMutex;  // protects m_transportState, m_currentUri
 };
 
-} // namespace myairshow
+} // namespace airshow
 ```
 
 Note: libupnp headers (`<upnp/upnp.h>`) are included in `.cpp` only to avoid polluting the header namespace — same pattern as AirPlayHandler with UxPlay types.
@@ -761,14 +761,14 @@ void MediaPipeline::seekUri(gint64 positionNs) {
 **Test pattern** (mirrors test_airplay.cpp):
 ```cpp
 TEST(DlnaHandlerTest, CanInstantiate) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     EXPECT_EQ(handler.name(), "dlna");
     EXPECT_FALSE(handler.isRunning());
 }
 TEST(DlnaHandlerTest, StopWithoutStart) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::DlnaHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::DlnaHandler handler(&bridge);
     handler.stop();
     EXPECT_FALSE(handler.isRunning());
 }

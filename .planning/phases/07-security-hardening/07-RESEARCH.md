@@ -224,7 +224,7 @@ if (m_securityManager && m_securityManager->isPinEnabled()) {
 ```c
 // File-scope C trampoline (same pattern as existing trampolines):
 static void raop_cb_display_pin(void* cls, char* pin) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onDisplayPin(pin);
+    static_cast<airshow::AirPlayHandler*>(cls)->onDisplayPin(pin);
 }
 ```
 
@@ -473,7 +473,7 @@ if (m_securityManager && m_securityManager->isPinEnabled()) {
 ```c
 // File-scope C trampoline (add to AirPlayHandler.cpp alongside existing trampolines):
 static void raop_cb_display_pin(void* cls, char* pin) {
-    static_cast<myairshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
+    static_cast<airshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
 }
 ```
 

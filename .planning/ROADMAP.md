@@ -1,8 +1,8 @@
-# Roadmap: MyAirShow
+# Roadmap: AirShow
 
 ## Overview
 
-MyAirShow is built from the ground up as a multi-protocol screen mirroring receiver. The journey starts with the render pipeline and window that all protocols target, then layers in discovery/advertisement infrastructure, then proves the full end-to-end path with AirPlay, extends to DLNA (simpler second protocol to validate the abstraction), then Google Cast and Miracast. Security and hardening runs last to lock down the complete product before v1 release.
+AirShow is built from the ground up as a multi-protocol screen mirroring receiver. The journey starts with the render pipeline and window that all protocols target, then layers in discovery/advertisement infrastructure, then proves the full end-to-end path with AirPlay, extends to DLNA (simpler second protocol to validate the abstraction), then Google Cast and Miracast. Security and hardening runs last to lock down the complete product before v1 release.
 
 ## Phases
 
@@ -44,9 +44,9 @@ Plans:
 **Depends on**: Phase 1
 **Requirements**: DISC-01, DISC-02, DISC-03, DISC-04, DISC-05
 **Success Criteria** (what must be TRUE):
-  1. MyAirShow appears in the AirPlay menu on an iOS or macOS device on the same network
-  2. MyAirShow appears in the Cast menu on an Android device or Chrome browser on the same network
-  3. MyAirShow appears as a Media Renderer in a DLNA controller app on the same network
+  1. AirShow appears in the AirPlay menu on an iOS or macOS device on the same network
+  2. AirShow appears in the Cast menu on an Android device or Chrome browser on the same network
+  3. AirShow appears as a Media Renderer in a DLNA controller app on the same network
   4. User can change the receiver name in settings and the new name immediately appears in device pickers on sender devices
   5. On Windows, discovery works without the user manually opening firewall ports after a fresh install
 **Plans**: 3 plans
@@ -70,12 +70,12 @@ Plans:
 - [x] 03-03-PLAN.md — QML UI: HudOverlay.qml, IdleScreen.qml, main.qml updates, CMakeLists.txt QML_FILES
 
 ### Phase 4: AirPlay
-**Goal**: iPhone, iPad, and Mac users can mirror their screen to MyAirShow via AirPlay with stable, synchronized audio and video
+**Goal**: iPhone, iPad, and Mac users can mirror their screen to AirShow via AirPlay with stable, synchronized audio and video
 **Depends on**: Phase 3
 **Requirements**: AIRP-01, AIRP-02, AIRP-03, AIRP-04
 **Success Criteria** (what must be TRUE):
-  1. An iPhone or iPad can select MyAirShow from AirPlay screen mirroring and the mirrored screen appears on the receiver within 3 seconds
-  2. A Mac can select MyAirShow from AirPlay and mirror its desktop to the receiver
+  1. An iPhone or iPad can select AirShow from AirPlay screen mirroring and the mirrored screen appears on the receiver within 3 seconds
+  2. A Mac can select AirShow from AirPlay and mirror its desktop to the receiver
   3. Audio from the mirroring device plays through the receiver's speakers in sync with the video — no persistent drift observable after 5 minutes
   4. A mirroring session lasting 30 minutes shows no A/V sync drift and no dropped-connection recovery needed
 **Plans**: 3 plans
@@ -85,11 +85,11 @@ Plans:
 - [x] 04-03-PLAN.md — main.cpp wiring, plugin checks, real tests, end-to-end verification with Apple device
 
 ### Phase 5: DLNA
-**Goal**: Users with DLNA controller apps can push video and audio files to MyAirShow for playback
+**Goal**: Users with DLNA controller apps can push video and audio files to AirShow for playback
 **Depends on**: Phase 4
 **Requirements**: DLNA-01, DLNA-02, DLNA-03
 **Success Criteria** (what must be TRUE):
-  1. A DLNA controller app (e.g., BubbleUPnP, foobar2000) can see MyAirShow listed as a Media Renderer
+  1. A DLNA controller app (e.g., BubbleUPnP, foobar2000) can see AirShow listed as a Media Renderer
   2. Pushing a video file from the controller causes it to play on the receiver with video and audio
   3. Pushing an audio file from the controller causes it to play through the receiver's speakers
 **Plans**: 3 plans
@@ -99,12 +99,12 @@ Plans:
 - [x] 05-03-PLAN.md — main.cpp wiring, integration tests, end-to-end DLNA playback verification
 
 ### Phase 6: Google Cast
-**Goal**: Android devices and Chrome browser tabs can cast their screen to MyAirShow with synchronized audio and video
+**Goal**: Android devices and Chrome browser tabs can cast their screen to AirShow with synchronized audio and video
 **Depends on**: Phase 5
 **Requirements**: CAST-01, CAST-02, CAST-03
 **Success Criteria** (what must be TRUE):
-  1. An Android device can select MyAirShow from the Cast menu and mirror its screen to the receiver
-  2. Chrome browser's "Cast tab" option sends a browser tab to MyAirShow for display
+  1. An Android device can select AirShow from the Cast menu and mirror its screen to the receiver
+  2. Chrome browser's "Cast tab" option sends a browser tab to AirShow for display
   3. Audio from the casting device plays through the receiver's speakers in sync with the video
 **Plans**: 3 plans
 Plans:
@@ -127,12 +127,12 @@ Plans:
 - [x] 07-03-PLAN.md — QML approval dialog overlay, PIN display on idle screen, visual verification
 
 ### Phase 8: Miracast
-**Goal**: Windows and Android devices can mirror their screen to MyAirShow via Miracast over Infrastructure with synchronized audio and video
+**Goal**: Windows and Android devices can mirror their screen to AirShow via Miracast over Infrastructure with synchronized audio and video
 **Depends on**: Phase 7
 **Requirements**: MIRA-01, MIRA-02, MIRA-03
 **Success Criteria** (what must be TRUE):
-  1. A Windows 10 or 11 device can select MyAirShow from "Connect" / wireless display and mirror its desktop to the receiver over the existing LAN
-  2. An Android device that supports Miracast can mirror its screen to MyAirShow
+  1. A Windows 10 or 11 device can select AirShow from "Connect" / wireless display and mirror its desktop to the receiver over the existing LAN
+  2. An Android device that supports Miracast can mirror its screen to AirShow
   3. Audio from the Miracast source plays through the receiver's speakers in sync with the video
 **Plans**: 3 plans
 Plans:

@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-namespace myairshow {
+namespace airshow {
 
 class ProtocolHandler;
 class MediaPipeline;
@@ -31,4 +31,4 @@ private:
     std::vector<std::unique_ptr<ProtocolHandler>> m_handlers;
 };
 
-} // namespace myairshow
+} // namespace airshow

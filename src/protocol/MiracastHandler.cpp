@@ -13,7 +13,7 @@
 #include <QStringConverter>
 #include <QtEndian>
 
-namespace myairshow {
+namespace airshow {
 
 // ── MiracastHandler ──────────────────────────────────────────────────────────
 
@@ -325,7 +325,7 @@ void MiracastHandler::onRtspData() {
                 const QString m1Resp =
                     QStringLiteral("RTSP/1.0 200 OK\r\n"
                                    "CSeq: %1\r\n"
-                                   "Server: MyAirShow/1.0\r\n"
+                                   "Server: AirShow/1.0\r\n"
                                    "%2\r\n")
                     .arg(msg.cseq)
                     .arg(publicHeader);
@@ -561,7 +561,7 @@ QString MiracastHandler::buildRtspResponse(int cseq, int statusCode, const QStri
     default:  statusText = "Unknown";               break;
     }
 
-    QString response = QStringLiteral("RTSP/1.0 %1 %2\r\nCSeq: %3\r\nServer: MyAirShow/1.0\r\n")
+    QString response = QStringLiteral("RTSP/1.0 %1 %2\r\nCSeq: %3\r\nServer: AirShow/1.0\r\n")
                            .arg(statusCode)
                            .arg(statusText)
                            .arg(cseq);
@@ -649,4 +649,4 @@ bool MiracastHandler::parseNextRtspMessage(RtspMessage& msg) {
     return true;
 }
 
-} // namespace myairshow
+} // namespace airshow

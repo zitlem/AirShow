@@ -13,7 +13,7 @@ updated: 2026-03-28T23:30:00.000Z
 ## Tests
 
 ### 1. iOS screen mirroring (AIRP-01)
-expected: iPhone/iPad sees "MyAirShow" in AirPlay picker and mirrors within 3 seconds
+expected: iPhone/iPad sees "AirShow" in AirPlay picker and mirrors within 3 seconds
 result: [pending]
 
 ### 2. macOS screen mirroring (AIRP-02)

@@ -91,7 +91,7 @@ completed: 2026-03-28
 ## Accomplishments
 
 - `cmake --preset linux-debug && cmake --build build/linux-debug` exits 0 on Linux in one command
-- `build/linux-debug/myairshow` binary produced (1.8MB, C++17 + Qt6 + GStreamer linked)
+- `build/linux-debug/airshow` binary produced (1.8MB, C++17 + Qt6 + GStreamer linked)
 - All 5 tests pass: 4 pipeline stubs SKIPPED (correct), SmokeTest PASSED (all GStreamer plugins confirmed present)
 - GitHub Actions CI workflow created targeting Ubuntu with install-qt-action + apt GStreamer
 - `01-VALIDATION.md` updated: `wave_0_complete: true`
@@ -132,7 +132,7 @@ completed: 2026-03-28
 
 **1. [Rule 1 - Bug] test_pipeline missing MediaPipeline sources**
 - **Found during:** Task 2 (test scaffold) verification — `cmake --build` failed
-- **Issue:** `tests/CMakeLists.txt` added `test_pipeline.cpp` as sole source, but the test directly instantiates `myairshow::MediaPipeline` — linker emitted undefined reference to `MediaPipeline::MediaPipeline()`, `isMuted()`, `~MediaPipeline()`
+- **Issue:** `tests/CMakeLists.txt` added `test_pipeline.cpp` as sole source, but the test directly instantiates `airshow::MediaPipeline` — linker emitted undefined reference to `MediaPipeline::MediaPipeline()`, `isMuted()`, `~MediaPipeline()`
 - **Fix:** Added `${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp` to the `test_pipeline` executable target
 - **Files modified:** `tests/CMakeLists.txt`
 - **Verification:** Build succeeded, all 5 tests ran
@@ -190,7 +190,7 @@ These stubs do NOT block the plan goal (FOUND-01: build compiles and runs). The 
 - tests/CMakeLists.txt: FOUND
 - tests/test_pipeline.cpp: FOUND
 - .github/workflows/build.yml: FOUND
-- build/linux-debug/myairshow (binary): FOUND
+- build/linux-debug/airshow (binary): FOUND
 - .planning/phases/01-foundation/01-01-SUMMARY.md: FOUND
 - Commit 37c323a: FOUND
 - Commit 352aab8: FOUND

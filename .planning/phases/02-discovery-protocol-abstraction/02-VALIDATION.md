@@ -59,9 +59,9 @@ created: 2026-03-28
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| MyAirShow appears in AirPlay picker on iOS | DISC-01 | Requires real iOS device on same network | Open Control Center > Screen Mirroring, look for MyAirShow |
-| MyAirShow appears in Cast menu on Android | DISC-02 | Requires real Android device on same network | Open Settings > Connected devices > Cast, look for MyAirShow |
-| MyAirShow appears in DLNA controller app | DISC-03 | Requires DLNA controller app on same network | Open BubbleUPnP or similar, check Renderers list |
+| AirShow appears in AirPlay picker on iOS | DISC-01 | Requires real iOS device on same network | Open Control Center > Screen Mirroring, look for AirShow |
+| AirShow appears in Cast menu on Android | DISC-02 | Requires real Android device on same network | Open Settings > Connected devices > Cast, look for AirShow |
+| AirShow appears in DLNA controller app | DISC-03 | Requires DLNA controller app on same network | Open BubbleUPnP or similar, check Renderers list |
 | Name change propagates to device pickers | DISC-04 | Requires physical sender devices to verify | Change name, re-check pickers within 10 seconds |
 | Windows firewall auto-configured | DISC-05 | Requires Windows machine | Fresh install, verify discovery works without manual port config |
 

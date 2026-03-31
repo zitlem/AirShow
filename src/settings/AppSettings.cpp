@@ -2,7 +2,7 @@
 #include <QSettings>
 #include <QSysInfo>
 
-namespace myairshow {
+namespace airshow {
 
 AppSettings::AppSettings() = default;
 
@@ -34,7 +34,7 @@ void AppSettings::setFirstLaunchComplete() {
 
 QString AppSettings::defaultReceiverName() {
     QString host = QSysInfo::machineHostName();
-    return host.isEmpty() ? QStringLiteral("MyAirShow") : host;
+    return host.isEmpty() ? QStringLiteral("AirShow") : host;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,4 +104,4 @@ void AppSettings::clearTrustedDevices() {
     s.sync();
 }
 
-} // namespace myairshow
+} // namespace airshow

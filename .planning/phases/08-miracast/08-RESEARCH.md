@@ -51,8 +51,8 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| MIRA-01 | User can mirror their Windows device screen to MyAirShow via Miracast | MS-MICE over LAN: TCP/7250 + RTSP/7236 + RTP/UDP. Confirmed feasible with Windows 10 version 1703+. |
-| MIRA-02 | User can mirror their Android device screen to MyAirShow via Miracast (where supported) | Android MS-MICE support is OEM-specific and uncommon. Best-effort; same receiver code handles both if Android uses MS-MICE. Document limitation clearly. |
+| MIRA-01 | User can mirror their Windows device screen to AirShow via Miracast | MS-MICE over LAN: TCP/7250 + RTSP/7236 + RTP/UDP. Confirmed feasible with Windows 10 version 1703+. |
+| MIRA-02 | User can mirror their Android device screen to AirShow via Miracast (where supported) | Android MS-MICE support is OEM-specific and uncommon. Best-effort; same receiver code handles both if Android uses MS-MICE. Document limitation clearly. |
 | MIRA-03 | Miracast mirroring includes synchronized audio and video | MPEG-TS muxes audio+video with shared PCR clock. GStreamer tsdemux preserves timing. AAC-LC and LPCM both viable. |
 </phase_requirements>
 
@@ -62,7 +62,7 @@
 
 MS-MICE (Miracast over Infrastructure Connection Establishment Protocol, [MS-MICE] revision 6.0, April 2024) is a publicly documented Microsoft open protocol that extends Miracast to work over a standard LAN instead of Wi-Fi Direct. The protocol uses two TCP connections and one UDP RTP stream: the sink listens on TCP port 7250 for the Source Ready message from the Windows source, then connects back to the source's RTSP server on TCP port 7236 to negotiate the WFD (Wi-Fi Display) session, and finally receives an MPEG-TS multiplexed H.264+AAC stream over UDP RTP.
 
-The critical architectural insight is that **the roles are reversed** from typical server-client expectations. The Windows source (PC being mirrored) is the RTSP server; the sink (MyAirShow) is the RTSP client that connects to it. MyAirShow initiates the RTSP connection to port 7236 after receiving the SOURCE_READY message on TCP 7250. The WFD RTSP negotiation follows a defined M1–M7 message sequence where the source offers and the sink acknowledges codec/resolution parameters.
+The critical architectural insight is that **the roles are reversed** from typical server-client expectations. The Windows source (PC being mirrored) is the RTSP server; the sink (AirShow) is the RTSP client that connects to it. AirShow initiates the RTSP connection to port 7236 after receiving the SOURCE_READY message on TCP 7250. The WFD RTSP negotiation follows a defined M1–M7 message sequence where the source offers and the sink acknowledges codec/resolution parameters.
 
 The receiver-side GStreamer pipeline is a clean MPEG-TS demux: `udpsrc → rtpmp2tdepay → tsparse → tsdemux → [video: h264parse → hardware_decode → videoconvert → glupload → qml6glsink] [audio: aacparse → avdec_aac → audioconvert → autoaudiosink]`. This pattern is well-supported by GStreamer 1.26.x and is available on the dev machine (all required plugins confirmed present).
 
@@ -126,7 +126,7 @@ src/discovery/
 ```
 MS-MICE Projection Phase (verified from [MS-MICE] spec, revision 6.0):
 
-  Windows Source                          MyAirShow (Sink)
+  Windows Source                          AirShow (Sink)
        |                                        |
        |  TCP connect to sink:7250              |
        |--------------------------------------> |
@@ -148,7 +148,7 @@ MS-MICE Projection Phase (verified from [MS-MICE] spec, revision 6.0):
 
 ### Pattern 2: WFD RTSP M-Message Exchange (Sink as RTSP Client)
 
-**What:** The sink (MyAirShow) acts as RTSP client connecting to source port 7236. The exchange follows a deterministic 7-message sequence. The sink must respond with its decode capabilities in M3 GET_PARAMETER response.
+**What:** The sink (AirShow) acts as RTSP client connecting to source port 7236. The exchange follows a deterministic 7-message sequence. The sink must respond with its decode capabilities in M3 GET_PARAMETER response.
 
 **When to use:** Always — this is the WFD session setup protocol. No deviations needed for v1.
 
@@ -268,7 +268,7 @@ enum class State {
 ## Common Pitfalls
 
 ### Pitfall 1: Discovery Is Required for Windows to Find the Receiver
-**What goes wrong:** Windows "Connect" app will not show MyAirShow unless it can discover it via mDNS `_display._tcp`. Without this advertisement, the receiver is invisible — Windows falls back to Wi-Fi Direct scan and finds nothing.
+**What goes wrong:** Windows "Connect" app will not show AirShow unless it can discover it via mDNS `_display._tcp`. Without this advertisement, the receiver is invisible — Windows falls back to Wi-Fi Direct scan and finds nothing.
 **Why it happens:** MS-MICE uses mDNS for discovery, not a fixed IP scan. The Windows Connect app resolves the hostname from the mDNS Vendor Extension attribute.
 **How to avoid:** Add `_display._tcp` advertisement in `DiscoveryManager::start()`. Use the existing AvahiAdvertiser pattern. Port is 7250. TXT record must include the sink hostname (machine hostname) so Windows can resolve it.
 **Warning signs:** Windows "Connect" shows no devices in the wireless display list.
@@ -409,7 +409,7 @@ QString MiracastHandler::buildRtspResponse(int cseq, int statusCode,
                                             const QString& body) {
     QString resp = QString("RTSP/1.0 %1 OK\r\n"
                            "CSeq: %2\r\n"
-                           "Server: MyAirShow/1.0\r\n")
+                           "Server: AirShow/1.0\r\n")
                    .arg(statusCode).arg(cseq);
     if (!body.isEmpty()) {
         resp += QString("Content-Type: text/parameters\r\n"

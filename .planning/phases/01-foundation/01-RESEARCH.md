@@ -141,7 +141,7 @@ pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
 ### Recommended Project Structure
 
 ```
-MyAirShow/
+AirShow/
 ├── CMakeLists.txt              # Root: find Qt6, GStreamer; add subdirs
 ├── CMakePresets.json           # Per-platform presets (linux-debug, macos-debug, windows-debug)
 ├── vcpkg.json                  # Optional: for Windows deps not in MSYS2
@@ -177,7 +177,7 @@ MyAirShow/
 ```cmake
 # CMakeLists.txt (root)
 cmake_minimum_required(VERSION 3.28)
-project(MyAirShow LANGUAGES CXX)
+project(AirShow LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -195,10 +195,10 @@ pkg_check_modules(GST REQUIRED IMPORTED_TARGET
 )
 
 # Main executable
-qt_add_executable(myairshow src/main.cpp src/pipeline/MediaPipeline.cpp src/ui/ReceiverWindow.cpp)
-qt_add_qml_module(myairshow URI MyAirShow VERSION 1.0 QML_FILES qml/main.qml)
+qt_add_executable(airshow src/main.cpp src/pipeline/MediaPipeline.cpp src/ui/ReceiverWindow.cpp)
+qt_add_qml_module(airshow URI AirShow VERSION 1.0 QML_FILES qml/main.qml)
 
-target_link_libraries(myairshow PRIVATE
+target_link_libraries(airshow PRIVATE
   Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml
   PkgConfig::GST
 )
@@ -436,7 +436,7 @@ Verified patterns from official sources:
 //           audiotestsrc -> audioconvert -> autoaudiosink
 // (Two branches, one pipeline)
 
-GstElement *pipeline      = gst_pipeline_new("myairshow-pipeline");
+GstElement *pipeline      = gst_pipeline_new("airshow-pipeline");
 GstElement *videoSrc      = gst_element_factory_make("videotestsrc",  "videosrc");
 GstElement *videoConvert  = gst_element_factory_make("videoconvert",  "videoconvert");
 GstElement *videoSink     = gst_element_factory_make("qml6glsink",    "videosink");

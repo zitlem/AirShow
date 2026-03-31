@@ -5,10 +5,10 @@ status: human_needed
 score: 4/4 must-have artifact truths verified; 4/4 success criteria require human
 re_verification: false
 human_verification:
-  - test: "On iPhone or iPad, open Control Center > Screen Mirroring and look for 'MyAirShow'. Tap to connect."
+  - test: "On iPhone or iPad, open Control Center > Screen Mirroring and look for 'AirShow'. Tap to connect."
     expected: "Mirrored screen appears in the receiver window within 3 seconds (AIRP-01)"
     why_human: "Requires a physical iOS/macOS device on the same LAN; cannot simulate AirPlay protocol handshake programmatically"
-  - test: "On a Mac, open Control Center > Screen Mirroring and select 'MyAirShow'."
+  - test: "On a Mac, open Control Center > Screen Mirroring and select 'AirShow'."
     expected: "Mac desktop mirrors to receiver window (AIRP-02)"
     why_human: "Requires macOS hardware and real RAOP negotiation over the network"
   - test: "Start a screen mirror from iPhone/iPad with audio playing. Observe audio and video on the receiver."
@@ -21,7 +21,7 @@ human_verification:
 
 # Phase 4: AirPlay Verification Report
 
-**Phase Goal:** iPhone, iPad, and Mac users can mirror their screen to MyAirShow via AirPlay with stable, synchronized audio and video
+**Phase Goal:** iPhone, iPad, and Mac users can mirror their screen to AirShow via AirPlay with stable, synchronized audio and video
 **Verified:** 2026-03-28T23:55:00Z
 **Status:** human_needed
 **Re-verification:** No — initial verification
@@ -32,8 +32,8 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | iPhone/iPad can select MyAirShow and mirrored screen appears within 3 seconds | ? NEEDS HUMAN | RAOP server wired, UxPlay starts on launch, mDNS advertises `_airplay._tcp` — cannot execute without Apple hardware |
-| 2 | Mac can select MyAirShow and mirror its desktop to the receiver | ? NEEDS HUMAN | Same code path as iPhone/iPad; Mac uses same RAOP stack |
+| 1 | iPhone/iPad can select AirShow and mirrored screen appears within 3 seconds | ? NEEDS HUMAN | RAOP server wired, UxPlay starts on launch, mDNS advertises `_airplay._tcp` — cannot execute without Apple hardware |
+| 2 | Mac can select AirShow and mirror its desktop to the receiver | ? NEEDS HUMAN | Same code path as iPhone/iPad; Mac uses same RAOP stack |
 | 3 | Audio plays through receiver speakers in sync with video, no persistent drift after 5 minutes | ? NEEDS HUMAN | NTP-to-pipeline basetime normalization implemented in `onVideoFrame`/`onAudioFrame`; sync quality requires perceptual observation |
 | 4 | 30-minute session with no A/V sync drift and no dropped-connection recovery needed | ? NEEDS HUMAN | `m_basetimeSet` captures basetime once per session; clock source is `gst_element_get_base_time`; stability requires real session observation |
 
@@ -90,15 +90,15 @@ human_verification:
 | `stop()` without `start()` is safe | `test_airplay --gtest_filter=AirPlayHandlerTest.StopWithoutStart` | PASSED (0 ms) | PASS |
 | `setMediaPipeline(nullptr)` does not crash | `test_airplay --gtest_filter=AirPlayHandlerTest.SetMediaPipelineStoresPointer` | PASSED (0 ms) | PASS |
 | Full test suite (all 3 AirPlay tests) | `./build/linux-debug/tests/test_airplay` | 3/3 PASSED (0 ms total) | PASS |
-| Binary contains AirPlay symbols | `nm myairshow \| grep raop_init\|AirPlayHandler` | 126 matching symbols | PASS |
+| Binary contains AirPlay symbols | `nm airshow \| grep raop_init\|AirPlayHandler` | 126 matching symbols | PASS |
 | RAOP server start on device with Apple hardware | Requires running app with iOS/macOS device | N/A | SKIP — route to human |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |------------|------------|-------------|--------|----------|
-| AIRP-01 | 04-01, 04-02, 04-03 | User can mirror iPhone/iPad screen to MyAirShow via AirPlay | HUMAN NEEDED | RAOP server wired, UxPlay linked, mDNS advertising `_airplay._tcp`; confirmed by automated checks; end-to-end requires hardware |
-| AIRP-02 | 04-01, 04-02, 04-03 | User can mirror macOS screen to MyAirShow via AirPlay | HUMAN NEEDED | Same code path as AIRP-01; Mac uses identical RAOP protocol stack |
+| AIRP-01 | 04-01, 04-02, 04-03 | User can mirror iPhone/iPad screen to AirShow via AirPlay | HUMAN NEEDED | RAOP server wired, UxPlay linked, mDNS advertising `_airplay._tcp`; confirmed by automated checks; end-to-end requires hardware |
+| AIRP-02 | 04-01, 04-02, 04-03 | User can mirror macOS screen to AirShow via AirPlay | HUMAN NEEDED | Same code path as AIRP-01; Mac uses identical RAOP protocol stack |
 | AIRP-03 | 04-01, 04-02, 04-03 | AirPlay mirroring includes synchronized audio and video | HUMAN NEEDED | NTP-to-basetime PTS normalization implemented in `onVideoFrame`/`onAudioFrame`; `m_basetimeSet` captures basetime on first frame; sync quality is perceptual |
 | AIRP-04 | 04-01, 04-02, 04-03 | AirPlay connection maintains stable A/V sync during extended sessions | HUMAN NEEDED | Pipeline clock is GStreamer's monotonic clock; basetime captured once per session; 30-minute stability requires live observation |
 
@@ -117,13 +117,13 @@ No blockers or warnings found. All `return {}` patterns are guarded error return
 
 #### 1. iOS/iPadOS Screen Mirroring (AIRP-01)
 
-**Test:** Build and run `./build/linux-debug/myairshow`. On an iPhone or iPad connected to the same LAN, open Control Center, tap Screen Mirroring, and look for "MyAirShow" (or the configured receiver name).
-**Expected:** MyAirShow appears in the AirPlay device picker. Tapping it initiates mirroring and the phone's screen appears in the receiver window within 3 seconds.
+**Test:** Build and run `./build/linux-debug/airshow`. On an iPhone or iPad connected to the same LAN, open Control Center, tap Screen Mirroring, and look for "AirShow" (or the configured receiver name).
+**Expected:** AirShow appears in the AirPlay device picker. Tapping it initiates mirroring and the phone's screen appears in the receiver window within 3 seconds.
 **Why human:** Requires a physical iOS/iPadOS device; the AirPlay handshake (FairPlay SRP, Ed25519 pk exchange) cannot be simulated from static analysis.
 
 #### 2. macOS Screen Mirroring (AIRP-02)
 
-**Test:** On a Mac on the same LAN, open Control Center > Screen Mirroring and select "MyAirShow".
+**Test:** On a Mac on the same LAN, open Control Center > Screen Mirroring and select "AirShow".
 **Expected:** Mac desktop mirrors to the receiver window.
 **Why human:** Requires macOS hardware; RAOP stack is the same but macOS AirPlay sender has different negotiation behavior.
 
@@ -144,7 +144,7 @@ No blockers or warnings found. All `return {}` patterns are guarded error return
 No automated gaps. All code artifacts exist, are substantive, and are wired. The binary compiles (6.2 MB), links 126 AirPlay-related symbols, and the test suite passes 3/3. The only items that cannot be verified programmatically are the four ROADMAP success criteria, which all require live hardware testing with Apple devices.
 
 The implementation is structurally complete for end-to-end AirPlay mirroring:
-- UxPlay v1.73.5 embedded as `libairplay.a`, linked into `myairshow`
+- UxPlay v1.73.5 embedded as `libairplay.a`, linked into `airshow`
 - `MediaPipeline::initAppsrcPipeline()` creates a two-branch GStreamer pipeline (H.264 video + AAC/ALAC audio via appsrc)
 - `AirPlayHandler` wraps the RAOP server with 7 C-to-C++ callback trampolines
 - Video and audio frames injected into appsrc with NTP-derived PTS normalization

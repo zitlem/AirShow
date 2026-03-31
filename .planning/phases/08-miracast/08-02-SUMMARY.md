@@ -24,7 +24,7 @@ key_files:
 decisions:
   - sendRtspRequest() takes extraHeaders param to pass Transport/Require headers without polluting body
   - parseNextRtspMessage() replaces simple delimiter scan — handles both requests and responses uniformly
-  - buildRtspResponse() now includes "Server: MyAirShow/1.0" header for spec compliance
+  - buildRtspResponse() now includes "Server: AirShow/1.0" header for spec compliance
   - teardown() resets to WaitingSourceReady (not Idle) when m_running=true — server stays listening
   - connectToSource() resets m_cseq=1 and clears m_rtspBuffer on each new session
 metrics:

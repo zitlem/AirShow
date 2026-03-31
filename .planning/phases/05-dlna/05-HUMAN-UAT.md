@@ -13,7 +13,7 @@ updated: 2026-03-28T00:00:00Z
 ## Tests
 
 ### 1. DLNA controller discovery
-expected: MyAirShow appears in BubbleUPnP/VLC renderer list (DLNA-03)
+expected: AirShow appears in BubbleUPnP/VLC renderer list (DLNA-03)
 result: [pending]
 
 ### 2. Video push playback

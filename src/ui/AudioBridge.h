@@ -1,7 +1,7 @@
 #pragma once
 #include <QObject>
 
-namespace myairshow {
+namespace airshow {
 class MediaPipeline;
 
 // QObject bridge that exposes mute state to QML via Q_PROPERTY.
@@ -23,4 +23,4 @@ private:
     MediaPipeline& m_pipeline;
 };
 
-} // namespace myairshow
+} // namespace airshow

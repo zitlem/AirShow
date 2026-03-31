@@ -5,7 +5,7 @@ status: gaps_found
 score: 4/6 must-haves verified
 re_verification: false
 gaps:
-  - truth: "Chrome browser can initiate a Cast tab session to MyAirShow"
+  - truth: "Chrome browser can initiate a Cast tab session to AirShow"
     status: failed
     reason: "Auth bypass uses placeholder RSA-2048 signatures that Chrome will reject. The code structure and wiring is complete but kCastAuthSignatures and kCastAuthPeerCert in cast_auth_sigs.h are deterministic placeholder bytes, not signatures extracted from AirReceiver APK. Chrome validates the AuthResponse signature as RSA-2048 PKCS#1v1.5 and will deny the connection."
     artifacts:
@@ -36,7 +36,7 @@ human_verification:
 
 # Phase 6: Google Cast Verification Report
 
-**Phase Goal:** Android devices and Chrome browser tabs can cast their screen to MyAirShow with synchronized audio and video
+**Phase Goal:** Android devices and Chrome browser tabs can cast their screen to AirShow with synchronized audio and video
 **Verified:** 2026-03-28T00:55:00Z
 **Status:** gaps_found
 **Re-verification:** No — initial verification
@@ -47,8 +47,8 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | An Android device can select MyAirShow from the Cast menu and mirror its screen to the receiver | ? UNCERTAIN | mDNS advertisement of `_googlecast._tcp` on port 8009 is wired (DiscoveryManager.cpp:95). CastHandler binds port 8009 (CastHandler.cpp:69). CASTV2 handshake implemented. Auth will fail with placeholder signatures — connection cannot complete. |
-| 2 | Chrome browser "Cast tab" sends a browser tab to MyAirShow for display | FAILED | Full CASTV2 control plane is implemented (TLS server, framing, namespace dispatch, OFFER/ANSWER SDP translation, webrtcbin pipeline). Auth bypass uses placeholder RSA signatures — Chrome will reject the DeviceAuthMessage response. Tab cast cannot complete until real signatures replace placeholders in cast_auth_sigs.h. |
+| 1 | An Android device can select AirShow from the Cast menu and mirror its screen to the receiver | ? UNCERTAIN | mDNS advertisement of `_googlecast._tcp` on port 8009 is wired (DiscoveryManager.cpp:95). CastHandler binds port 8009 (CastHandler.cpp:69). CASTV2 handshake implemented. Auth will fail with placeholder signatures — connection cannot complete. |
+| 2 | Chrome browser "Cast tab" sends a browser tab to AirShow for display | FAILED | Full CASTV2 control plane is implemented (TLS server, framing, namespace dispatch, OFFER/ANSWER SDP translation, webrtcbin pipeline). Auth bypass uses placeholder RSA signatures — Chrome will reject the DeviceAuthMessage response. Tab cast cannot complete until real signatures replace placeholders in cast_auth_sigs.h. |
 | 3 | Audio from the casting device plays through the receiver's speakers in sync with the video | ? UNCERTAIN | GStreamer webrtcbin pipeline with VP8+Opus decode chains is implemented. Audio chain: `rtpopusdepay ! opusdec ! audioconvert ! audioresample ! autoaudiosink`. Play() transitions both pipelines to PLAYING simultaneously. Cannot verify A/V sync without a live session (blocked by auth). Additionally: AES-CTR decrypt is not inserted even when keys are present — encrypted sessions would produce garbled output. |
 | 4 | CastHandler listens on TLS port 8009 with a self-signed certificate | VERIFIED | CastHandler.cpp:69 `m_server->listen(QHostAddress::Any, 8009)`. Self-signed RSA-2048 cert generated via OpenSSL EVP API (CastHandler.cpp:43). Integration test CastHandler_IntegrationStartStop confirms port 8009 binding (16/16 tests pass). |
 | 5 | CastHandler is registered in ProtocolManager and starts on application launch | VERIFIED | main.cpp:134-140 — scoped block creates CastHandler with `window.connectionBridge()` and calls `protocolManager.addHandler(std::move(castHandler))`. Pattern matches AirPlay/DLNA registration. Plugin checks for webrtcbin, rtpvp8depay, rtpopusdepay, opusdec added (fatal) and vp8dec/nicesrc (non-fatal warnings). |
@@ -99,17 +99,17 @@ human_verification:
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| 16 unit tests pass (framing, auth, SDP, pipeline, integration) | `/home/sanya/Desktop/MyAirShow/build/tests/test_cast` | 16/16 PASSED | PASS |
-| Main binary builds without errors | `ninja myairshow` in build dir | Build succeeded (30/30 targets) | PASS |
+| 16 unit tests pass (framing, auth, SDP, pipeline, integration) | `/home/sanya/Desktop/AirShow/build/tests/test_cast` | 16/16 PASSED | PASS |
+| Main binary builds without errors | `ninja airshow` in build dir | Build succeeded (30/30 targets) | PASS |
 | CastHandler binds port 8009 (integration test) | CastHandler_IntegrationStartStop in test_cast | port 8009 bound, TLS cert generated | PASS |
-| App launches and logs Cast port | `./myairshow` | Would log "Cast handler started on port 8009" | SKIP — requires display server |
+| App launches and logs Cast port | `./airshow` | Would log "Cast handler started on port 8009" | SKIP — requires display server |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|---------|
-| CAST-01 | 06-01-PLAN.md, 06-02-PLAN.md, 06-03-PLAN.md | User can cast their Android device screen to MyAirShow via Google Cast | BLOCKED | Full protocol stack implemented. Auth fails with placeholder signatures — Android device cannot complete Cast handshake. |
-| CAST-02 | 06-01-PLAN.md, 06-02-PLAN.md, 06-03-PLAN.md | User can cast a Chrome browser tab to MyAirShow via Google Cast | BLOCKED | Full CASTV2 + WebRTC pipeline implemented. Chrome discovers MyAirShow (mDNS). Auth rejected by Chrome due to placeholder RSA signatures in cast_auth_sigs.h. |
+| CAST-01 | 06-01-PLAN.md, 06-02-PLAN.md, 06-03-PLAN.md | User can cast their Android device screen to AirShow via Google Cast | BLOCKED | Full protocol stack implemented. Auth fails with placeholder signatures — Android device cannot complete Cast handshake. |
+| CAST-02 | 06-01-PLAN.md, 06-02-PLAN.md, 06-03-PLAN.md | User can cast a Chrome browser tab to AirShow via Google Cast | BLOCKED | Full CASTV2 + WebRTC pipeline implemented. Chrome discovers AirShow (mDNS). Auth rejected by Chrome due to placeholder RSA signatures in cast_auth_sigs.h. |
 | CAST-03 | 06-02-PLAN.md, 06-03-PLAN.md | Google Cast mirroring includes synchronized audio and video | NEEDS HUMAN | webrtcbin handles DTLS-SRTP with single pipeline clock for A/V sync. Cannot verify without a live authenticated Cast session. AES-CTR decrypt chain missing for encrypted sessions. |
 
 No orphaned requirements: all 3 Cast requirements (CAST-01, CAST-02, CAST-03) are claimed across plans and cross-referenced in REQUIREMENTS.md traceability table.
@@ -126,13 +126,13 @@ No orphaned requirements: all 3 Cast requirements (CAST-01, CAST-02, CAST-03) ar
 
 #### 1. Chrome Tab Cast with Real Signatures
 
-**Test:** Extract RSA-2048 signatures and peer certificate from AirReceiver APK, replace cast_auth_sigs.h content, rebuild. Open Chrome, click Cast > Sources > Cast tab. Select MyAirShow from the Cast dialog.
+**Test:** Extract RSA-2048 signatures and peer certificate from AirReceiver APK, replace cast_auth_sigs.h content, rebuild. Open Chrome, click Cast > Sources > Cast tab. Select AirShow from the Cast dialog.
 **Expected:** Chrome tab content appears in receiver window. Audio plays through speakers. HUD overlay shows "Cast" and the Chrome device name. Clicking Stop in Chrome returns receiver to idle screen.
 **Why human:** Requires real AirReceiver APK extraction (out-of-band tooling), a live Chrome browser, and visual/audio confirmation. Cannot be verified programmatically with placeholder data.
 
 #### 2. Android Device Screen Cast
 
-**Test:** On Android device on the same LAN, pull down notification shade and tap Cast / Screen Mirror. Select MyAirShow.
+**Test:** On Android device on the same LAN, pull down notification shade and tap Cast / Screen Mirror. Select AirShow.
 **Expected:** Android screen appears in receiver window with synchronized audio.
 **Why human:** Requires physical Android device. Android Cast uses slightly different certificate validation than Chrome. Also blocked by placeholder signatures.
 

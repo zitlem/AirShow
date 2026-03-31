@@ -49,7 +49,7 @@ key-decisions:
   - "AirPlay uses synchronous checkConnection (RAOP callback runs on UxPlay non-Qt thread) — async would require posting to Qt thread which is safe but unnecessary; sync blocks the RAOP thread which is acceptable"
   - "DLNA uses synchronous checkConnection (libupnp thread pool, not Qt main thread) — same rationale as AirPlay"
   - "Cast uses checkConnectionAsync (Qt main thread in onPendingConnection) — blocking here would deadlock the Qt event loop (RESEARCH.md Pitfall 1)"
-  - "display_pin callback is a no-op in MyAirShow: PIN is pre-configured via AppSettings and shown statically by IdleScreen.qml binding; UxPlay's runtime callback is redundant"
+  - "display_pin callback is a no-op in AirShow: PIN is pre-configured via AppSettings and shown statically by IdleScreen.qml binding; UxPlay's runtime callback is redundant"
   - "QPointer<QSslSocket> used in CastHandler to detect socket deletion between approval request and callback delivery"
   - "ReceiverWindow::engine() accessor added to expose QQmlApplicationEngine for context property injection"
   - "test_airplay and test_dlna CMakeLists updated to include SecurityManager.cpp + Qt6::Network (required after AirPlayHandler/DlnaHandler gained SecurityManager dependency)"

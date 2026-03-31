@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Implement DLNA Digital Media Renderer (DMR) playback: handle AVTransport and RenderingControl SOAP actions so DLNA controller apps (BubbleUPnP, foobar2000, etc.) can push video and audio files to MyAirShow for playback. SSDP advertisement is already done (Phase 2). This phase replaces the stub 501 SOAP callback with real media playback logic.
+Implement DLNA Digital Media Renderer (DMR) playback: handle AVTransport and RenderingControl SOAP actions so DLNA controller apps (BubbleUPnP, foobar2000, etc.) can push video and audio files to AirShow for playback. SSDP advertisement is already done (Phase 2). This phase replaces the stub 501 SOAP callback with real media playback logic.
 
 </domain>
 

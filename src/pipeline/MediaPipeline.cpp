@@ -7,7 +7,7 @@
 #include <openssl/evp.h>
 #include <cstdio>
 
-namespace myairshow {
+namespace airshow {
 
 // ── MediaPipeline ────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ bool MediaPipeline::init(void* qmlVideoItem) {
     //   videotestsrc ! videoconvert ! qml6glsink
     //   audiotestsrc ! audioconvert ! autoaudiosink
 
-    GstElement* pipeline     = gst_pipeline_new("myairshow-pipeline");
+    GstElement* pipeline     = gst_pipeline_new("airshow-pipeline");
     GstElement* videoSrc     = gst_element_factory_make("videotestsrc",  "videosrc");
     GstElement* videoConvert = gst_element_factory_make("videoconvert",  "videoconvert");
     GstElement* audioSrc     = gst_element_factory_make("audiotestsrc",  "audiosrc");
@@ -308,7 +308,7 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     // The pipeline is started in GST_STATE_PAUSED; AirPlayHandler transitions it to
     // GST_STATE_PLAYING when the first media frame arrives, allowing A/V sync establishment.
 
-    GstElement* pipeline      = gst_pipeline_new("myairshow-pipeline");
+    GstElement* pipeline      = gst_pipeline_new("airshow-pipeline");
     GstElement* videoAppsrc   = gst_element_factory_make("appsrc",       "video_appsrc");
     GstElement* h264parse     = gst_element_factory_make("h264parse",    "h264parse");
     GstElement* videoConvert  = gst_element_factory_make("videoconvert", "videoconvert");
@@ -1322,4 +1322,4 @@ void MediaPipeline::stopMiracast() {
     }
 }
 
-} // namespace myairshow
+} // namespace airshow

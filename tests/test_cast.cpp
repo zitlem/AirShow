@@ -142,11 +142,11 @@ TEST(CastAuthTest, AuthResponseStructure) {
     // Build AuthResponse with placeholder signature from index 0
     AuthResponse resp;
     resp.set_signature(
-        reinterpret_cast<const char*>(&myairshow::cast::kCastAuthSignatures[0][0]),
-        myairshow::cast::kCastAuthSignatureSize);
+        reinterpret_cast<const char*>(&airshow::cast::kCastAuthSignatures[0][0]),
+        airshow::cast::kCastAuthSignatureSize);
     resp.set_client_auth_certificate(
-        reinterpret_cast<const char*>(myairshow::cast::kCastAuthPeerCert),
-        myairshow::cast::kCastAuthPeerCertSize);
+        reinterpret_cast<const char*>(airshow::cast::kCastAuthPeerCert),
+        airshow::cast::kCastAuthPeerCertSize);
     resp.set_signature_algorithm(extensions::api::cast_channel::RSASSA_PKCS1v15);
     resp.set_hash_algorithm(extensions::api::cast_channel::SHA256);
 
@@ -167,7 +167,7 @@ TEST(CastAuthTest, AuthResponseStructure) {
 
     // Signature must be exactly 256 bytes
     EXPECT_EQ(parsedResp.signature().size(),
-              static_cast<size_t>(myairshow::cast::kCastAuthSignatureSize));
+              static_cast<size_t>(airshow::cast::kCastAuthSignatureSize));
     EXPECT_EQ(parsedResp.signature().size(), 256u);
 
     // Certificate is present
@@ -184,7 +184,7 @@ TEST(CastAuthTest, AuthResponseStructure) {
 // Verify the index rotation formula: (timestamp / 172800) % 795
 
 TEST(CastAuthTest, AuthSignatureIndexRotation) {
-    using namespace myairshow::cast;
+    using namespace airshow::cast;
 
     // Two timestamps in different 48h windows must give different indices
     uint64_t t1 = 1000000000ULL;               // some timestamp
@@ -219,8 +219,8 @@ TEST(CastAuthTest, AuthSignatureIndexRotation) {
 // stop() makes isRunning() false.
 
 TEST(CastHandlerTest, StartsOnPort8009) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::CastHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::CastHandler handler(&bridge);
 
     EXPECT_FALSE(handler.isRunning());
     EXPECT_EQ(handler.name(), "cast");
@@ -238,8 +238,8 @@ TEST(CastHandlerTest, StartsOnPort8009) {
 // Calling start() twice is idempotent; the server does not crash on the second call.
 
 TEST(CastHandlerTest, SelfSignedCertIdempotentStart) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::CastHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::CastHandler handler(&bridge);
 
     bool first = handler.start();
     // Second start() on a running handler should return true without crashing
@@ -256,18 +256,18 @@ TEST(CastHandlerTest, SelfSignedCertIdempotentStart) {
 
 TEST(CastHandlerTest, SignatureTableHasCorrectConstants) {
     // Verify the signature table constants are consistent
-    EXPECT_EQ(myairshow::cast::kCastAuthSignatureCount, 795u);
-    EXPECT_EQ(myairshow::cast::kCastAuthSignatureSize, 256u);
+    EXPECT_EQ(airshow::cast::kCastAuthSignatureCount, 795u);
+    EXPECT_EQ(airshow::cast::kCastAuthSignatureSize, 256u);
 
     // Verify that getCastAuthSignature returns a valid pointer within the table
     uint64_t now = 1774757446ULL;  // fixed test timestamp
-    const uint8_t* sig = myairshow::cast::getCastAuthSignature(now);
+    const uint8_t* sig = airshow::cast::getCastAuthSignature(now);
     ASSERT_NE(sig, nullptr);
 
     // The returned pointer must point within the signature table
-    const uint8_t* tableStart = &myairshow::cast::kCastAuthSignatures[0][0];
+    const uint8_t* tableStart = &airshow::cast::kCastAuthSignatures[0][0];
     const uint8_t* tableEnd   = tableStart +
-        myairshow::cast::kCastAuthSignatureCount * myairshow::cast::kCastAuthSignatureSize;
+        airshow::cast::kCastAuthSignatureCount * airshow::cast::kCastAuthSignatureSize;
     EXPECT_GE(sig, tableStart);
     EXPECT_LT(sig, tableEnd);
 }
@@ -297,7 +297,7 @@ TEST(CastSdpTest, OfferJsonToSdp_VideoStream) {
     offerJson[QStringLiteral("seqNum")] = 1;
     offerJson[QStringLiteral("offer")]  = innerOffer;
 
-    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
 
     ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
     EXPECT_NE(sdp.find("m=video"), std::string::npos)
@@ -332,7 +332,7 @@ TEST(CastSdpTest, OfferJsonToSdp_AudioStream) {
     offerJson[QStringLiteral("seqNum")] = 1;
     offerJson[QStringLiteral("offer")]  = innerOffer;
 
-    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
 
     ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
     EXPECT_NE(sdp.find("m=audio"), std::string::npos)
@@ -373,7 +373,7 @@ TEST(CastSdpTest, OfferJsonToSdp_BothStreams) {
     offerJson[QStringLiteral("seqNum")] = 1;
     offerJson[QStringLiteral("offer")]  = innerOffer;
 
-    std::string sdp = myairshow::CastSession::buildSdpFromOffer(offerJson);
+    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
 
     ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a full OFFER";
     EXPECT_NE(sdp.find("m=video"), std::string::npos)   << "SDP should have m=video";
@@ -386,7 +386,7 @@ TEST(CastSdpTest, OfferJsonToSdp_BothStreams) {
 // Calling initWebrtcPipeline() without first calling setQmlVideoItem() must return false.
 
 TEST(CastPipelineTest, WebrtcPipelineInit_RequiresQmlVideoItem) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
 
     // Do NOT call setQmlVideoItem — m_qmlVideoItem is null by default
     bool result = pipeline.initWebrtcPipeline();
@@ -407,7 +407,7 @@ TEST(CastPipelineTest, WebrtcPipelineInit_CreatesElements) {
     }
     gst_object_unref(probe);
 
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
     // Set a non-null sentinel value to pass the null check.
     // In headless test mode with no QML scene, qml6glsink creation may fail
     // (no GL context). The test verifies the function returns a predictable result.
@@ -430,7 +430,7 @@ TEST(CastPipelineTest, WebrtcPipelineInit_CreatesElements) {
 // setCastDecryptionKeys() should accept valid 32-char hex strings without crashing.
 
 TEST(CastPipelineTest, CastDecryptionKeys_StoredCorrectly) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
 
     // Valid 32-char hex strings = 16 bytes each (AES-128)
     const std::string aesKey    = "0123456789abcdef0123456789abcdef";
@@ -447,7 +447,7 @@ TEST(CastPipelineTest, CastDecryptionKeys_StoredCorrectly) {
 
 TEST(CastSdpTest, OfferJsonToSdp_EmptyOffer) {
     QJsonObject emptyOffer;
-    std::string sdp = myairshow::CastSession::buildSdpFromOffer(emptyOffer);
+    std::string sdp = airshow::CastSession::buildSdpFromOffer(emptyOffer);
     EXPECT_TRUE(sdp.empty())
         << "buildSdpFromOffer() should return empty string for an empty offer";
 }
@@ -458,10 +458,10 @@ TEST(CastSdpTest, OfferJsonToSdp_EmptyOffer) {
 // then stop and verify isRunning()==false.
 
 TEST(CastHandlerIntegrationTest, CastHandler_IntegrationStartStop) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::MediaPipeline pipeline;
+    airshow::ConnectionBridge bridge;
+    airshow::MediaPipeline pipeline;
 
-    myairshow::CastHandler handler(&bridge);
+    airshow::CastHandler handler(&bridge);
     handler.setMediaPipeline(&pipeline);
 
     EXPECT_FALSE(handler.isRunning());
@@ -497,8 +497,8 @@ TEST(CastHandlerIntegrationTest, CastHandler_IntegrationStartStop) {
 // isRunning() remains true, and there is no crash or resource leak.
 
 TEST(CastHandlerIntegrationTest, CastHandler_RejectsDoubleStart) {
-    myairshow::ConnectionBridge bridge;
-    myairshow::CastHandler handler(&bridge);
+    airshow::ConnectionBridge bridge;
+    airshow::CastHandler handler(&bridge);
 
     bool first  = handler.start();
     bool second = handler.start();  // idempotent — should return true, not crash

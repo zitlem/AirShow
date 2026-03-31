@@ -3,7 +3,7 @@
 #include <memory>
 #include "settings/AppSettings.h"
 
-namespace myairshow {
+namespace airshow {
 class MediaPipeline;
 class ConnectionBridge;
 
@@ -30,4 +30,4 @@ private:
     bool                  m_pipelineInitialized = false;
 };
 
-} // namespace myairshow
+} // namespace airshow

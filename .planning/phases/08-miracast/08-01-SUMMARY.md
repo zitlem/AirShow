@@ -18,7 +18,7 @@ dependency_graph:
   affects:
     - src/pipeline/MediaPipeline.h (new public methods + private member)
     - src/discovery/DiscoveryManager.cpp (new _display._tcp advertisement)
-    - CMakeLists.txt (MiracastHandler.cpp added to myairshow target)
+    - CMakeLists.txt (MiracastHandler.cpp added to airshow target)
     - tests/CMakeLists.txt (test_miracast target added)
 tech_stack:
   added: []
@@ -134,7 +134,7 @@ These stubs are intentional — Plan 02 (MS-MICE RTSP M1-M7 negotiation) fills t
 ## Verification Results
 
 ```
-cmake --build build --target myairshow  -> success (no errors)
+cmake --build build --target airshow  -> success (no errors)
 cmake --build build --target test_miracast -> success
 ./build/tests/test_miracast -> 4/4 PASSED
 ```

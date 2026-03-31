@@ -2,7 +2,7 @@
 #include <string>
 #include <upnp/upnp.h>
 
-namespace myairshow {
+namespace airshow {
 
 class AppSettings;
 class DlnaHandler;  // forward declaration for SOAP routing (D-02)
@@ -53,4 +53,4 @@ private:
     DlnaHandler*  m_dlnaHandler   = nullptr;  // for SOAP routing via cookie (D-02)
 };
 
-} // namespace myairshow
+} // namespace airshow

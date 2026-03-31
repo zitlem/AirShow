@@ -31,11 +31,11 @@ Features users assume exist. Missing these = product feels incomplete or broken.
 
 ### Differentiators (Competitive Advantage)
 
-Features that set MyAirShow apart. Not required, but create value over existing options.
+Features that set AirShow apart. Not required, but create value over existing options.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| All four protocols in one app (AirPlay + Cast + Miracast + DLNA) | No existing free/open-source tool covers all four; UxPlay is AirPlay-only; FCast is Cast-centric | HIGH | This is the primary market gap MyAirShow fills; the "one app" promise for heterogeneous device rooms |
+| All four protocols in one app (AirPlay + Cast + Miracast + DLNA) | No existing free/open-source tool covers all four; UxPlay is AirPlay-only; FCast is Cast-centric | HIGH | This is the primary market gap AirShow fills; the "one app" promise for heterogeneous device rooms |
 | Completely free, no license key, no paywalls | AirServer costs $20+/device; Reflector 4 is paid; LonelyScreen is paid; all alternatives have friction | LOW (product decision, not technical) | Open-source license removes all license management complexity; builds trust with Linux community |
 | Linux support | AirServer/Reflector don't support Linux at all; Linux users are chronically underserved for receiver software | MEDIUM | Requires careful platform abstraction; GStreamer is the natural Linux media backend |
 | Customizable receiver name | Users in multi-receiver environments (classrooms, offices) need named receivers that appear correctly in device pickers | LOW | Name is broadcast via mDNS service record; trivially configurable in settings |
@@ -171,7 +171,7 @@ Features to defer until product-market fit is established.
 
 ## Competitor Feature Analysis
 
-| Feature | AirServer | Reflector 4 | LonelyScreen | UxPlay (OSS) | MyAirShow |
+| Feature | AirServer | Reflector 4 | LonelyScreen | UxPlay (OSS) | AirShow |
 |---------|-----------|-------------|--------------|--------------|-----------|
 | AirPlay | Yes | Yes | Yes | Yes | Yes (target) |
 | Google Cast | Yes | Yes | No | No | Yes (target) |
@@ -234,5 +234,5 @@ Features to defer until product-market fit is established.
 - [Building Cross-Platform Wireless Display Solutions 2025](https://www.blog.brightcoding.dev/2025/12/31/the-ultimate-developer-guide-building-cross-platform-wireless-display-solutions-with-airplay-miracast-google-cast-sdks/)
 
 ---
-*Feature research for: Cross-platform screen mirroring receiver (MyAirShow)*
+*Feature research for: Cross-platform screen mirroring receiver (AirShow)*
 *Researched: 2026-03-28*

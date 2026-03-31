@@ -37,7 +37,7 @@
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Dark with app/receiver name | Black bg, "MyAirShow", receiver name, "Waiting..." | ✓ |
+| Dark with app/receiver name | Black bg, "AirShow", receiver name, "Waiting..." | ✓ |
 | Screensaver-style | Animated logo bouncing/floating | |
 | Blank black | Just black screen when idle | |
 

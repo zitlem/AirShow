@@ -1,7 +1,7 @@
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**MyAirShow**
+**AirShow**
 
 A free, open-source, cross-platform screen mirroring receiver — an AirServer alternative that costs nothing. It turns any computer (Linux, macOS, Windows) into a wireless display that accepts screen mirrors from phones, tablets, and other computers via AirPlay, Google Cast, Miracast, and DLNA.
 

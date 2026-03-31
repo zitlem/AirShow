@@ -108,7 +108,7 @@ Recent decisions affecting current work:
 - [Phase 03-display-receiver-ui]: SettingsBridge reads receiverName at startup only; NOTIFY signal is forward-compatible hook for Phase 7 settings panel
 - [Phase 03-display-receiver-ui]: test_display target links Qt6::Core only (no GStreamer) consistent with test_discovery isolation pattern
 - [Phase 03-display-receiver-ui]: ConnectionBridge::setConnected() clears deviceName and protocol unconditionally on disconnect — enforces invariant that disconnected state has no device info
-- [Phase 03-display-receiver-ui]: ConnectionBridge.cpp and SettingsBridge.cpp added to myairshow CMakeLists.txt qt_add_executable source list (fix: main target failed to link without them)
+- [Phase 03-display-receiver-ui]: ConnectionBridge.cpp and SettingsBridge.cpp added to airshow CMakeLists.txt qt_add_executable source list (fix: main target failed to link without them)
 - [Phase 03-display-receiver-ui]: HudOverlay uses visible:opacity>0 (not connectionBridge.connected) to prevent mouse-event blocking at opacity 0 (RESEARCH.md Pitfall 3)
 - [Phase 03-display-receiver-ui]: Mute button restyled as Item+Rectangle+Text+MouseArea to match dark overlay aesthetic without changing AudioBridge wiring
 - [Phase 04-airplay]: UxPlay lib/ requires llhttp and playfair subdirs added before lib/ itself
@@ -141,7 +141,7 @@ Recent decisions affecting current work:
 - [Phase 07-security-hardening]: onDisplayPin() is a no-op in AirPlayHandler — PIN display driven by appSettings.pinEnabled QML binding, not UxPlay callback
 - [Phase 07-security-hardening]: ApprovalDialog uses opacity/visible guard matching HudOverlay pattern (RESEARCH.md Pitfall 3) — prevents mouse-event blocking at opacity 0
 - [Phase 07-security-hardening]: AirPlay/DLNA use synchronous checkConnection (non-Qt protocol threads); Cast uses checkConnectionAsync (Qt main thread avoids event loop deadlock)
-- [Phase 07-security-hardening]: display_pin callback is no-op in MyAirShow — PIN display driven by QML bindings to AppSettings, not UxPlay runtime callback
+- [Phase 07-security-hardening]: display_pin callback is no-op in AirShow — PIN display driven by QML bindings to AppSettings, not UxPlay runtime callback
 - [Phase 08-miracast]: parseSourceReady() and buildRtspResponse() exposed as public static methods for unit testability (same pattern as DlnaHandler::parseTimeString)
 - [Phase 08-miracast]: _display._tcp mDNS advertisement added to DiscoveryManager with VerMgmt/VerMin TXT records from MS-MICE spec revision 6.0
 - [Phase 08-miracast]: m_miracastPipeline is a separate GstElement* member consistent with m_uriPipeline and m_webrtcPipeline isolation pattern

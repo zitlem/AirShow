@@ -26,7 +26,7 @@
 // Cast auth warning
 #include "cast/cast_auth_sigs.h"
 
-namespace myairshow {
+namespace airshow {
 
 // ── CastHandler ───────────────────────────────────────────────────────────────
 
@@ -233,10 +233,10 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
 
     X509_set_pubkey(cert, pkey);
 
-    // Set subject and issuer to CN=MyAirShow (self-signed)
+    // Set subject and issuer to CN=AirShow (self-signed)
     X509_NAME* name = X509_get_subject_name(cert);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               reinterpret_cast<const unsigned char*>("MyAirShow"),
+                               reinterpret_cast<const unsigned char*>("AirShow"),
                                -1, -1, 0);
     X509_set_issuer_name(cert, name);  // self-signed: issuer == subject
 
@@ -300,4 +300,4 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     return {qCert, qKey};
 }
 
-} // namespace myairshow
+} // namespace airshow

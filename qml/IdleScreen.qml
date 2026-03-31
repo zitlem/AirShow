@@ -19,7 +19,7 @@ Item {
 
         // App name — D-08
         Text {
-            text: "MyAirShow"
+            text: "AirShow"
             color: "white"
             font.pixelSize: 48
             font.family: "sans-serif"

@@ -2,7 +2,7 @@
 #include "protocol/ProtocolHandler.h"
 #include <glib.h>   // g_warning
 
-namespace myairshow {
+namespace airshow {
 
 ProtocolManager::ProtocolManager(MediaPipeline* pipeline)
     : m_pipeline(pipeline) {}
@@ -39,4 +39,4 @@ std::size_t ProtocolManager::handlerCount() const {
     return m_handlers.size();
 }
 
-} // namespace myairshow
+} // namespace airshow

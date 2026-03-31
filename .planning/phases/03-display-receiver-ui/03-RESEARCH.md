@@ -27,7 +27,7 @@ The HUD overlay (DISP-02) and idle screen (DISP-03) are purely QML: `Item` overl
 - **D-05:** HUD auto-hides after 3 seconds of no state change, reappears on new connection or disconnection
 - **D-06:** Position at the top of the screen, horizontally centred, with subtle fade-in/fade-out animation
 - **D-07:** Show protocol icon (small) next to device name — use simple text/emoji indicators, not image assets
-- **D-08:** Dark background (black) with app name "MyAirShow", receiver name (from AppSettings), and "Waiting for connection..." text
+- **D-08:** Dark background (black) with app name "AirShow", receiver name (from AppSettings), and "Waiting for connection..." text
 - **D-09:** Idle screen is visible when no mirroring session is active. Hides when content starts, reappears when session ends
 - **D-10:** Receiver name updates live if changed in settings (bind to AppSettings.receiverName)
 - **D-11:** Minimal animation — subtle opacity pulse on the "Waiting..." text to show the app is alive
@@ -239,7 +239,7 @@ Item {
         spacing: 16
 
         Text {
-            text: "MyAirShow"
+            text: "AirShow"
             color: "white"
             font.pixelSize: 48
             font.family: "sans-serif"
@@ -285,8 +285,8 @@ Receiver name binding requires `AppSettings` to be exposed as a context property
 
 ```cmake
 # Source: Qt6 official docs — qt_add_qml_module QML_FILES
-qt_add_qml_module(myairshow
-  URI MyAirShow
+qt_add_qml_module(airshow
+  URI AirShow
   VERSION 1.0
   QML_FILES
     qml/main.qml
@@ -370,7 +370,7 @@ Component files must start with a capital letter to be used as QML components by
 #include <QObject>
 #include <QString>
 
-namespace myairshow {
+namespace airshow {
 
 class ConnectionBridge : public QObject {
     Q_OBJECT
@@ -400,7 +400,7 @@ private:
     QString m_protocol;
 };
 
-} // namespace myairshow
+} // namespace airshow
 ```
 
 ### ReceiverWindow::load() Integration Point
@@ -415,7 +415,7 @@ auto* settingsBridge = new SettingsBridge(m_settings, &m_engine);
 m_engine.rootContext()->setContextProperty("appSettings", settingsBridge);
 
 // THEN load QML (all context properties must exist before load):
-m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/MyAirShow/qml/main.qml")));
+m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/AirShow/qml/main.qml")));
 ```
 
 ### GstGLQt6VideoItem with explicit forceAspectRatio
@@ -435,8 +435,8 @@ GstGLQt6VideoItem {
 ```cmake
 # CMakeLists.txt — add new QML component files
 # Source: Qt6 docs — qt_add_qml_module QML_FILES
-qt_add_qml_module(myairshow
-  URI MyAirShow
+qt_add_qml_module(airshow
+  URI AirShow
   VERSION 1.0
   QML_FILES
     qml/main.qml

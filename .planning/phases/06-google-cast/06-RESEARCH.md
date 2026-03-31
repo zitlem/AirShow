@@ -54,8 +54,8 @@ None — discussion stayed within phase scope.
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| CAST-01 | User can cast their Android device screen to MyAirShow via Google Cast | CASTV2 TLS server + auth bypass pattern documented; WebRTC VP8/Opus pipeline via GStreamer webrtcbin confirmed available; Android connectivity depends on auth approach |
-| CAST-02 | User can cast a Chrome browser tab to MyAirShow via Google Cast | Chrome uses `enforce_nonce_checking=false` making auth bypass viable; Chrome Mirroring app uses `urn:x-cast:com.google.cast.webrtc` namespace with VP8/Opus |
+| CAST-01 | User can cast their Android device screen to AirShow via Google Cast | CASTV2 TLS server + auth bypass pattern documented; WebRTC VP8/Opus pipeline via GStreamer webrtcbin confirmed available; Android connectivity depends on auth approach |
+| CAST-02 | User can cast a Chrome browser tab to AirShow via Google Cast | Chrome uses `enforce_nonce_checking=false` making auth bypass viable; Chrome Mirroring app uses `urn:x-cast:com.google.cast.webrtc` namespace with VP8/Opus |
 | CAST-03 | Google Cast mirroring includes synchronized audio and video | GStreamer webrtcbin handles DTLS/SRTP/RTP transport with ICE; shared pipeline clock ensures A/V sync |
 </phase_requirements>
 
@@ -574,7 +574,7 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     X509_set_pubkey(x509, pkey);
     X509_NAME* name = X509_get_subject_name(x509);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-        (const unsigned char*)"MyAirShow", -1, -1, 0);
+        (const unsigned char*)"AirShow", -1, -1, 0);
     X509_set_issuer_name(x509, name);
     X509_sign(x509, pkey, EVP_sha256());
 
@@ -692,7 +692,7 @@ gst_webrtc_session_description_free(offer);
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
 | CAST-01 | Android device connects and streams VP8/Opus to receiver | Integration / Manual | Manual: connect Android device to Cast menu | Manual only (requires device) |
-| CAST-02 | Chrome tab cast connects, streams VP8/Opus, displays video | Integration / Manual | Manual: Chrome Cast tab to MyAirShow | Manual only (requires Chrome) |
+| CAST-02 | Chrome tab cast connects, streams VP8/Opus, displays video | Integration / Manual | Manual: Chrome Cast tab to AirShow | Manual only (requires Chrome) |
 | CAST-03 | A/V sync maintained during Cast session | Integration / Manual | Manual: cast video with known sync marker | Manual only |
 | CAST-01/02 | CASTV2 framing (read/write length-prefixed protobuf) | Unit | `ctest -R test_cast` | ❌ Wave 0 |
 | CAST-01/02 | Namespace dispatcher routes messages correctly | Unit | `ctest -R test_cast` | ❌ Wave 0 |

@@ -4,7 +4,7 @@
 #include <QStringList>
 #include "settings/AppSettings.h"
 
-namespace myairshow {
+namespace airshow {
 
 // QObject bridge that exposes application settings to QML via Q_PROPERTY.
 // QML binds to appSettings.receiverName; the value is read from AppSettings
@@ -80,4 +80,4 @@ private:
     AppSettings& m_settings;
 };
 
-} // namespace myairshow
+} // namespace airshow

@@ -46,7 +46,7 @@ metrics:
 
 # Phase 4 Plan 1: AirPlay Foundation Summary
 
-UxPlay v1.73.5 embedded as a git submodule with `airplay` static library linked into myairshow; GStreamer `appsrc`-based pipeline added to `MediaPipeline` for H.264/AAC injection; `ServiceAdvertiser.updateTxtRecord()` API added for post-start TXT record updates; `test_airplay` scaffold compiles and passes.
+UxPlay v1.73.5 embedded as a git submodule with `airplay` static library linked into airshow; GStreamer `appsrc`-based pipeline added to `MediaPipeline` for H.264/AAC injection; `ServiceAdvertiser.updateTxtRecord()` API added for post-start TXT record updates; `test_airplay` scaffold compiles and passes.
 
 ## What Was Built
 

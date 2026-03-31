@@ -16,8 +16,8 @@ Implement AirPlay screen mirroring reception from iOS, iPadOS, and macOS devices
 ### UxPlay Integration
 - **D-01:** Embed UxPlay 1.73.x as a Git submodule and extract its core server logic (RAOP server, mirroring handler, FairPlay auth from the `lib/` directory) into a linkable library target
 - **D-02:** Create `AirPlayHandler : ProtocolHandler` in `src/protocol/AirPlayHandler.h` that wraps UxPlay's RAOP server and implements `start()`, `stop()`, `setMediaPipeline()`
-- **D-03:** UxPlay's GStreamer rendering code is replaced — instead, decoded A/V frames are fed into MyAirShow's shared `MediaPipeline` via `appsrc` injection (Phase 1 D-05)
-- **D-04:** UxPlay's own service advertisement code is bypassed — MyAirShow's `DiscoveryManager` (Phase 2) already handles `_airplay._tcp` and `_raop._tcp` advertisement
+- **D-03:** UxPlay's GStreamer rendering code is replaced — instead, decoded A/V frames are fed into AirShow's shared `MediaPipeline` via `appsrc` injection (Phase 1 D-05)
+- **D-04:** UxPlay's own service advertisement code is bypassed — AirShow's `DiscoveryManager` (Phase 2) already handles `_airplay._tcp` and `_raop._tcp` advertisement
 
 ### AirPlay Authentication
 - **D-05:** Use UxPlay's built-in FairPlay SRP authentication implementation — no custom crypto needed

@@ -5,8 +5,8 @@ status: human_needed
 score: 9/10 must-haves verified
 re_verification: false
 human_verification:
-  - test: "Launch ./build/linux-debug/myairshow and observe the idle screen"
-    expected: "Black screen shows 'MyAirShow' (large), receiver name below it, and 'Waiting for connection...' text pulsing continuously"
+  - test: "Launch ./build/linux-debug/airshow and observe the idle screen"
+    expected: "Black screen shows 'AirShow' (large), receiver name below it, and 'Waiting for connection...' text pulsing continuously"
     why_human: "SequentialAnimation opacity pulse and live appSettings.receiverName binding cannot be verified without running the QML engine"
   - test: "Trigger a connection event (call ConnectionBridge::setConnected from a test harness or debug button) and observe the HUD"
     expected: "Idle screen disappears, HUD fades in at top-center with protocol emoji + device name + ' via ' + protocol; HUD fades out after 3 seconds"
@@ -37,7 +37,7 @@ human_verification:
 | 6  | SettingsBridge.cpp compiles and test_settings_bridge test passes GREEN | VERIFIED | ctest: test_settings_bridge_receiver_name PASSED |
 | 7  | ReceiverWindow::load() sets connectionBridge and appSettings context properties before engine.load() | VERIFIED | Lines 30/35/40 (setContextProperty) precede line 43 (engine.load) in ReceiverWindow.cpp |
 | 8  | Mirrored video fills window with letterbox bars — forceAspectRatio enforced | VERIFIED (code) | `forceAspectRatio: true` present in qml/main.qml line 22; no `fillMode` usage found |
-| 9  | When no device is connected, idle screen shows 'MyAirShow', receiver name, and pulsing 'Waiting for connection...' | NEEDS HUMAN | IdleScreen.qml code is correct and wired; runtime visual behavior unverifiable programmatically |
+| 9  | When no device is connected, idle screen shows 'AirShow', receiver name, and pulsing 'Waiting for connection...' | NEEDS HUMAN | IdleScreen.qml code is correct and wired; runtime visual behavior unverifiable programmatically |
 | 10 | When a device connects, idle screen hides and HUD appears showing device name and protocol, then auto-hides after 3s | NEEDS HUMAN | HudOverlay.qml code is correct and wired; animation/timer behavior requires visual confirmation |
 
 **Score:** 8 automated + 2 human-required = 10 truths total. 8/10 verified programmatically.
@@ -48,8 +48,8 @@ human_verification:
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `src/ui/ConnectionBridge.h` | Q_PROPERTY contract for connected/deviceName/protocol | VERIFIED | All 3 Q_PROPERTYs present; setConnected() declared; namespace myairshow |
-| `src/ui/SettingsBridge.h` | Q_PROPERTY contract for receiverName with NOTIFY | VERIFIED | Q_PROPERTY present; AppSettings& constructor; namespace myairshow |
+| `src/ui/ConnectionBridge.h` | Q_PROPERTY contract for connected/deviceName/protocol | VERIFIED | All 3 Q_PROPERTYs present; setConnected() declared; namespace airshow |
+| `src/ui/SettingsBridge.h` | Q_PROPERTY contract for receiverName with NOTIFY | VERIFIED | Q_PROPERTY present; AppSettings& constructor; namespace airshow |
 | `src/ui/ConnectionBridge.cpp` | setConnected() implementation with atomic triple-emit | VERIFIED | Disconnected-state invariant enforced; all 3 emit statements present |
 | `src/ui/SettingsBridge.cpp` | receiverName() delegation to AppSettings | VERIFIED | `return m_settings.receiverName()` confirmed |
 | `src/ui/ReceiverWindow.cpp` | connectionBridge and appSettings wired before engine.load() | VERIFIED | Both setContextProperty calls at lines 35/40, engine.load() at line 43 |
@@ -112,7 +112,7 @@ human_verification:
 |-------------|------------|-------------|--------|----------|
 | DISP-01 | 03-01, 03-03 | Mirrored content displays fullscreen with correct aspect ratio (letterboxed if needed) | SATISFIED (code) / NEEDS HUMAN (visual) | `forceAspectRatio: true` in main.qml line 22; GstGLQt6VideoItem fills parent; no fillMode used. Runtime visual verification required for full satisfaction. |
 | DISP-02 | 03-01, 03-02, 03-03 | Application shows connection status (waiting/connected/device name/protocol) | SATISFIED (code) / NEEDS HUMAN (visual) | HudOverlay.qml wired to connectionBridge; shows deviceName + protocol with emoji; fades in on connection events. Runtime HUD visual behavior requires human check. |
-| DISP-03 | 03-01, 03-02, 03-03 | Application shows an idle/waiting screen when no device is connected | SATISFIED (code) / NEEDS HUMAN (visual) | IdleScreen.qml: visible:!connectionBridge.connected; shows "MyAirShow", appSettings.receiverName, pulsing "Waiting for connection...". Runtime animation requires human check. |
+| DISP-03 | 03-01, 03-02, 03-03 | Application shows an idle/waiting screen when no device is connected | SATISFIED (code) / NEEDS HUMAN (visual) | IdleScreen.qml: visible:!connectionBridge.connected; shows "AirShow", appSettings.receiverName, pulsing "Waiting for connection...". Runtime animation requires human check. |
 
 No orphaned requirements — all three DISP IDs claimed by plans 03-01 and 03-03 are accounted for.
 
@@ -133,8 +133,8 @@ No blockers or warnings found.
 
 #### 1. Idle Screen Visual Correctness (DISP-03)
 
-**Test:** Launch `./build/linux-debug/myairshow`
-**Expected:** Black screen with "MyAirShow" centered (large white text), receiver name below it (grey, medium text), and "Waiting for connection..." text pulsing slowly in and out (opacity cycling between 0.3 and 1.0 continuously)
+**Test:** Launch `./build/linux-debug/airshow`
+**Expected:** Black screen with "AirShow" centered (large white text), receiver name below it (grey, medium text), and "Waiting for connection..." text pulsing slowly in and out (opacity cycling between 0.3 and 1.0 continuously)
 **Why human:** The `SequentialAnimation on opacity { running: idleScreen.visible; loops: Animation.Infinite }` guard and the live binding to `appSettings.receiverName` require a running QML engine to confirm
 
 #### 2. Connection Status HUD Behavior (DISP-02)

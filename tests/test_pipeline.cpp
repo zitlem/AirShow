@@ -27,7 +27,7 @@ protected:
 
 // FOUND-04: Mute toggle sets volume to 0; unmute restores to 1.0
 TEST_F(PipelineTest, test_mute_toggle) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
     // Default state: not muted
     EXPECT_FALSE(pipeline.isMuted());
     // Mute
@@ -40,7 +40,7 @@ TEST_F(PipelineTest, test_mute_toggle) {
 
 // FOUND-02: GStreamer pipeline renders videotestsrc frames
 TEST_F(PipelineTest, test_video_pipeline) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
     // init with nullptr qmlVideoItem — qml6glsink logs a warning but must not crash
     bool ok = pipeline.init(nullptr);
     ASSERT_TRUE(ok) << "MediaPipeline::init() failed — check GStreamer plugin availability";
@@ -64,7 +64,7 @@ TEST_F(PipelineTest, test_video_pipeline) {
 
 // FOUND-03: audiotestsrc plays through autoaudiosink
 TEST_F(PipelineTest, test_audio_pipeline) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
     bool ok = pipeline.init(nullptr);
     ASSERT_TRUE(ok) << "MediaPipeline::init() failed — audio branch unavailable";
     // init() success implies autoaudiosink element was created and linked.
@@ -75,15 +75,15 @@ TEST_F(PipelineTest, test_audio_pipeline) {
 
 // FOUND-05: decodebin selects a decoder and logs its name
 TEST_F(PipelineTest, test_decoder_detection) {
-    myairshow::MediaPipeline pipeline;
+    airshow::MediaPipeline pipeline;
 
     // Register callback to capture decoder name
     std::string capturedDecoderName;
-    myairshow::DecoderType capturedType = myairshow::DecoderType::Software;
+    airshow::DecoderType capturedType = airshow::DecoderType::Software;
     bool callbackFired = false;
 
     pipeline.setDecoderSelectedCallback(
-        [&](const myairshow::DecoderInfo& info) {
+        [&](const airshow::DecoderInfo& info) {
             capturedDecoderName = info.elementName;
             capturedType        = info.type;
             callbackFired       = true;
@@ -124,7 +124,7 @@ TEST_F(PipelineTest, test_decoder_detection) {
         << " — add it to knownDecoders if it is a valid hardware decoder";
 
     // Log which path was taken (informational)
-    if (pipeline.activeDecoder()->type == myairshow::DecoderType::Hardware) {
+    if (pipeline.activeDecoder()->type == airshow::DecoderType::Hardware) {
         std::cout << "[INFO] Hardware decoder selected: " << name << std::endl;
     } else {
         std::cout << "[INFO] Software decoder selected: " << name

@@ -116,7 +116,7 @@ completed: 2026-03-29
 - **Issue:** libprotobuf-dev package not installed; no system protoc binary; required for protobuf_generate_cpp
 - **Fix:** Downloaded packages with `apt-get download`, extracted with `dpkg-deb -x` to /tmp/protobuf-dev. Created /tmp/protoc-wrapper.sh to set LD_LIBRARY_PATH. Configured CMake with -DProtobuf_PROTOC_EXECUTABLE pointing to wrapper.
 - **Files modified:** CMakeLists.txt (CMAKE_PREFIX_PATH addition)
-- **Verification:** `protoc --version` returns `libprotoc 3.21.12`; `ninja myairshow` succeeds with proto codegen
+- **Verification:** `protoc --version` returns `libprotoc 3.21.12`; `ninja airshow` succeeds with proto codegen
 - **Committed in:** 6ffeafe (part of Task 1 commit)
 
 **2. [Rule 1 - Bug] QStringLiteral cannot accept const char* variables**

@@ -14,7 +14,7 @@ namespace extensions::api::cast_channel {
 class CastMessage;
 }
 
-namespace myairshow {
+namespace airshow {
 
 class ConnectionBridge;
 class MediaPipeline;
@@ -105,4 +105,4 @@ private:
     QString    m_senderName;    // populated on CONNECT message
 };
 
-} // namespace myairshow
+} // namespace airshow

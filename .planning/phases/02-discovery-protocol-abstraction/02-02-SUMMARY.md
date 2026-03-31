@@ -40,7 +40,7 @@ metrics:
 
 # Phase 02 Plan 02: Avahi mDNS Backend + DiscoveryManager Summary
 
-Avahi Linux mDNS backend advertising _airplay._tcp, _raop._tcp, and _googlecast._tcp services using exact TXT record values from RESEARCH.md, wired into application startup so MyAirShow appears in AirPlay and Cast device pickers on the LAN.
+Avahi Linux mDNS backend advertising _airplay._tcp, _raop._tcp, and _googlecast._tcp services using exact TXT record values from RESEARCH.md, wired into application startup so AirShow appears in AirPlay and Cast device pickers on the LAN.
 
 ## Tasks Completed
 
@@ -54,7 +54,7 @@ Avahi Linux mDNS backend advertising _airplay._tcp, _raop._tcp, and _googlecast.
 **AvahiAdvertiser** (`src/discovery/AvahiAdvertiser.h/.cpp`):
 - Implements `ServiceAdvertiser` interface using `AvahiThreadedPoll` (non-blocking, separate thread from Qt event loop)
 - Thread-safe: all entry group operations performed under `avahi_threaded_poll_lock()`
-- `AVAHI_ENTRY_GROUP_COLLISION` handled via `avahi_alternative_service_name()` — two MyAirShow instances on LAN will self-rename
+- `AVAHI_ENTRY_GROUP_COLLISION` handled via `avahi_alternative_service_name()` — two AirShow instances on LAN will self-rename
 - `AVAHI_CLIENT_FAILURE` logs actionable `g_critical` message: "Start avahi-daemon with: sudo systemctl start avahi-daemon"
 - Multiple services accumulated before commit — single `avahi_entry_group_commit()` registers all records atomically
 
@@ -70,7 +70,7 @@ Avahi Linux mDNS backend advertising _airplay._tcp, _raop._tcp, and _googlecast.
 - `getOrCreateUuid()`: stable identity across restarts via `QSettings`
 
 **Application wiring** (`src/main.cpp`):
-- `setOrganizationName("MyAirShow")` + `setApplicationName("MyAirShow")` before `QGuiApplication` construction
+- `setOrganizationName("AirShow")` + `setApplicationName("AirShow")` before `QGuiApplication` construction
 - `AppSettings` + `DiscoveryManager` instantiated before `app.exec()`
 - Non-fatal `qWarning` if `discovery.start()` returns false (no crash on Linux without avahi-daemon)
 

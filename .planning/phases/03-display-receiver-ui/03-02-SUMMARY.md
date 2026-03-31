@@ -32,7 +32,7 @@ key_files:
 decisions:
   - ConnectionBridge::setConnected() clears deviceName and protocol unconditionally on disconnect — enforces invariant that disconnected state has no device info
   - SettingsBridge::receiverNameChanged() declared but not emitted in Phase 3 — Phase 7 will wire live updates (D-10 forward-compatible hook)
-  - ConnectionBridge.cpp and SettingsBridge.cpp added to myairshow qt_add_executable source list (Rule 3 fix — main target failed to link without them)
+  - ConnectionBridge.cpp and SettingsBridge.cpp added to airshow qt_add_executable source list (Rule 3 fix — main target failed to link without them)
 metrics:
   duration: "2m"
   completed: "2026-03-28"
@@ -94,11 +94,11 @@ Two C++ implementation files completing the QObject bridge contracts defined in 
 
 ### Auto-fixed Issues
 
-**1. [Rule 3 - Blocking] Added ConnectionBridge.cpp and SettingsBridge.cpp to CMakeLists.txt myairshow target**
+**1. [Rule 3 - Blocking] Added ConnectionBridge.cpp and SettingsBridge.cpp to CMakeLists.txt airshow target**
 
 - **Found during:** Task 2 — full project build
-- **Issue:** The `qt_add_executable(myairshow ...)` source list in CMakeLists.txt did not include the new `.cpp` files, causing undefined reference linker errors when ReceiverWindow.cpp included and used ConnectionBridge and SettingsBridge
-- **Fix:** Added `src/ui/ConnectionBridge.cpp` and `src/ui/SettingsBridge.cpp` to the myairshow target source list in CMakeLists.txt
+- **Issue:** The `qt_add_executable(airshow ...)` source list in CMakeLists.txt did not include the new `.cpp` files, causing undefined reference linker errors when ReceiverWindow.cpp included and used ConnectionBridge and SettingsBridge
+- **Fix:** Added `src/ui/ConnectionBridge.cpp` and `src/ui/SettingsBridge.cpp` to the airshow target source list in CMakeLists.txt
 - **Files modified:** CMakeLists.txt
 - **Commit:** 4f0c16e
 

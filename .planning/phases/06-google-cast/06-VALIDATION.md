@@ -38,12 +38,12 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 06-01-T1 | 01 | 1 | CAST-01, CAST-02 | build | `ninja myairshow` | creates src | pending |
+| 06-01-T1 | 01 | 1 | CAST-01, CAST-02 | build | `ninja airshow` | creates src | pending |
 | 06-01-T2 | 01 | 1 | CAST-01, CAST-02 | unit | `ninja test_cast && ctest -R test_cast` | creates tests | pending |
-| 06-02-T1 | 02 | 2 | CAST-01, CAST-02, CAST-03 | build | `ninja myairshow` | exists | pending |
+| 06-02-T1 | 02 | 2 | CAST-01, CAST-02, CAST-03 | build | `ninja airshow` | exists | pending |
 | 06-02-T2 | 02 | 2 | CAST-01, CAST-02 | unit | `ninja test_cast && ctest -R test_cast` | exists | pending |
-| 06-03-T1 | 03 | 3 | CAST-01, CAST-02, CAST-03 | integration | `ninja myairshow && ctest -R test_cast` | exists | pending |
-| 06-03-T2 | 03 | 3 | CAST-01, CAST-02, CAST-03 | human-verify | `./myairshow --help` | exists | pending |
+| 06-03-T1 | 03 | 3 | CAST-01, CAST-02, CAST-03 | integration | `ninja airshow && ctest -R test_cast` | exists | pending |
+| 06-03-T2 | 03 | 3 | CAST-01, CAST-02, CAST-03 | human-verify | `./airshow --help` | exists | pending |
 
 ---
 
@@ -60,7 +60,7 @@ created: 2026-03-29
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Android discovers and casts to MyAirShow | CAST-01 | Requires real Android device | 1. Start MyAirShow 2. Open Cast menu on Android 3. Select LVMS |
+| Android discovers and casts to AirShow | CAST-01 | Requires real Android device | 1. Start AirShow 2. Open Cast menu on Android 3. Select LVMS |
 | Chrome tab cast works | CAST-02 | Requires Chrome browser | 1. Open Chrome 2. Cast tab 3. Select LVMS |
 | Audio plays in sync with video | CAST-03 | Requires real media stream | 1. Cast content 2. Verify A/V sync |
 

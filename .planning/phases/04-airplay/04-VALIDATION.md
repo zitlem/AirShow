@@ -38,9 +38,9 @@ created: 2026-03-28
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 04-01-01 | 01 | 1 | AIRP-01 | build | `cmake --build build --target myairshow 2>&1 \| tail -30` | n/a (build check) | ⬜ pending |
+| 04-01-01 | 01 | 1 | AIRP-01 | build | `cmake --build build --target airshow 2>&1 \| tail -30` | n/a (build check) | ⬜ pending |
 | 04-01-02 | 01 | 1 | AIRP-03 | unit | `ctest -R test_airplay -V` | ❌ W0 | ⬜ pending |
-| 04-02-01 | 02 | 2 | AIRP-01 | build | `cmake --build build --target myairshow 2>&1 \| tail -30` | n/a (build check) | ⬜ pending |
+| 04-02-01 | 02 | 2 | AIRP-01 | build | `cmake --build build --target airshow 2>&1 \| tail -30` | n/a (build check) | ⬜ pending |
 | 04-02-02 | 02 | 2 | AIRP-03 | build + grep | `cmake --build build && grep "readPublicKeyFromKeyfile" src/protocol/AirPlayHandler.cpp` | n/a | ⬜ pending |
 | 04-03-01 | 03 | 3 | AIRP-04 | unit + build | `ctest -R test_airplay -V` | ❌ W0 | ⬜ pending |
 | 04-03-02 | 03 | 3 | AIRP-01,02,03 | manual | Human verify with Apple device | n/a | ⬜ pending |
@@ -65,8 +65,8 @@ created: 2026-03-28
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| iPhone/iPad mirroring to MyAirShow | AIRP-01 | Requires real iOS device and AirPlay protocol handshake | 1. Open Control Center on iPhone/iPad 2. Tap Screen Mirroring 3. Select MyAirShow 4. Verify screen appears on receiver within 3 seconds |
-| macOS mirroring to MyAirShow | AIRP-02 | Requires real Mac and AirPlay connection | 1. Open System Settings > Displays 2. Select MyAirShow as AirPlay display 3. Verify desktop mirrors to receiver |
+| iPhone/iPad mirroring to AirShow | AIRP-01 | Requires real iOS device and AirPlay protocol handshake | 1. Open Control Center on iPhone/iPad 2. Tap Screen Mirroring 3. Select AirShow 4. Verify screen appears on receiver within 3 seconds |
+| macOS mirroring to AirShow | AIRP-02 | Requires real Mac and AirPlay connection | 1. Open System Settings > Displays 2. Select AirShow as AirPlay display 3. Verify desktop mirrors to receiver |
 | 30-minute session stability | AIRP-04 | Duration testing with real device | 1. Start AirPlay mirror from iPhone 2. Leave running for 30 minutes 3. Verify no A/V drift and no connection drops |
 
 ---

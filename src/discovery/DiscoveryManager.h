@@ -2,7 +2,7 @@
 #include <memory>
 #include <string>
 
-namespace myairshow {
+namespace airshow {
 
 class ServiceAdvertiser;
 class AppSettings;
@@ -55,4 +55,4 @@ private:
     static std::string getOrCreateUuid(const std::string& settingsKey);
 };
 
-} // namespace myairshow
+} // namespace airshow

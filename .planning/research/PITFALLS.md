@@ -236,7 +236,7 @@ Architecture phase, before any protocol implementation. This is the single most 
 | Receiver window appears before first frame is decoded | Black window with no feedback; user thinks app crashed | Show "Waiting for stream..." placeholder with device name; only go fullscreen on first keyframe |
 | No feedback when discovery fails | User has no idea receiver is invisible; tries rebooting | Show persistent "visible on network as [Name]" status indicator; turn red with diagnostic link when mDNS is not working |
 | Full-screen takeover without escape route | User cannot get back to desktop during presentation; panics | Always show a corner hint: "Press ESC to exit mirroring" |
-| Receiver name collides with existing AirServer/Apple TV | User selects wrong device; confused why it "doesn't work" | Default name to `hostname (MyAirShow)`; allow rename in settings |
+| Receiver name collides with existing AirServer/Apple TV | User selects wrong device; confused why it "doesn't work" | Default name to `hostname (AirShow)`; allow rename in settings |
 | No audio confirmation when stream starts | Silent black screen; user thinks mirroring is broken | Play a brief audio cue (or show a visible "Connected" banner) when stream is first received |
 | Abrupt disconnect with no recovery | 1-second Wi-Fi hiccup kills session permanently | Implement automatic reconnection with 10-second grace window before declaring disconnect |
 

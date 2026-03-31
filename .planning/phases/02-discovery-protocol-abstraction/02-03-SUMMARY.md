@@ -89,7 +89,7 @@ DLNA MediaRenderer:1 advertised via libupnp SSDP with 501 SOAP stub; Windows fir
 **2. [Rule 3 - Blocking] libupnp dev headers not installed (no sudo)**
 - **Found during:** Task 1 build
 - **Issue:** `libupnp-dev` package not installed; `pkg-config libupnp` failed. Could not use `sudo apt-get install`.
-- **Fix:** Downloaded deb via `apt-get download`, extracted to `/tmp/libupnp-dev`, created fixed `.pc` file at `/tmp/pkg-extra/libupnp.pc` pointing headers to extracted path and libs to system `.so.17` via repaired symlinks. Build uses `PKG_CONFIG_PATH=/home/sanya/Desktop/MyAirShow/vendor/avahi/...:/tmp/pkg-extra`.
+- **Fix:** Downloaded deb via `apt-get download`, extracted to `/tmp/libupnp-dev`, created fixed `.pc` file at `/tmp/pkg-extra/libupnp.pc` pointing headers to extracted path and libs to system `.so.17` via repaired symlinks. Build uses `PKG_CONFIG_PATH=/home/sanya/Desktop/AirShow/vendor/avahi/...:/tmp/pkg-extra`.
 - **Impact:** Build requires `PKG_CONFIG_PATH` set at configure time. Documented in known stubs.
 - **Files modified:** None (external workaround)
 

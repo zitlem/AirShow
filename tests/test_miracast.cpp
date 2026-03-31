@@ -14,7 +14,7 @@
 #include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
 
-using namespace myairshow;
+using namespace airshow;
 
 // ── Test environment: QCoreApplication ───────────────────────────────────────
 // QCoreApplication must be created before any QObject (MiracastHandler is QObject).

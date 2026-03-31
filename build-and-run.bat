@@ -1,5 +1,5 @@
 @echo off
-REM MyAirShow — Build and Run (Windows / MSYS2 MinGW-64)
+REM AirShow — Build and Run (Windows / MSYS2 MinGW-64)
 setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
@@ -8,7 +8,7 @@ cd /d "%SCRIPT_DIR%"
 set "PRESET=windows-msys2-debug"
 set "BUILD_DIR=build\windows-debug"
 
-echo === MyAirShow Build ^& Run ===
+echo === AirShow Build ^& Run ===
 echo Platform: Windows (MSYS2 MinGW-64)
 echo Preset:   %PRESET%
 echo Build:    %BUILD_DIR%
@@ -55,7 +55,7 @@ if not exist "%BUILD_DIR%\build.ninja" (
 
 REM --- Build ---
 echo === Building ===
-cmake --build %BUILD_DIR% --target myairshow
+cmake --build %BUILD_DIR% --target airshow
 if errorlevel 1 (
     echo ERROR: Build failed.
     exit /b 1
@@ -63,13 +63,13 @@ if errorlevel 1 (
 echo.
 
 REM --- Run ---
-set "BINARY=%BUILD_DIR%\myairshow.exe"
+set "BINARY=%BUILD_DIR%\airshow.exe"
 if not exist "%BINARY%" (
     echo ERROR: Binary not found at %BINARY%
     exit /b 1
 )
 
-echo === Running MyAirShow ===
+echo === Running AirShow ===
 echo Press Ctrl+C to stop.
 echo.
 "%BINARY%" %*

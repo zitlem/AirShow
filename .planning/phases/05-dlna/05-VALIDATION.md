@@ -61,7 +61,7 @@ created: 2026-03-28
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| BubbleUPnP discovers MyAirShow as DMR | DLNA-03 | Requires real DLNA controller app | 1. Start MyAirShow 2. Open BubbleUPnP 3. Check renderer list |
+| BubbleUPnP discovers AirShow as DMR | DLNA-03 | Requires real DLNA controller app | 1. Start AirShow 2. Open BubbleUPnP 3. Check renderer list |
 | Video push plays on receiver | DLNA-01 | Requires real media file + controller | 1. Push MP4 via BubbleUPnP 2. Verify video+audio plays |
 | Audio push plays on receiver | DLNA-02 | Requires real audio file + controller | 1. Push MP3 via BubbleUPnP 2. Verify audio plays through speakers |
 

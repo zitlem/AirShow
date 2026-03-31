@@ -56,7 +56,7 @@ QML-only implementation of all three receiver UI visual features: forceAspectRat
 
 ### DISP-03: Idle/Waiting Screen (IdleScreen.qml)
 - Full-screen `Item` with `visible: !connectionBridge.connected` (D-09)
-- Black `Rectangle` background, white text hierarchy: "MyAirShow" (48px) → receiverName (28px, #CCC) → "Waiting for connection..." (22px)
+- Black `Rectangle` background, white text hierarchy: "AirShow" (48px) → receiverName (28px, #CCC) → "Waiting for connection..." (22px)
 - `appSettings.receiverName` live-bound via SettingsBridge context property (D-10)
 - `SequentialAnimation on opacity` with `running: idleScreen.visible` guard (Pitfall 4) — infinite 1.2s InOutSine pulse (D-11)
 

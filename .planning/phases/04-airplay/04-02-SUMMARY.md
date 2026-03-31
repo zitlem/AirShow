@@ -38,7 +38,7 @@ key-decisions:
   - "readPublicKeyFromKeyfile() uses OpenSSL EVP_PKEY to read PEM key (not 64-byte binary) — actual UxPlay crypto.c writes PEM via PEM_write_bio_PrivateKey; plan spec was incorrect"
   - "LANGUAGES C added to project() — required so CMake compiles UxPlay lib/ C source files; previously only mocs_compilation.cpp.o was built causing empty libairplay.a"
   - "void* used for GstElement* and audio/video decode struct pointers in header — GstElement typedef conflicts with forward decl; stream.h types are anonymous structs (cannot be forward-declared)"
-  - "raop_set_dnssd() not called — MyAirShow's DiscoveryManager already advertises _airplay._tcp and _raop._tcp; calling it would cause duplicate mDNS entries (Pitfall 7)"
+  - "raop_set_dnssd() not called — AirShow's DiscoveryManager already advertises _airplay._tcp and _raop._tcp; calling it would cause duplicate mDNS entries (Pitfall 7)"
   - "m_audioCapsSet flag prevents setAudioCaps() re-invocation after first audio_get_format callback (Pitfall 6)"
   - "m_basetimeSet captures basetime once per session on first media frame — whichever arrives first (video or audio) wins (Pitfall 4)"
 
@@ -105,7 +105,7 @@ completed: 2026-03-28
 **2. [Rule 3 - Blocking] libairplay.a was empty — UxPlay C sources not compiled**
 - **Found during:** Task 2 (link step after successful compile)
 - **Issue:** CMake project was declared with `LANGUAGES CXX` only. UxPlay `lib/CMakeLists.txt` uses `aux_source_directory(. play_src)` to gather `.c` files, but without `LANGUAGES C` in the parent project, CMake skips C compilation — producing `libairplay.a` with only `mocs_compilation.cpp.o` (2KB). The link step failed with `undefined reference to raop_init`
-- **Fix:** Changed `project(MyAirShow LANGUAGES CXX)` to `project(MyAirShow LANGUAGES CXX C)` in `CMakeLists.txt`
+- **Fix:** Changed `project(AirShow LANGUAGES CXX)` to `project(AirShow LANGUAGES CXX C)` in `CMakeLists.txt`
 - **Files modified:** `CMakeLists.txt`
 - **Verification:** After reconfigure + rebuild, all 67 targets compiled; binary links successfully
 - **Committed in:** c2f10dd (Task 2 commit)

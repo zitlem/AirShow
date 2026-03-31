@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace myairshow {
+namespace airshow {
 
 // Linux mDNS backend using libavahi-client with AvahiThreadedPoll.
 // Thread safety: all entry group operations are performed from within
@@ -57,5 +57,5 @@ private:
     std::string                  m_activeName;  // may differ from m_services[0].name after collision
 };
 
-} // namespace myairshow
+} // namespace airshow
 #endif // __linux__

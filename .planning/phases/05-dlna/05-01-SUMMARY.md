@@ -147,7 +147,7 @@ These stubs are by design — Plan 01 establishes all contracts and plumbing; Pl
 
 ## Verification
 
-- `ninja myairshow` passes (exit 0)
+- `ninja airshow` passes (exit 0)
 - `ctest -R DlnaHandlerTest --output-on-failure` passes all 7 tests (0 failures, 0 skips)
 - `grep -r "class DlnaHandler" src/` confirms DlnaHandler exists
 - `grep "handleSoapAction" src/discovery/UpnpAdvertiser.cpp` confirms routing

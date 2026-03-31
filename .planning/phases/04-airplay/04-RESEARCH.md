@@ -14,8 +14,8 @@
 **UxPlay Integration**
 - D-01: Embed UxPlay 1.73.x as a Git submodule and extract its core server logic (RAOP server, mirroring handler, FairPlay auth from the `lib/` directory) into a linkable library target
 - D-02: Create `AirPlayHandler : ProtocolHandler` in `src/protocol/AirPlayHandler.h` that wraps UxPlay's RAOP server and implements `start()`, `stop()`, `setMediaPipeline()`
-- D-03: UxPlay's GStreamer rendering code is replaced — instead, decoded A/V frames are fed into MyAirShow's shared `MediaPipeline` via `appsrc` injection (Phase 1 D-05)
-- D-04: UxPlay's own service advertisement code is bypassed — MyAirShow's `DiscoveryManager` (Phase 2) already handles `_airplay._tcp` and `_raop._tcp` advertisement
+- D-03: UxPlay's GStreamer rendering code is replaced — instead, decoded A/V frames are fed into AirShow's shared `MediaPipeline` via `appsrc` injection (Phase 1 D-05)
+- D-04: UxPlay's own service advertisement code is bypassed — AirShow's `DiscoveryManager` (Phase 2) already handles `_airplay._tcp` and `_raop._tcp` advertisement
 
 **AirPlay Authentication**
 - D-05: Use UxPlay's built-in FairPlay SRP authentication implementation — no custom crypto needed
@@ -50,8 +50,8 @@ None — discussion stayed within phase scope
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| AIRP-01 | User can mirror their iPhone/iPad screen to MyAirShow via AirPlay | UxPlay RAOP server handles iOS AirPlay 2 mirroring via `raop_t`; `video_process` callback delivers H.264 NAL units; `conn_init`/`conn_destroy` callbacks manage session lifecycle |
-| AIRP-02 | User can mirror their macOS screen to MyAirShow via AirPlay | Same RAOP code path handles macOS screen mirroring; macOS uses identical AirPlay 2 protocol; no platform-specific deviation needed in the handler |
+| AIRP-01 | User can mirror their iPhone/iPad screen to AirShow via AirPlay | UxPlay RAOP server handles iOS AirPlay 2 mirroring via `raop_t`; `video_process` callback delivers H.264 NAL units; `conn_init`/`conn_destroy` callbacks manage session lifecycle |
+| AIRP-02 | User can mirror their macOS screen to AirShow via AirPlay | Same RAOP code path handles macOS screen mirroring; macOS uses identical AirPlay 2 protocol; no platform-specific deviation needed in the handler |
 | AIRP-03 | AirPlay mirroring includes synchronized audio and video | `audio_process` and `video_process` both receive NTP timestamps (`ntp_time_local`, `ntp_time_remote`) from `raop_ntp_t`; shared GStreamer pipeline clock + synchronized `appsrc` PTS values achieve A/V sync |
 | AIRP-04 | AirPlay connection maintains stable A/V sync during extended sessions | GStreamer pipeline clock as master; `rtpjitterbuffer`-style buffering in UxPlay's `raop_buffer.c`; preserving NTP-derived PTS across both audio and video branches prevents drift |
 </phase_requirements>
@@ -60,7 +60,7 @@ None — discussion stayed within phase scope
 
 ## Summary
 
-Phase 4 is the first live protocol in the MyAirShow stack. The foundation (GStreamer pipeline, Qt window, discovery advertisement, protocol handler interface) is already in place. This phase's job is to wire UxPlay's RAOP server — specifically the C library in its `lib/` directory — into a clean `AirPlayHandler` class that satisfies the `ProtocolHandler` interface and injects encoded A/V frames into the existing `MediaPipeline` via `appsrc`.
+Phase 4 is the first live protocol in the AirShow stack. The foundation (GStreamer pipeline, Qt window, discovery advertisement, protocol handler interface) is already in place. This phase's job is to wire UxPlay's RAOP server — specifically the C library in its `lib/` directory — into a clean `AirPlayHandler` class that satisfies the `ProtocolHandler` interface and injects encoded A/V frames into the existing `MediaPipeline` via `appsrc`.
 
 UxPlay's `lib/` compiles as a static library named `airplay` (confirmed from `lib/CMakeLists.txt`). The top-level `uxplay.cpp` application and the `renderers/` directory are NOT needed — they implement UxPlay's own GStreamer pipeline and CLI, which are explicitly replaced per D-03. The two files to exclude are: `uxplay.cpp` (CLI entry point) and the entire `renderers/` subtree. The target is to use `lib/` only.
 
@@ -131,7 +131,7 @@ vendor/
 
 ### Pattern 1: UxPlay lib/ CMake Integration
 
-**What:** Add `vendor/uxplay` as a submodule. In the root `CMakeLists.txt`, add the UxPlay `lib/` subdirectory after disabling UxPlay's own service-discovery and renderer builds. Link `airplay` (static) into `myairshow`.
+**What:** Add `vendor/uxplay` as a submodule. In the root `CMakeLists.txt`, add the UxPlay `lib/` subdirectory after disabling UxPlay's own service-discovery and renderer builds. Link `airplay` (static) into `airshow`.
 
 **When to use:** Phase 4 build setup. This is the locked approach (D-01).
 
@@ -148,8 +148,8 @@ pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
 add_subdirectory(vendor/uxplay/lib)
 
 # Link airplay into the main target
-target_link_libraries(myairshow PRIVATE airplay PkgConfig::PLIST)
-target_include_directories(myairshow PRIVATE vendor/uxplay/lib)
+target_link_libraries(airshow PRIVATE airplay PkgConfig::PLIST)
+target_include_directories(airshow PRIVATE vendor/uxplay/lib)
 ```
 
 **Caveat:** UxPlay `lib/CMakeLists.txt` uses `aux_source_directory(.)` which includes ALL `.c` files. It also calls its own `find_package(OpenSSL)` and links `playfair` and `llhttp` (which it adds with `add_subdirectory`). Adding `vendor/uxplay/lib` will implicitly require `vendor/uxplay/lib/playfair` and `vendor/uxplay/lib/llhttp` subdirectories — these are already in the submodule.
@@ -321,7 +321,7 @@ void raop_destroy(raop_t *raop);
 | HTTP request parsing | Custom HTTP parser for RTSP-like requests | UxPlay `lib/llhttp/` | AirPlay uses HTTP/1.1 + RTSP hybrid; llhttp handles it; standard HTTP parsers reject RTSP verbs |
 | Buffer jitter management | Custom ring buffer for RTP reorder | UxPlay `lib/raop_buffer.c` | RTP reorder + AirPlay-specific flush semantics; wrong flush = audio artifacts on every seek |
 
-**Key insight:** UxPlay's `lib/` is not just a protocol library — it encodes 10+ years of Apple reverse-engineering fixes for auth edge cases, device compatibility quirks, and iOS version-specific behavior. The only correct approach is to use it verbatim and build MyAirShow's integration around its callback interface.
+**Key insight:** UxPlay's `lib/` is not just a protocol library — it encodes 10+ years of Apple reverse-engineering fixes for auth edge cases, device compatibility quirks, and iOS version-specific behavior. The only correct approach is to use it verbatim and build AirShow's integration around its callback interface.
 
 ---
 
@@ -383,7 +383,7 @@ set(OPENSSL_VERSION "3.0.0")    # satisfy version check (UxPlay only needs >=1.1
 
 **What goes wrong:** `lib/dnssd.c` contains Avahi-based mDNS code. If `raop_init2()` is called in a way that activates DNS-SD registration, it will attempt to register `_airplay._tcp` a second time, causing Avahi to rename it (appending `#2`) or conflict with the existing registration from `DiscoveryManager`.
 
-**How to avoid:** Pass `NULL` for the `dnssd_t` parameter if available, or ensure `raop_init2` does not receive configuration that triggers dnssd registration. Review `uxplay.cpp` to determine whether dnssd initialization is required for `raop_init2` to work or is only needed for the advertisement path that MyAirShow replaces.
+**How to avoid:** Pass `NULL` for the `dnssd_t` parameter if available, or ensure `raop_init2` does not receive configuration that triggers dnssd registration. Review `uxplay.cpp` to determine whether dnssd initialization is required for `raop_init2` to work or is only needed for the advertisement path that AirShow replaces.
 
 ---
 
@@ -505,7 +505,7 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     // Video: appsrc ! h264parse ! [decoder] ! videoconvert ! glupload ! qml6glsink
     // Audio: appsrc ! [aac/alac decoder] ! audioconvert ! audioresample ! autoaudiosink
 
-    GstElement* pipeline   = gst_pipeline_new("myairshow-pipeline");
+    GstElement* pipeline   = gst_pipeline_new("airshow-pipeline");
     GstElement* videoSrc   = gst_element_factory_make("appsrc",      "video_appsrc");
     GstElement* h264parse  = gst_element_factory_make("h264parse",   "h264parse");
     // ... decoder selection (hardware first, avdec_h264 fallback) ...
@@ -640,7 +640,7 @@ static void sConnInit(void* cls) {
 - `FDH2/UxPlay GitHub — lib/CMakeLists.txt` — CMake target name `airplay`, `add_library(airplay STATIC)` confirmed
 - `FDH2/UxPlay GitHub — renderers/video_renderer.c` — `gst_app_src_push_buffer` pattern, PTS normalization from `ntp_time_local`, `appsrc` pipeline string verified
 - `FDH2/UxPlay GitHub — renderers/audio_renderer.c` — `g_string_append` pipeline construction, AAC/ALAC codec detection via `ct` byte verified
-- Existing MyAirShow codebase — `ProtocolHandler.h`, `MediaPipeline.h/cpp`, `ConnectionBridge.h/cpp`, `DiscoveryManager.cpp` — all interfaces and integration points confirmed by direct read
+- Existing AirShow codebase — `ProtocolHandler.h`, `MediaPipeline.h/cpp`, `ConnectionBridge.h/cpp`, `DiscoveryManager.cpp` — all interfaces and integration points confirmed by direct read
 
 ### Secondary (MEDIUM confidence)
 - `.planning/research/STACK.md` — UxPlay dependency chain, OpenSSL 3.x requirement, libplist version

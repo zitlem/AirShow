@@ -25,7 +25,7 @@ Fullscreen display with correct aspect ratio letterboxing, connection status HUD
 - **D-07:** Show protocol icon (small) next to device name — use simple text/emoji indicators, not image assets
 
 ### Idle Screen (DISP-03)
-- **D-08:** Dark background (black) with app name "MyAirShow", receiver name (from AppSettings), and "Waiting for connection..." text
+- **D-08:** Dark background (black) with app name "AirShow", receiver name (from AppSettings), and "Waiting for connection..." text
 - **D-09:** Idle screen is visible when no mirroring session is active. Hides when content starts, reappears when session ends
 - **D-10:** Receiver name updates live if changed in settings (bind to AppSettings.receiverName)
 - **D-11:** Minimal animation — subtle opacity pulse on the "Waiting..." text to show the app is alive

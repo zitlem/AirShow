@@ -6,11 +6,11 @@
   </specVersion>
   <device>
     <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
-    <friendlyName>MyAirShow</friendlyName>
-    <manufacturer>MyAirShow Project</manufacturer>
-    <manufacturerURL>https://github.com/myairshow</manufacturerURL>
+    <friendlyName>AirShow</friendlyName>
+    <manufacturer>AirShow Project</manufacturer>
+    <manufacturerURL>https://github.com/airshow</manufacturerURL>
     <modelDescription>Multi-protocol screen mirroring receiver</modelDescription>
-    <modelName>MyAirShow</modelName>
+    <modelName>AirShow</modelName>
     <modelNumber>1.0</modelNumber>
     <UDN>uuid:00000000-0000-0000-0000-000000000000</UDN>
     <serviceList>

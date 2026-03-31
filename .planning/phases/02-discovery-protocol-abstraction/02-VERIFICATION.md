@@ -6,13 +6,13 @@ score: 9/9 automated must-haves verified
 re_verification: false
 human_verification:
   - test: "Launch the built binary on a Linux machine with avahi-daemon running. On an iOS device or macOS on the same LAN, open AirPlay picker."
-    expected: "MyAirShow (or system hostname) appears as a receiver in the AirPlay device list."
+    expected: "AirShow (or system hostname) appears as a receiver in the AirPlay device list."
     why_human: "Requires real avahi-daemon, real LAN, and a real Apple sender device. Cannot verify with ctest or grep."
   - test: "Launch the binary. On an Android device or in Chrome browser on the same LAN, open Cast menu."
-    expected: "MyAirShow appears as a Cast target."
+    expected: "AirShow appears as a Cast target."
     why_human: "Requires real avahi-daemon, _googlecast._tcp registration, real LAN, and a Cast-capable sender."
   - test: "Launch the binary. Open BubbleUPnP (Android) or foobar2000 on the same LAN and browse renderers."
-    expected: "MyAirShow appears as a DLNA Media Renderer."
+    expected: "AirShow appears as a DLNA Media Renderer."
     why_human: "Requires libupnp SSDP advertisement, real LAN, and a DLNA controller app."
   - test: "Change the receiver name via AppSettings::setReceiverName() and call DiscoveryManager::rename(). Check device pickers again."
     expected: "Updated name appears in AirPlay and Cast pickers within seconds."
@@ -39,9 +39,9 @@ human_verification:
 | 3  | ServiceAdvertiser.h defines the cross-platform advertise/rename/stop interface with factory create()      | VERIFIED  | src/discovery/ServiceAdvertiser.h; static create() present; TxtRecord struct defined |
 | 4  | AppSettings reads/writes receiver name from QSettings, defaults to QSysInfo::machineHostName()            | VERIFIED  | src/settings/AppSettings.cpp; receiverName() uses QSysInfo::machineHostName()       |
 | 5  | tests/test_discovery.cpp compiles and all stubs pass (SKIP/PASS) without mDNS hardware                   | VERIFIED  | ctest: 5/5 passed/skipped, 0 failed; test_discovery target builds cleanly           |
-| 6  | MyAirShow appears in AirPlay device picker (_airplay._tcp, _raop._tcp advertised via Avahi)               | HUMAN     | AvahiAdvertiser.cpp is substantive (192 lines); wired in main.cpp; needs real LAN   |
-| 7  | MyAirShow appears in Cast device picker (_googlecast._tcp advertised via Avahi)                           | HUMAN     | DiscoveryManager.cpp registers _googlecast._tcp; needs real LAN + sender to confirm |
-| 8  | MyAirShow appears as DLNA Media Renderer (UpnpAdvertiser SSDP)                                            | HUMAN     | UpnpAdvertiser.cpp wired; MediaRenderer.xml valid; needs DLNA controller on LAN     |
+| 6  | AirShow appears in AirPlay device picker (_airplay._tcp, _raop._tcp advertised via Avahi)               | HUMAN     | AvahiAdvertiser.cpp is substantive (192 lines); wired in main.cpp; needs real LAN   |
+| 7  | AirShow appears in Cast device picker (_googlecast._tcp advertised via Avahi)                           | HUMAN     | DiscoveryManager.cpp registers _googlecast._tcp; needs real LAN + sender to confirm |
+| 8  | AirShow appears as DLNA Media Renderer (UpnpAdvertiser SSDP)                                            | HUMAN     | UpnpAdvertiser.cpp wired; MediaRenderer.xml valid; needs DLNA controller on LAN     |
 | 9  | Windows firewall rules registered on first launch; no-op on Linux/macOS                                   | VERIFIED  | test_firewall PASSED: registerRules() returns true on Linux (D-14); _WIN32 path present |
 
 **Score:** 9/9 automated must-haves verified (4 truths route to human verification for LAN/device confirmation)
@@ -138,20 +138,20 @@ The following 4 behaviors require a real LAN environment and sender devices to c
 
 #### 1. AirPlay Device Picker Visibility (DISC-01)
 
-**Test:** On a machine with avahi-daemon running, build and launch MyAirShow. On an iOS device or macOS on the same LAN, open AirPlay picker (Control Center on iOS, or system menu bar on macOS).
-**Expected:** "MyAirShow" (or the system hostname) appears as a receiver option in the AirPlay list.
+**Test:** On a machine with avahi-daemon running, build and launch AirShow. On an iOS device or macOS on the same LAN, open AirPlay picker (Control Center on iOS, or system menu bar on macOS).
+**Expected:** "AirShow" (or the system hostname) appears as a receiver option in the AirPlay list.
 **Why human:** Requires avahi-daemon running, mDNS packet inspection on a real LAN, and an Apple sender device. The AvahiAdvertiser thread-poll and entry group registration cannot be exercised without a real Avahi daemon.
 
 #### 2. Google Cast Device Picker Visibility (DISC-02)
 
 **Test:** On the same machine with the binary running, open the Google Cast menu on an Android device or in Chrome browser on the same LAN (via the Cast button).
-**Expected:** "MyAirShow" appears as a cast target with the correct friendly name.
+**Expected:** "AirShow" appears as a cast target with the correct friendly name.
 **Why human:** Requires avahi-daemon, _googlecast._tcp registration confirmed by a real Cast sender, and LAN multicast. The castId UUID, ca=5 flag, and fn= TXT field must all be read by the sender.
 
 #### 3. DLNA Media Renderer Visibility (DISC-03)
 
 **Test:** With the binary running, open BubbleUPnP (Android) or foobar2000 on the same LAN and browse the output device / renderer list.
-**Expected:** "MyAirShow" appears as a Media Renderer. Attempting to play a track returns an error (501 Not Implemented) — the renderer appears but cannot yet play.
+**Expected:** "AirShow" appears as a Media Renderer. Attempting to play a track returns an error (501 Not Implemented) — the renderer appears but cannot yet play.
 **Why human:** Requires libupnp SSDP advertisement to propagate on the LAN (UDP 1900 multicast), the UpnpRegisterRootDevice HTTP server to be reachable, and a DLNA controller app to discover it.
 
 #### 4. Receiver Name Change Propagation (DISC-04 — rename path)

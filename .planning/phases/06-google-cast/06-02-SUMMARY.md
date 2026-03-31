@@ -53,7 +53,7 @@ key-files:
     - src/main.cpp (pipeline.setQmlVideoItem(nullptr) pre-registration at startup)
     - tests/test_cast.cpp (7 new tests: 4 SDP translation + 3 WebRTC pipeline)
     - tests/CMakeLists.txt (link gstreamer-webrtc-1.0/sdp-1.0 to test_cast, GST_USE_UNSTABLE_API)
-    - CMakeLists.txt (GST_USE_UNSTABLE_API for myairshow target)
+    - CMakeLists.txt (GST_USE_UNSTABLE_API for airshow target)
 
 key-decisions:
   - "setQmlVideoItem() is called twice at startup: null pre-registration in main.cpp + real pointer in ReceiverWindow sceneGraphInitialized callback — second call overwrites first"
@@ -107,11 +107,11 @@ metrics:
 - `src/main.cpp` - pipeline.setQmlVideoItem(nullptr) pre-registration at startup
 - `tests/test_cast.cpp` - 7 new tests: OfferJsonToSdp_{VideoStream,AudioStream,BothStreams,EmptyOffer}, WebrtcPipelineInit_{RequiresQmlVideoItem,CreatesElements}, CastDecryptionKeys_StoredCorrectly
 - `tests/CMakeLists.txt` - gstreamer-webrtc-1.0/sdp-1.0 linked to test_cast; GST_USE_UNSTABLE_API defined
-- `CMakeLists.txt` - GST_USE_UNSTABLE_API defined for myairshow to silence webrtcbin warning
+- `CMakeLists.txt` - GST_USE_UNSTABLE_API defined for airshow to silence webrtcbin warning
 
 ## Decisions Made
 
-- **buildSdpFromOffer() is public static:** The plan recommended extracting it as a static helper for unit testing. Made public (not private) to allow `myairshow::CastSession::buildSdpFromOffer(offer)` calls from test code without friend declarations.
+- **buildSdpFromOffer() is public static:** The plan recommended extracting it as a static helper for unit testing. Made public (not private) to allow `airshow::CastSession::buildSdpFromOffer(offer)` calls from test code without friend declarations.
 - **AES-CTR decrypt chain not inserted in pipeline:** Per RESEARCH.md Open Question 1, the implementation stores keys via `setCastDecryptionKeys()` but does not insert a decryption element in the pad-added chain. This allows field testing to confirm whether Cast sessions actually require client-side decryption before adding complexity.
 - **play() extended rather than adding playWebrtcPipeline():** Since `CastSession` has access to `m_pipeline->play()` and the WebRTC pipeline is logically part of the media pipeline, extending `play()` to also transition `m_webrtcPipeline` is simpler than adding another method to the public API.
 - **onWebrtcPadAdded caps check uses encoding-name field:** webrtcbin delivers `application/x-rtp` caps with `encoding-name=VP8` or `encoding-name=OPUS` fields rather than `video/x-rtp` or `audio/x-rtp` — checked by inspecting the encoding-name GstStructure field for correct stream routing.
@@ -147,7 +147,7 @@ metrics:
 
 ## Issues Encountered
 
-- **webrtcbin "unstable API" warning:** GStreamer's WebRTC API is marked unstable with a build-time `#warning`. Suppressed by adding `target_compile_definitions(... GST_USE_UNSTABLE_API)` to both myairshow and test_cast CMake targets.
+- **webrtcbin "unstable API" warning:** GStreamer's WebRTC API is marked unstable with a build-time `#warning`. Suppressed by adding `target_compile_definitions(... GST_USE_UNSTABLE_API)` to both airshow and test_cast CMake targets.
 - **test_cast headless PAUSED failure:** `WebrtcPipelineInit_CreatesElements` test triggers `GST_STATE_CHANGE_FAILURE` on PAUSED because the fake QML item pointer causes qml6glsink to fail in headless CI. Test gracefully accepts both true/false return values and just verifies no crash.
 
 ## Self-Check: PASSED

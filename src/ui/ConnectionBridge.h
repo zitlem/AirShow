@@ -2,7 +2,7 @@
 #include <QObject>
 #include <QString>
 
-namespace myairshow {
+namespace airshow {
 
 // QObject bridge that exposes connection state to QML via Q_PROPERTY.
 // QML binds to connectionBridge.connected, connectionBridge.deviceName,
@@ -99,4 +99,4 @@ private:
     QString m_pendingRequestId;
 };
 
-} // namespace myairshow
+} // namespace airshow

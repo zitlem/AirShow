@@ -147,7 +147,7 @@ src/
 ```cpp
 // src/discovery/ServiceAdvertiser.h
 // Source: Pattern from shairport-sync / UxPlay cross-platform discovery layer
-namespace myairshow {
+namespace airshow {
 
 struct TxtRecord {
     std::string key;
@@ -174,7 +174,7 @@ public:
     static std::unique_ptr<ServiceAdvertiser> create();
 };
 
-} // namespace myairshow
+} // namespace airshow
 ```
 
 ### Pattern 2: ProtocolHandler Abstract Base Class
@@ -187,7 +187,7 @@ public:
 ```cpp
 // src/protocol/ProtocolHandler.h
 // Source: Architecture decisions D-06 through D-08 from CONTEXT.md
-namespace myairshow {
+namespace airshow {
 
 class MediaPipeline;  // forward declare
 
@@ -205,7 +205,7 @@ public:
     virtual void setMediaPipeline(MediaPipeline* pipeline) = 0;
 };
 
-} // namespace myairshow
+} // namespace airshow
 ```
 
 ### Pattern 3: Avahi Threaded Poll (Linux mDNS)
@@ -340,7 +340,7 @@ HRESULT addFirewallRule(const wchar_t* name, NET_FW_IP_PROTOCOL proto,
 - **Calling `avahi_entry_group_add_service()` from the Qt main thread:** Avahi's threaded poll owns the event loop; all entry group operations must happen from within the Avahi callback thread or while the poll is locked with `avahi_threaded_poll_lock()`.
 - **Using a blocking Avahi poll:** `avahi_simple_poll_loop()` blocks — use `avahi_threaded_poll_new()` for a Qt application.
 - **Starting discovery before QSettings loads the receiver name:** The name must be resolved from QSettings before any mDNS registration so the correct name appears on first advertisement.
-- **Not handling `AVAHI_ENTRY_GROUP_COLLISION`:** Two instances of MyAirShow on the same LAN will silently fail to advertise if collision is not handled.
+- **Not handling `AVAHI_ENTRY_GROUP_COLLISION`:** Two instances of AirShow on the same LAN will silently fail to advertise if collision is not handled.
 
 ---
 
@@ -403,7 +403,7 @@ Must also advertise `_raop._tcp` — iOS uses this for audio and legacy mirrorin
 |-------|-------|-------|
 | `id` | UUID (no hyphens) | Unique device identifier. Generate once; store in QSettings. |
 | `ve` | `02` | Protocol version — always `02` |
-| `md` | `MyAirShow` | Model name shown in Cast UI |
+| `md` | `AirShow` | Model name shown in Cast UI |
 | `fn` | `<ReceiverName>` | Friendly name — this is what appears in the Cast menu |
 | `ic` | `/icon.png` | Icon path served by the Cast HTTP server (stub for Phase 2) |
 | `ca` | `5` | Capability flags: 1=VIDEO, 4=AUDIO; value 5 = video+audio |
@@ -427,8 +427,8 @@ A minimal DLNA MediaRenderer device description XML must declare device type `ur
   <device>
     <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
     <friendlyName><!-- receiver name --></friendlyName>
-    <manufacturer>MyAirShow Project</manufacturer>
-    <modelName>MyAirShow</modelName>
+    <manufacturer>AirShow Project</manufacturer>
+    <modelName>AirShow</modelName>
     <UDN>uuid:<!-- stable UUID generated at install --></UDN>
     <serviceList>
       <service>
@@ -511,7 +511,7 @@ In Phase 2, all SOAP actions (SetAVTransportURI, Play, Stop, etc.) return `501 N
 
 **What goes wrong:** iOS does not discover the AirPlay receiver despite mDNS being active.
 
-**Why it happens:** The `_raop._tcp` service name must be formatted as `<MACADDRESS>@<FriendlyName>` where the MAC address uses uppercase hex without colons (e.g., `AABBCCDDEEFF@MyAirShow`). Using the friendly name alone, or lowercase MAC, causes iOS to ignore the service record.
+**Why it happens:** The `_raop._tcp` service name must be formatted as `<MACADDRESS>@<FriendlyName>` where the MAC address uses uppercase hex without colons (e.g., `AABBCCDDEEFF@AirShow`). Using the friendly name alone, or lowercase MAC, causes iOS to ignore the service record.
 
 **How to avoid:** Format the RAOP service name as `AABBCCDDEEFF@ReceiverName` using the same NIC MAC that populates the `deviceid` TXT field. Verify with `dns-sd -B _raop._tcp` on macOS.
 
@@ -665,7 +665,7 @@ Qt6::Core           # already linked — QSettings lives here
 - Open source (license TBD)
 - GSD workflow enforcement: use Edit/Write tools only through GSD commands
 - C++17, Qt 6.8 LTS, GStreamer 1.26.x, OpenSSL 3.x, CMake ≥3.28 (from STACK.md / CLAUDE.md)
-- All new code in `myairshow` namespace (established in Phase 1)
+- All new code in `airshow` namespace (established in Phase 1)
 - Forward declarations in headers, implementations in .cpp
 - GTest for testing (existing pattern in tests/)
 - pkg_check_modules pattern for new library dependencies (established in Phase 1)

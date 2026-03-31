@@ -66,7 +66,7 @@ mDNS/Bonjour advertisement for AirPlay and Google Cast, UPnP/SSDP advertisement 
 
 ### Reusable Assets
 - `MediaPipeline` class (`src/pipeline/MediaPipeline.h`) — the target pipeline that protocol handlers will feed data into
-- `myairshow` namespace — established in Phase 1, all new code goes here
+- `airshow` namespace — established in Phase 1, all new code goes here
 - CMake build system with find_package pattern — extend for new dependencies (Avahi, pupnp)
 
 ### Established Patterns

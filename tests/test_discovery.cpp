@@ -50,15 +50,15 @@ TEST_F(DiscoveryTest, test_dlna_ssdp) {
 // DISC-04: Receiver name persistence via QSettings
 TEST_F(DiscoveryTest, test_receiver_name) {
     // Use a temporary QSettings scope so test does not pollute real settings
-    QCoreApplication::setOrganizationName("MyAirShowTest");
-    QCoreApplication::setApplicationName("MyAirShowTest");
+    QCoreApplication::setOrganizationName("AirShowTest");
+    QCoreApplication::setApplicationName("AirShowTest");
     {
         QSettings s;
         s.remove("receiver/name");  // ensure clean state
         s.sync();
     }
 
-    myairshow::AppSettings settings;
+    airshow::AppSettings settings;
     // Default should be the system hostname (not empty)
     QString defaultName = settings.receiverName();
     EXPECT_FALSE(defaultName.isEmpty()) << "Default receiver name must not be empty";
@@ -73,8 +73,8 @@ TEST_F(DiscoveryTest, test_receiver_name) {
         s.remove("receiver/name");
         s.sync();
     }
-    QCoreApplication::setOrganizationName("MyAirShow");
-    QCoreApplication::setApplicationName("MyAirShow");
+    QCoreApplication::setOrganizationName("AirShow");
+    QCoreApplication::setApplicationName("AirShow");
 }
 
 // DISC-05: Windows firewall rule registration
@@ -85,9 +85,9 @@ TEST_F(DiscoveryTest, test_firewall) {
     GTEST_SKIP() << "WindowsFirewall registerRules() requires COM/UAC on Windows — CI skip";
 #else
     // Linux/macOS: verify no-op returns true
-    EXPECT_TRUE(myairshow::WindowsFirewall::registerRules())
+    EXPECT_TRUE(airshow::WindowsFirewall::registerRules())
         << "WindowsFirewall::registerRules() must return true on Linux/macOS (D-14)";
-    EXPECT_TRUE(myairshow::WindowsFirewall::rulesAlreadyRegistered())
+    EXPECT_TRUE(airshow::WindowsFirewall::rulesAlreadyRegistered())
         << "WindowsFirewall::rulesAlreadyRegistered() must return true on Linux/macOS (D-14)";
 #endif
 }

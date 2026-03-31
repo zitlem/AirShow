@@ -65,7 +65,7 @@ completed: 2026-03-29
 
 - `src/main.cpp` updated: `#include "protocol/CastHandler.h"` added; `checkRequiredPlugins()` extended with 4 fatal Cast plugin checks (webrtcbin, rtpvp8depay, rtpopusdepay, opusdec) and 2 non-fatal warnings (vp8dec, nicesrc); CastHandler registered with ProtocolManager in scoped block after AirPlay handler (follows same addHandler pattern as DLNA and AirPlay)
 - `tests/test_cast.cpp` extended: 2 new integration tests added (`CastHandler_IntegrationStartStop` verifies port 8009 bound via QTcpSocket, `CastHandler_RejectsDoubleStart` verifies idempotent start); all 16 test_cast tests pass
-- checkpoint:human-verify auto-approved (auto_advance=true): CastHandler logs "Cast handler started on port 8009", mDNS advertises via DiscoveryManager _googlecast._tcp, Chrome Cast dialog shows MyAirShow, auth fails gracefully with "Cast auth: using placeholder signatures" warning as expected
+- checkpoint:human-verify auto-approved (auto_advance=true): CastHandler logs "Cast handler started on port 8009", mDNS advertises via DiscoveryManager _googlecast._tcp, Chrome Cast dialog shows AirShow, auth fails gracefully with "Cast auth: using placeholder signatures" warning as expected
 
 ## Task Commits
 
