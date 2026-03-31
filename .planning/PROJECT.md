@@ -26,10 +26,21 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 
 ### Out of Scope
 
-- Streaming FROM the computer to other devices — this is a receiver only
+- ~~Streaming FROM the computer to other devices~~ — now in scope for v2.0 (companion sender app)
 - Cloud/remote mirroring over the internet — local network only
 - Recording or capturing mirrored content — display only for v1
 - Mobile app versions (iOS/Android receiver) — desktop only
+
+## Current Milestone: v2.0 AirShow Companion Sender
+
+**Goal:** Build a cross-platform companion app that discovers AirShow receivers on the network and mirrors the device screen to them.
+
+**Target features:**
+- Flutter-based sender app for Android, iOS, Windows, macOS, Linux
+- mDNS discovery of AirShow receivers on local network
+- Screen capture and H.264 encoding using platform-native APIs
+- Custom AirShow protocol for sender-to-receiver streaming
+- New AirShowHandler protocol handler on the receiver side
 
 ## Context
 
@@ -71,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 8 completion (ALL PHASES COMPLETE)*
+*Last updated: 2026-03-30 — Milestone v2.0 started*
