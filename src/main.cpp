@@ -15,6 +15,7 @@
 #include "protocol/CastHandler.h"
 #include "protocol/DlnaHandler.h"
 #include "protocol/MiracastHandler.h"
+#include "protocol/AirShowHandler.h"
 #include "protocol/ProtocolManager.h"
 
 static void checkRequiredPlugins() {
@@ -99,7 +100,7 @@ int main(int argc, char* argv[]) {
             qCritical("Firewall rules could not be registered automatically. "
                       "Please open the following ports manually:\n"
                       "  UDP 5353 (mDNS), UDP 1900 (SSDP),\n"
-                      "  TCP 7000 (AirPlay), TCP 8009 (Google Cast)");
+                      "  TCP 7000 (AirPlay), TCP 8009 (Google Cast), TCP 7400 (AirShow)");
         }
         settings.setFirstLaunchComplete();
     }
@@ -199,6 +200,15 @@ int main(int argc, char* argv[]) {
         // Same deferred-pointer pattern as pipeline.setQmlVideoItem(nullptr) above.
         miracastHandler->setQmlVideoItem(nullptr);
         protocolManager.addHandler(std::move(miracastHandler));
+        // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
+    }
+
+    // AirShow custom protocol handler (Phase 9) -- companion sender on port 7400
+    {
+        auto airshowHandler = std::make_unique<airshow::AirShowHandler>(
+            window.connectionBridge());
+        airshowHandler->setSecurityManager(&securityManager);
+        protocolManager.addHandler(std::move(airshowHandler));
         // NOTE: addHandler() calls handler->setMediaPipeline(m_pipeline) internally.
     }
 
