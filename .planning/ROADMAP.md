@@ -186,7 +186,7 @@ Plans:
   5. When mDNS discovery finds nothing after 10 seconds, the user sees a manual IP entry field and can connect by entering the receiver's IP address
 **Plans**: 3 plans
 Plans:
-- [ ] 10-01-PLAN.md — Flutter Dart layer: BLoC cubits (discovery + session), mDNS service, AirShowChannel bridge, UI screens, unit tests
+- [x] 10-01-PLAN.md — Flutter Dart layer: BLoC cubits (discovery + session), mDNS service, AirShowChannel bridge, UI screens, unit tests
 - [ ] 10-02-PLAN.md �� Android native Kotlin: AndroidManifest permissions, MainActivity channels, AirShowCaptureService, H264Encoder, audio capture
 - [ ] 10-03-PLAN.md — Receiver audio wiring (AirShowHandler.cpp type=0x02), end-to-end device verification
 **UI hint**: yes
@@ -255,7 +255,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Security & Hardening | v1.0 | 3/3 | Complete | 2026-03-30 |
 | 8. Miracast | v1.0 | 3/3 | Complete | 2026-03-30 |
 | 9. Receiver Protocol Foundation | v2.0 | 1/2 | In Progress|  |
-| 10. Android Sender MVP | v2.0 | 0/3 | Not started | - |
+| 10. Android Sender MVP | v2.0 | 1/3 | In Progress|  |
 | 11. iOS Sender MVP | v2.0 | 0/? | Not started | - |
 | 12. macOS Sender | v2.0 | 0/? | Not started | - |
 | 13. Windows Sender | v2.0 | 0/? | Not started | - |

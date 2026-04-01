@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Companion Sender
-status: verifying
-stopped_at: Completed 09-02-PLAN.md — AirShowHandler wiring, _airshow._tcp mDNS, Flutter sender scaffold
-last_updated: "2026-04-01T02:34:09.319Z"
+status: executing
+stopped_at: Completed 10-01-PLAN.md — Flutter Dart BLoC layer, discovery + session state machines, UI screens
+last_updated: "2026-04-01T23:37:18.490Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 3
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** Any device can mirror its screen to any computer, for free
-**Current focus:** Phase 09 — receiver-protocol-foundation
+**Current focus:** Phase 10 — android-sender-mvp
 
 ## Current Position
 
-Phase: 10
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 10 (android-sender-mvp) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
@@ -56,6 +56,8 @@ Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 - [Phase 09]: Echo-back quality negotiation in HELLO_ACK: receiver accepts sender-requested codec/resolution/bitrate/fps unchanged in v1; arbitration deferred to Phase 10
 - [Phase 09]: AirShowHandler.cpp was missing from CMakeLists.txt airshow target — added in Plan 02 wiring
 - [Phase 09]: Flutter 3.41.6 installed to ~/flutter via tarball (no sudo required); add to PATH for Phase 10+
+- [Phase 10-android-sender-mvp]: stream.take(N).toList() pattern for BLoC stream testing avoids race condition with listen+cancel
+- [Phase 10-android-sender-mvp]: AirShowChannel contract: MethodChannel('com.airshow/capture') + EventChannel('com.airshow/capture_events') — Plan 02 Kotlin must implement CONNECTED/DISCONNECTED/ERROR events
 
 ### Pending Todos
 
@@ -69,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T00:39:45.827Z
-Stopped at: Completed 09-02-PLAN.md — AirShowHandler wiring, _airshow._tcp mDNS, Flutter sender scaffold
+Last session: 2026-04-01T23:37:18.487Z
+Stopped at: Completed 10-01-PLAN.md — Flutter Dart BLoC layer, discovery + session state machines, UI screens
 Resume file: None
