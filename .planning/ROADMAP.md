@@ -172,7 +172,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 09-01-PLAN.md — AirShowHandler TCP server, JSON handshake with quality negotiation, 16-byte binary frame parser, appsrc NAL injection, test scaffold
-- [ ] 09-02-PLAN.md — _airshow._tcp mDNS advertisement, main.cpp handler wiring, Flutter sender scaffold, end-to-end verification
+- [x] 09-02-PLAN.md — _airshow._tcp mDNS advertisement, main.cpp handler wiring, Flutter sender scaffold, end-to-end verification
 
 ### Phase 10: Android Sender MVP
 **Goal**: An Android user can open the companion app, see AirShow receivers on the network, tap one, and have their screen mirrored to the receiver with audio

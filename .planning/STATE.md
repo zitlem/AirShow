@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Companion Sender
-status: executing
-stopped_at: Completed 09-01-PLAN.md — AirShowHandler TCP receiver, JSON handshake, binary framing, appsrc injection
-last_updated: "2026-03-31T16:00:19.601Z"
-last_activity: 2026-03-31
+status: verifying
+stopped_at: Completed 09-02-PLAN.md — AirShowHandler wiring, _airshow._tcp mDNS, Flutter sender scaffold
+last_updated: "2026-04-01T00:39:45.830Z"
+last_activity: 2026-04-01
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 
 Phase: 09 (receiver-protocol-foundation) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-03-31
+Status: Phase complete — ready for verification
+Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 
@@ -54,6 +54,8 @@ Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 - Port 7400 for AirShow protocol; port 7401 for local web interface
 - [Phase 09]: AirShow protocol: newline-terminated JSON handshake (HELLO/HELLO_ACK) followed by 16-byte binary frame streaming on TCP port 7400
 - [Phase 09]: Echo-back quality negotiation in HELLO_ACK: receiver accepts sender-requested codec/resolution/bitrate/fps unchanged in v1; arbitration deferred to Phase 10
+- [Phase 09]: AirShowHandler.cpp was missing from CMakeLists.txt airshow target — added in Plan 02 wiring
+- [Phase 09]: Flutter 3.41.6 installed to ~/flutter via tarball (no sudo required); add to PATH for Phase 10+
 
 ### Pending Todos
 
@@ -67,6 +69,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T16:00:19.597Z
-Stopped at: Completed 09-01-PLAN.md — AirShowHandler TCP receiver, JSON handshake, binary framing, appsrc injection
+Last session: 2026-04-01T00:39:45.827Z
+Stopped at: Completed 09-02-PLAN.md — AirShowHandler wiring, _airshow._tcp mDNS, Flutter sender scaffold
 Resume file: None
