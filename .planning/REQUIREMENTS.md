@@ -73,8 +73,8 @@ Requirements for companion sender app milestone. Each maps to roadmap phases.
 - [ ] **SEND-05**: Sender app captures and streams device audio alongside screen mirror (Android: system audio not available without root — documented limitation)
 
 ### Discovery & Connection
-- [ ] **DISC-06**: Sender app auto-discovers AirShow receivers on local network via mDNS
-- [ ] **DISC-07**: Sender app supports manual IP entry for networks where mDNS is blocked
+- [x] **DISC-06**: Sender app auto-discovers AirShow receivers on local network via mDNS
+- [x] **DISC-07**: Sender app supports manual IP entry for networks where mDNS is blocked
 - [ ] **DISC-08**: Receiver displays QR code that sender app can scan to connect
 
 ### Local Web Interface
