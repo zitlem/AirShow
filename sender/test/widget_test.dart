@@ -1,21 +1,18 @@
-// This is a basic Flutter widget test.
+// Widget smoke test for AirShow Sender app.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Verifies that the app can be constructed and renders without error.
 
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:airshow_sender/main.dart';
+import 'package:airshow_sender/app.dart';
 
 void main() {
-  testWidgets('AirShow sender smoke test', (WidgetTester tester) async {
+  testWidgets('AirShow sender app renders without error', (
+    WidgetTester tester,
+  ) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const AirShowSenderApp());
 
-    // Verify that the placeholder text is shown.
-    expect(find.text('AirShow Sender\nDiscovery & mirroring coming soon'),
-        findsOneWidget);
+    // Verify the app bar title is shown.
+    expect(find.text('AirShow Sender'), findsOneWidget);
   });
 }
