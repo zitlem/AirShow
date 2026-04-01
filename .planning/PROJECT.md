@@ -82,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 — Milestone v2.0 started*
+*Last updated: 2026-03-31 — Phase 9 complete: AirShowHandler on port 7400, mDNS advertisement, Flutter sender scaffold*
