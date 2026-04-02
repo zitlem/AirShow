@@ -23,6 +23,7 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 - ✓ Receive Google Cast screen mirroring from Android/Chrome devices — Phase 6 (CastHandler + CASTV2 + WebRTC, pending auth signature extraction + human testing)
 - ✓ Receive Miracast screen mirroring from Windows/Android devices — Phase 8 (MS-MICE over Infrastructure, pending Windows device testing)
 - ✓ Auto-discover and advertise as a receiver on the local network — Phase 2 (mDNS + SSDP)
+- ✓ Android companion sender app — Phase 10 (Flutter BLoC + Kotlin MediaProjection/H264Encoder + AirShow protocol, pending physical device E2E testing)
 
 ### Out of Scope
 
@@ -82,4 +83,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 — Phase 9 complete: AirShowHandler on port 7400, mDNS advertisement, Flutter sender scaffold*
+*Last updated: 2026-04-01 — Phase 10 complete: Android sender MVP with BLoC discovery, Kotlin MediaProjection/H264 capture pipeline, receiver audio wiring*
