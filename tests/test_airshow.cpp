@@ -112,7 +112,44 @@ TEST(AirShowHandlerTest, ParseFrameHeader) {
     EXPECT_FALSE(AirShowHandler::parseFrameHeader(shortData, dummy));
 }
 
-// ── Test 3: HandshakeJsonRoundTrip ───────────────────────────────────────────
+// ── Test 3: AudioFrameHeaderParsed ──────────────────────────────────────────
+// Verify that a type=0x02 (AUDIO) frame header is correctly parsed.
+
+TEST(AirShowHandlerTest, AudioFrameHeaderParsed) {
+    // Build a 16-byte header:
+    //   type   = 0x02 (AUDIO)
+    //   flags  = 0x00
+    //   length = 4096 (big-endian uint32 at bytes 2-5)
+    //   pts    = 1000000 ns (big-endian int64 at bytes 6-13)
+    //   reserved = 0x0000 (bytes 14-15)
+
+    const uint32_t expectedLength = 4096;
+    const int64_t  expectedPts    = 1000000LL;
+
+    QByteArray header(AirShowHandler::kFrameHeaderSize, '\0');
+    header[0] = static_cast<char>(AirShowHandler::kTypeAudio);  // type = 0x02
+    header[1] = static_cast<char>(0x00);                        // flags = 0x00
+
+    // length: big-endian uint32 at offset 2
+    quint32 lenBe = qToBigEndian<quint32>(expectedLength);
+    memcpy(header.data() + 2, &lenBe, 4);
+
+    // pts: big-endian int64 at offset 6
+    qint64 ptsBe = qToBigEndian<qint64>(static_cast<qint64>(expectedPts));
+    memcpy(header.data() + 6, &ptsBe, 8);
+
+    // reserved bytes 14-15 are already zero
+
+    AirShowHandler::FrameHeader parsed;
+    ASSERT_TRUE(AirShowHandler::parseFrameHeader(header, parsed));
+
+    EXPECT_EQ(parsed.type,   static_cast<uint8_t>(0x02));
+    EXPECT_EQ(parsed.flags,  static_cast<uint8_t>(0x00));
+    EXPECT_EQ(parsed.length, expectedLength);
+    EXPECT_EQ(parsed.pts,    static_cast<int64_t>(expectedPts));
+}
+
+// ── Test 4: HandshakeJsonRoundTrip ───────────────────────────────────────────
 // Start an AirShowHandler, connect a QTcpSocket, send a HELLO JSON, and verify
 // that the response is a valid HELLO_ACK JSON with the expected negotiated fields.
 

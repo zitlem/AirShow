@@ -257,8 +257,22 @@ void AirShowHandler::processFrame(const QByteArray& frameData) {
         break;
 
     case kTypeAudio:
-        // Audio streaming deferred to Phase 10
-        qDebug("AirShowHandler: audio frame received (not yet implemented)");
+        if (m_pipeline && m_pipeline->audioAppsrc()) {
+            // Set PCM caps on first audio frame (Android sender sends raw PCM s16le 44100Hz stereo)
+            if (!m_audioCapSet) {
+                m_pipeline->setAudioCaps("audio/x-raw,format=S16LE,rate=44100,channels=2,layout=interleaved");
+                m_audioCapSet = true;
+            }
+            GstBuffer* buf = gst_buffer_new_allocate(nullptr, header.length, nullptr);
+            if (buf) {
+                gst_buffer_fill(buf, 0,
+                                frameData.constData() + kFrameHeaderSize,
+                                header.length);
+                GST_BUFFER_PTS(buf) = static_cast<GstClockTime>(header.pts);
+                GST_BUFFER_DTS(buf) = GST_CLOCK_TIME_NONE;
+                gst_app_src_push_buffer(GST_APP_SRC(m_pipeline->audioAppsrc()), buf);
+            }
+        }
         break;
 
     case kTypeKeepalive:
@@ -280,6 +294,7 @@ void AirShowHandler::disconnectClient() {
     }
 
     m_readBuffer.clear();
+    m_audioCapSet = false;
     m_state = State::Idle;
 
     if (m_connectionBridge) {
