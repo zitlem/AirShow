@@ -151,7 +151,7 @@ Plans:
 **Milestone Goal:** Build a Flutter-based companion sender app that discovers AirShow receivers on the local network and mirrors the device screen to them, with a custom AirShow protocol giving full control over quality and latency. Targets Android, iOS, macOS, and Windows from a single Dart codebase.
 
 - [ ] **Phase 9: Receiver Protocol Foundation** - AirShowHandler on port 7400, `_airshow._tcp` mDNS advertisement, handshake with quality negotiation, monorepo structure
-- [ ] **Phase 10: Android Sender MVP** - Flutter app skeleton (BLoC, discovery, connection UI), Android screen capture + H.264 encode, audio streaming, auto-discovery and manual IP entry
+- [x] **Phase 10: Android Sender MVP** - Flutter app skeleton (BLoC, discovery, connection UI), Android screen capture + H.264 encode, audio streaming, auto-discovery and manual IP entry (completed 2026-04-02)
 - [ ] **Phase 11: iOS Sender MVP** - iOS Broadcast Upload Extension with VideoToolbox encode, ReplayKit launcher, QR code connect flow
 - [ ] **Phase 12: macOS Sender** - ScreenCaptureKit native plugin, VideoToolbox H.264 encode, stable Developer ID signing
 - [ ] **Phase 13: Windows Sender** - Windows.Graphics.Capture primary + DXGI fallback, Media Foundation H.264 MFT encoder
@@ -188,7 +188,7 @@ Plans:
 Plans:
 - [x] 10-01-PLAN.md — Flutter Dart layer: BLoC cubits (discovery + session), mDNS service, AirShowChannel bridge, UI screens, unit tests
 - [x] 10-02-PLAN.md �� Android native Kotlin: AndroidManifest permissions, MainActivity channels, AirShowCaptureService, H264Encoder, audio capture
-- [ ] 10-03-PLAN.md — Receiver audio wiring (AirShowHandler.cpp type=0x02), end-to-end device verification
+- [x] 10-03-PLAN.md — Receiver audio wiring (AirShowHandler.cpp type=0x02), end-to-end device verification
 **UI hint**: yes
 
 ### Phase 11: iOS Sender MVP
@@ -255,7 +255,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Security & Hardening | v1.0 | 3/3 | Complete | 2026-03-30 |
 | 8. Miracast | v1.0 | 3/3 | Complete | 2026-03-30 |
 | 9. Receiver Protocol Foundation | v2.0 | 1/2 | In Progress|  |
-| 10. Android Sender MVP | v2.0 | 2/3 | In Progress|  |
+| 10. Android Sender MVP | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. iOS Sender MVP | v2.0 | 0/? | Not started | - |
 | 12. macOS Sender | v2.0 | 0/? | Not started | - |
 | 13. Windows Sender | v2.0 | 0/? | Not started | - |
