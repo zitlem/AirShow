@@ -62,7 +62,7 @@ Requirements for companion sender app milestone. Each maps to roadmap phases.
 - [x] **RECV-03**: Protocol handshake includes quality negotiation (resolution, bitrate, latency mode)
 
 ### Sender App — Mobile
-- [ ] **SEND-01**: User can mirror their Android device screen to AirShow via the companion sender app
+- [x] **SEND-01**: User can mirror their Android device screen to AirShow via the companion sender app
 - [ ] **SEND-02**: User can mirror their iOS device screen to AirShow via the companion sender app
 
 ### Sender App — Desktop
@@ -70,7 +70,7 @@ Requirements for companion sender app milestone. Each maps to roadmap phases.
 - [ ] **SEND-04**: User can mirror their Windows screen to AirShow via the companion sender app
 
 ### Sender App — Audio
-- [ ] **SEND-05**: Sender app captures and streams device audio alongside screen mirror (Android: system audio not available without root — documented limitation)
+- [x] **SEND-05**: Sender app captures and streams device audio alongside screen mirror (Android: system audio not available without root — documented limitation)
 
 ### Discovery & Connection
 - [x] **DISC-06**: Sender app auto-discovers AirShow receivers on local network via mDNS

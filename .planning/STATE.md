@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Companion Sender
 status: executing
-stopped_at: Completed 10-01-PLAN.md — Flutter Dart BLoC layer, discovery + session state machines, UI screens
-last_updated: "2026-04-01T23:37:18.490Z"
-last_activity: 2026-04-01
+stopped_at: "Completed 10-02-PLAN.md — Native Android Kotlin pipeline: MainActivity MethodChannel/EventChannel, AirShowCaptureService, H264Encoder, APK builds"
+last_updated: "2026-04-02T02:49:40.301Z"
+last_activity: 2026-04-02
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 ## Current Position
 
 Phase: 10 (android-sender-mvp) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-04-01
+Last activity: 2026-04-02
 
 Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 
@@ -58,6 +58,8 @@ Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 - [Phase 09]: Flutter 3.41.6 installed to ~/flutter via tarball (no sudo required); add to PATH for Phase 10+
 - [Phase 10-android-sender-mvp]: stream.take(N).toList() pattern for BLoC stream testing avoids race condition with listen+cancel
 - [Phase 10-android-sender-mvp]: AirShowChannel contract: MethodChannel('com.airshow/capture') + EventChannel('com.airshow/capture_events') — Plan 02 Kotlin must implement CONNECTED/DISCONNECTED/ERROR events
+- [Phase 10]: onActivityResult (deprecated) is correct for FlutterActivity — registerForActivityResult requires ComponentActivity; FlutterActivity cannot use it
+- [Phase 10]: SPS/PPS prepended to every IDR frame so receiver decodes standalone keyframes without out-of-band parameter exchange
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T23:37:18.487Z
-Stopped at: Completed 10-01-PLAN.md — Flutter Dart BLoC layer, discovery + session state machines, UI screens
+Last session: 2026-04-02T02:49:40.297Z
+Stopped at: Completed 10-02-PLAN.md — Native Android Kotlin pipeline: MainActivity MethodChannel/EventChannel, AirShowCaptureService, H264Encoder, APK builds
 Resume file: None
