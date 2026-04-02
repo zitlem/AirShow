@@ -92,6 +92,7 @@ private:
     SecurityManager*  m_security          = nullptr;
     State             m_state             = State::Idle;
     bool              m_running           = false;
+    bool              m_audioCapSet       = false;  // true after PCM caps set on audioAppsrc
     QByteArray        m_readBuffer;
     QString           m_clientDeviceName;
 };
