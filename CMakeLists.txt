@@ -22,7 +22,6 @@ pkg_check_modules(GST REQUIRED IMPORTED_TARGET
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   pkg_check_modules(AVAHI REQUIRED IMPORTED_TARGET
     avahi-client
-    avahi-common
   )
 endif()
 
