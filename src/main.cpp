@@ -2,6 +2,7 @@
 #include <QDir>
 #include <QQmlContext>
 #include <QStandardPaths>
+#include <QNetworkInterface>
 #include <gst/gst.h>
 #include "pipeline/MediaPipeline.h"
 #include "ui/ReceiverWindow.h"
@@ -17,6 +18,7 @@
 #include "protocol/MiracastHandler.h"
 #include "protocol/AirShowHandler.h"
 #include "protocol/ProtocolManager.h"
+#include "web/WebInterface.h"
 
 static void checkRequiredPlugins() {
     struct { const char* name; const char* pkg; } required[] = {
@@ -100,7 +102,8 @@ int main(int argc, char* argv[]) {
             qCritical("Firewall rules could not be registered automatically. "
                       "Please open the following ports manually:\n"
                       "  UDP 5353 (mDNS), UDP 1900 (SSDP),\n"
-                      "  TCP 7000 (AirPlay), TCP 8009 (Google Cast), TCP 7400 (AirShow)");
+                      "  TCP 7000 (AirPlay), TCP 8009 (Google Cast),\n"
+                      "  TCP 7400 (AirShow), TCP 7401 (Web Interface)");
         }
         settings.setFirstLaunchComplete();
     }
@@ -221,7 +224,34 @@ int main(int argc, char* argv[]) {
         qWarning("One or more protocol handlers failed to start");
     }
 
+    // Web interface on port 7401 — serves landing page with QR code + sender app download
+    airshow::WebInterface webInterface(&settings);
+    // Check for a bundled sender APK in the app directory
+    QString apkPath = QCoreApplication::applicationDirPath() + "/sender.apk";
+    webInterface.setApkPath(apkPath);
+    if (!webInterface.start()) {
+        qWarning("Web interface failed to start on port 7401 — "
+                 "landing page will not be available");
+    } else {
+        // Log the URLs for user convenience
+        QStringList ips = QNetworkInterface::allInterfaces()
+            .first().addressEntries().isEmpty()
+            ? QStringList{} : QStringList{};
+        for (const QNetworkInterface& iface : QNetworkInterface::allInterfaces()) {
+            if (iface.flags().testFlag(QNetworkInterface::IsLoopBack)) continue;
+            if (!iface.flags().testFlag(QNetworkInterface::IsUp)) continue;
+            for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol &&
+                    !entry.ip().isLoopback()) {
+                    qInfo("Web interface: http://%s:7401",
+                          qPrintable(entry.ip().toString()));
+                }
+            }
+        }
+    }
+
     int result = app.exec();
+    webInterface.stop();
     protocolManager.stopAll();
     discovery.stop();
     upnpAdvertiser.stop();

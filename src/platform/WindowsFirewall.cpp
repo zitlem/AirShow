@@ -67,6 +67,7 @@ bool WindowsFirewall::registerRules() {
     addRule(pRules, L"AirShow AirPlay",  NET_FW_IP_PROTOCOL_TCP, L"7000");
     addRule(pRules, L"AirShow Cast",     NET_FW_IP_PROTOCOL_TCP, L"8009");
     addRule(pRules, L"AirShow Protocol", NET_FW_IP_PROTOCOL_TCP, L"7400");
+    addRule(pRules, L"AirShow Web",      NET_FW_IP_PROTOCOL_TCP, L"7401");
 
     if (pRules)  pRules->Release();
     if (pPolicy) pPolicy->Release();

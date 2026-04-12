@@ -5,6 +5,7 @@
 #include <QUuid>
 #include <glib.h>
 #include <algorithm>
+#include <vector>
 
 // Platform headers for MAC address reading
 #ifdef __linux__
@@ -13,6 +14,15 @@
 #include <netinet/in.h>
 #include <cstring>
 #include <unistd.h>
+#elif defined(_WIN32)
+#include <winsock2.h>
+#include <iphlpapi.h>
+#include <cstdio>
+#elif defined(__APPLE__)
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#include <net/if.h>
+#include <cstdio>
 #endif
 
 namespace airshow {
@@ -183,6 +193,70 @@ std::string DiscoveryManager::readMacAddress() {
         }
     }
     close(sock);
+
+#elif defined(_WIN32)
+    // Use GetAdaptersAddresses to find the first non-loopback adapter MAC
+    ULONG bufLen = 15000;
+    std::vector<uint8_t> addrBuf(bufLen);
+    auto* addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(addrBuf.data());
+
+    ULONG ret = GetAdaptersAddresses(AF_UNSPEC,
+                                      GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                                      GAA_FLAG_SKIP_DNS_SERVER,
+                                      nullptr, addrs, &bufLen);
+    if (ret == ERROR_BUFFER_OVERFLOW) {
+        addrBuf.resize(bufLen);
+        addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(addrBuf.data());
+        ret = GetAdaptersAddresses(AF_UNSPEC,
+                                    GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                                    GAA_FLAG_SKIP_DNS_SERVER,
+                                    nullptr, addrs, &bufLen);
+    }
+
+    if (ret == NO_ERROR) {
+        for (auto* adapter = addrs; adapter != nullptr; adapter = adapter->Next) {
+            // Skip loopback and tunnel adapters
+            if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+            if (adapter->IfType == IF_TYPE_TUNNEL) continue;
+            if (adapter->PhysicalAddressLength != 6) continue;
+            // Skip adapters that are not up
+            if (adapter->OperStatus != IfOperStatusUp) continue;
+
+            unsigned char* mac = adapter->PhysicalAddress;
+            char result[18];
+            snprintf(result, sizeof(result),
+                     "%02X:%02X:%02X:%02X:%02X:%02X",
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+            return result;
+        }
+    }
+
+#elif defined(__APPLE__)
+    // Use getifaddrs to find the first Ethernet/Wi-Fi MAC address
+    struct ifaddrs* ifas = nullptr;
+    if (getifaddrs(&ifas) == 0) {
+        for (struct ifaddrs* ifa = ifas; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == nullptr) continue;
+            if (ifa->ifa_addr->sa_family != AF_LINK) continue;
+            if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+
+            auto* sdl = reinterpret_cast<struct sockaddr_dl*>(ifa->ifa_addr);
+            if (sdl->sdl_alen != 6) continue;
+
+            unsigned char* mac = reinterpret_cast<unsigned char*>(LLADDR(sdl));
+            // Skip all-zero MACs (virtual interfaces)
+            if (mac[0] == 0 && mac[1] == 0 && mac[2] == 0 &&
+                mac[3] == 0 && mac[4] == 0 && mac[5] == 0) continue;
+
+            char result[18];
+            snprintf(result, sizeof(result),
+                     "%02X:%02X:%02X:%02X:%02X:%02X",
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+            freeifaddrs(ifas);
+            return result;
+        }
+        freeifaddrs(ifas);
+    }
 #endif
     return "AA:BB:CC:DD:EE:FF";
 }
