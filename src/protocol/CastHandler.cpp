@@ -162,7 +162,7 @@ void CastHandler::onPendingConnection() {
                 m_session = std::make_unique<CastSession>(
                     socket, m_connectionBridge, m_pipeline, this);
                 connect(m_session.get(), &CastSession::finished,
-                        this, &CastHandler::onSessionFinished);
+                        this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
             });
     } else {
         // No SecurityManager — admit all local connections (backward compatible).
@@ -170,7 +170,7 @@ void CastHandler::onPendingConnection() {
         m_session.reset();
         m_session = std::make_unique<CastSession>(socket, m_connectionBridge, m_pipeline, this);
         connect(m_session.get(), &CastSession::finished,
-                this, &CastHandler::onSessionFinished);
+                this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
     }
 }
 
