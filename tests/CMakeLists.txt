@@ -13,6 +13,8 @@ target_include_directories(test_pipeline PRIVATE
 target_link_libraries(test_pipeline PRIVATE
   GTest::gtest_main
   GTest::gmock
+  Qt6::Core
+  Qt6::Gui
   PkgConfig::GST
 )
 if(GST_WEBRTC_FOUND)
@@ -92,6 +94,7 @@ target_include_directories(test_airplay PRIVATE
 target_link_libraries(test_airplay PRIVATE
   GTest::GTest GTest::Main
   Qt6::Core
+  Qt6::Gui
   Qt6::Network
   PkgConfig::GST
   airplay
@@ -124,7 +127,7 @@ add_executable(test_dlna
 target_include_directories(test_dlna PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_dlna PRIVATE
   GTest::gtest_main GTest::gmock
-  Qt6::Core Qt6::Network PkgConfig::GST PkgConfig::UPNP
+  Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST PkgConfig::UPNP
 )
 if(GST_WEBRTC_FOUND)
   target_link_libraries(test_dlna PRIVATE PkgConfig::GST_WEBRTC)
@@ -155,6 +158,7 @@ target_link_libraries(test_cast PRIVATE
   GTest::gtest_main
   GTest::gmock
   Qt6::Core
+  Qt6::Gui
   Qt6::Network
   PkgConfig::GST
   OpenSSL::SSL
@@ -188,6 +192,7 @@ target_link_libraries(test_miracast PRIVATE
   GTest::gtest_main
   GTest::gmock
   Qt6::Core
+  Qt6::Gui
   Qt6::Network
   PkgConfig::GST
   OpenSSL::SSL
@@ -213,7 +218,7 @@ add_executable(test_airshow
 target_include_directories(test_airshow PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_airshow PRIVATE
   GTest::gtest_main GTest::gmock
-  Qt6::Core Qt6::Network PkgConfig::GST
+  Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST
   OpenSSL::SSL OpenSSL::Crypto
 )
 if(GST_WEBRTC_FOUND)

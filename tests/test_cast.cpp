@@ -142,11 +142,12 @@ TEST(CastAuthTest, AuthResponseStructure) {
     // Build AuthResponse with placeholder signature from index 0
     AuthResponse resp;
     resp.set_signature(
-        reinterpret_cast<const char*>(&airshow::cast::kCastAuthSignatures[0][0]),
+        reinterpret_cast<const char*>(
+            airshow::cast::getSignatureForTime(airshow::cast::kCastAuthStartEpoch)),
         airshow::cast::kCastAuthSignatureSize);
     resp.set_client_auth_certificate(
-        reinterpret_cast<const char*>(airshow::cast::kCastAuthPeerCert),
-        airshow::cast::kCastAuthPeerCertSize);
+        reinterpret_cast<const char*>(airshow::cast::auth_crt),
+        airshow::cast::auth_crt_len);
     resp.set_signature_algorithm(extensions::api::cast_channel::RSASSA_PKCS1v15);
     resp.set_hash_algorithm(extensions::api::cast_channel::SHA256);
 
@@ -261,11 +262,11 @@ TEST(CastHandlerTest, SignatureTableHasCorrectConstants) {
 
     // Verify that getCastAuthSignature returns a valid pointer within the table
     uint64_t now = 1774757446ULL;  // fixed test timestamp
-    const uint8_t* sig = airshow::cast::getCastAuthSignature(now);
+    const uint8_t* sig = airshow::cast::getSignatureForTime(now);
     ASSERT_NE(sig, nullptr);
 
     // The returned pointer must point within the signature table
-    const uint8_t* tableStart = &airshow::cast::kCastAuthSignatures[0][0];
+    const uint8_t* tableStart = airshow::cast::getSignatureForTime(airshow::cast::kCastAuthStartEpoch);
     const uint8_t* tableEnd   = tableStart +
         airshow::cast::kCastAuthSignatureCount * airshow::cast::kCastAuthSignatureSize;
     EXPECT_GE(sig, tableStart);
