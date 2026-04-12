@@ -108,6 +108,17 @@ public:
     // Get the webrtcbin element (for external ICE candidate injection if needed).
     GstElement* webrtcbin() const { return m_webrtcbin; }
 
+    // ICE candidate callback — invoked on GStreamer thread when webrtcbin
+    // gathers a local ICE candidate. CastSession registers this to relay
+    // candidates back to the Cast sender.
+    using IceCandidateCallback = std::function<void(unsigned int mlineIndex,
+                                                     const std::string& candidate)>;
+    void setIceCandidateCallback(IceCandidateCallback cb);
+
+    // Query the local UDP port that webrtcbin has bound to for RTP/DTLS.
+    // Returns 0 if not yet known.
+    uint16_t webrtcLocalPort() const;
+
     // Phase 8: Miracast MPEG-TS/RTP receive pipeline (D-09, D-10).
     //
     // Pipeline: udpsrc(port=udpPort) ! rtpmp2tdepay ! tsparse ! tsdemux
@@ -156,6 +167,12 @@ private:
 
     // Stored SDP answer from webrtcbin after setRemoteOffer()
     std::string m_localAnswerSdp;
+
+    // ICE candidate callback for external notification
+    IceCandidateCallback m_iceCandidateCallback;
+
+    // Local UDP port discovered from ICE candidates
+    uint16_t m_webrtcLocalPort = 0;
 
     // Phase 8: Miracast MPEG-TS/RTP pipeline (separate pipeline, same pattern as m_uriPipeline)
     GstElement* m_miracastPipeline = nullptr;

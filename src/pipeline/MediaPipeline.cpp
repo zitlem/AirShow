@@ -6,6 +6,8 @@
 #include <tuple>
 #include <openssl/evp.h>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 
 namespace airshow {
 
@@ -948,11 +950,41 @@ bool MediaPipeline::initWebrtcPipeline() {
     g_signal_connect(webrtcbin, "pad-added",
                      G_CALLBACK(onWebrtcPadAdded), padData);
 
-    // ICE candidate signal (local network: log candidates but ICE-lite is typical for Cast)
+    // ICE candidate signal — relay to CastSession for forwarding to sender
     g_signal_connect(webrtcbin, "on-ice-candidate",
-        G_CALLBACK(+[](GstElement* /*webrtcbin*/, guint mline, gchar* candidate, gpointer) {
+        G_CALLBACK(+[](GstElement* /*webrtcbin*/, guint mline, gchar* candidate, gpointer userData) {
+            auto* self = static_cast<MediaPipeline*>(userData);
             g_message("webrtcbin ICE candidate: mline=%u candidate=%s", mline, candidate);
-        }), nullptr);
+
+            // Extract port from ICE candidate string (format: "candidate:... <ip> <port> ...")
+            if (candidate) {
+                std::string cand(candidate);
+                // Parse port: tokens are space-separated, port is after the IP address
+                // Format: "candidate:<foundation> <component> <protocol> <priority> <ip> <port> ..."
+                size_t pos = 0;
+                int tokenIdx = 0;
+                while (pos < cand.size() && tokenIdx < 5) {
+                    pos = cand.find(' ', pos);
+                    if (pos == std::string::npos) break;
+                    pos++;
+                    tokenIdx++;
+                }
+                if (tokenIdx == 5 && pos < cand.size()) {
+                    size_t end = cand.find(' ', pos);
+                    std::string portStr = (end != std::string::npos)
+                        ? cand.substr(pos, end - pos) : cand.substr(pos);
+                    int port = std::atoi(portStr.c_str());
+                    if (port > 0 && port < 65536 && self->m_webrtcLocalPort == 0) {
+                        self->m_webrtcLocalPort = static_cast<uint16_t>(port);
+                        g_message("webrtcbin local UDP port: %u", self->m_webrtcLocalPort);
+                    }
+                }
+
+                if (self->m_iceCandidateCallback) {
+                    self->m_iceCandidateCallback(mline, std::string(candidate));
+                }
+            }
+        }), this);
 
     m_webrtcPipeline = pipeline;
     m_webrtcbin      = webrtcbin;
@@ -1069,6 +1101,14 @@ bool MediaPipeline::setRemoteOffer(const std::string& sdpOffer) {
 
 std::string MediaPipeline::getLocalAnswer() {
     return m_localAnswerSdp;
+}
+
+void MediaPipeline::setIceCandidateCallback(IceCandidateCallback cb) {
+    m_iceCandidateCallback = std::move(cb);
+}
+
+uint16_t MediaPipeline::webrtcLocalPort() const {
+    return m_webrtcLocalPort;
 }
 
 void MediaPipeline::setCastDecryptionKeys(uint32_t ssrc,

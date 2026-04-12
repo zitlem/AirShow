@@ -87,8 +87,10 @@ qt_add_executable(airshow
   src/security/SecurityManager.cpp
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
+  src/discovery/BonjourAdvertiser.cpp
   src/discovery/DiscoveryManager.cpp
   src/discovery/UpnpAdvertiser.cpp
+  src/web/WebInterface.cpp
   src/platform/WindowsFirewall.cpp
 )
 
@@ -131,6 +133,17 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(airshow PRIVATE PkgConfig::AVAHI)
+endif()
+
+# Windows: iphlpapi for MAC address, ws2_32 for sockets.
+# dnssd.dll is loaded at runtime (no Bonjour SDK needed to build).
+if(WIN32)
+  target_link_libraries(airshow PRIVATE iphlpapi ws2_32)
+endif()
+
+# macOS: dns_sd is part of the system framework
+if(APPLE)
+  target_link_libraries(airshow PRIVATE "-framework CoreFoundation" "-framework SystemConfiguration")
 endif()
 
 if(spdlog_FOUND)

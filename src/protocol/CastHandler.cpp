@@ -42,9 +42,7 @@ CastHandler::~CastHandler() {
 bool CastHandler::start() {
     if (m_running) return true;
 
-    // Warn about placeholder signatures at startup (D-03 per RESEARCH.md Pattern 3)
-    qWarning("Cast auth: using placeholder signatures — Chrome will reject Cast auth "
-             "until real signatures are extracted from AirReceiver APK.");
+    qDebug("Cast auth: using real signatures from shanocast/AirReceiver (valid through 2027-12-21)");
 
     // Generate a self-signed TLS certificate for port 8009
     auto [cert, key] = generateSelfSignedCert();
@@ -192,33 +190,20 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     QSslCertificate qCert;
     QSslKey         qKey;
 
-    // Generate RSA-2048 key using OpenSSL 3.x EVP API
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
-    if (!ctx) {
-        qCritical("CastHandler: EVP_PKEY_CTX_new_from_name failed");
+    // CRITICAL: Use the fixed peer_key_der from shanocast/AirReceiver.
+    // The precomputed signatures in cast_auth_sigs.h were computed against
+    // certificates generated with this specific RSA key. If we use a different
+    // key, Chrome will reject the signature verification.
+    const unsigned char* keyPtr = cast::peer_key_der;
+    pkey = d2i_AutoPrivateKey(nullptr, &keyPtr, cast::peer_key_der_len);
+    if (!pkey) {
+        qCritical("CastHandler: failed to parse peer_key_der");
         return std::make_pair(QSslCertificate{}, QSslKey{});
     }
 
-    if (EVP_PKEY_keygen_init(ctx) <= 0) {
-        qCritical("CastHandler: EVP_PKEY_keygen_init failed");
-        EVP_PKEY_CTX_free(ctx);
-        return std::make_pair(QSslCertificate{}, QSslKey{});
-    }
-
-    if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) <= 0) {
-        qCritical("CastHandler: EVP_PKEY_CTX_set_rsa_keygen_bits failed");
-        EVP_PKEY_CTX_free(ctx);
-        return std::make_pair(QSslCertificate{}, QSslKey{});
-    }
-
-    if (EVP_PKEY_generate(ctx, &pkey) <= 0) {
-        qCritical("CastHandler: EVP_PKEY_generate failed");
-        EVP_PKEY_CTX_free(ctx);
-        return std::make_pair(QSslCertificate{}, QSslKey{});
-    }
-    EVP_PKEY_CTX_free(ctx);
-
-    // Create X.509 v3 self-signed certificate
+    // Create X.509 v3 self-signed certificate (peer certificate)
+    // Valid for 48 hours (matches shanocast pattern), signed with SHA-1
+    // (shanocast uses SHA-1 for the peer cert signature)
     cert = X509_new();
     if (!cert) {
         qCritical("CastHandler: X509_new failed");
@@ -227,21 +212,23 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     }
 
     X509_set_version(cert, 2);  // version 3 (0-indexed)
-    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
-    X509_gmtime_adj(X509_getm_notBefore(cert), 0);
-    X509_gmtime_adj(X509_getm_notAfter(cert), 60 * 60 * 48);  // 48 hours validity
+    // Use a fixed serial number matching shanocast
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 0x51c9ac6);
+    // Valid from 24 hours ago to 24 hours from now (48-hour window centered on now)
+    X509_gmtime_adj(X509_getm_notBefore(cert), -24 * 60 * 60);
+    X509_gmtime_adj(X509_getm_notAfter(cert), 24 * 60 * 60);
 
     X509_set_pubkey(cert, pkey);
 
-    // Set subject and issuer to CN=AirShow (self-signed)
+    // Set subject and issuer — self-signed peer certificate
     X509_NAME* name = X509_get_subject_name(cert);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               reinterpret_cast<const unsigned char*>("AirShow"),
+                               reinterpret_cast<const unsigned char*>("AirShow Cast Receiver"),
                                -1, -1, 0);
     X509_set_issuer_name(cert, name);  // self-signed: issuer == subject
 
-    // Sign with SHA-256
-    if (X509_sign(cert, pkey, EVP_sha256()) <= 0) {
+    // Sign with SHA-1 (matching shanocast's approach)
+    if (X509_sign(cert, pkey, EVP_sha1()) <= 0) {
         qCritical("CastHandler: X509_sign failed");
         X509_free(cert);
         EVP_PKEY_free(pkey);

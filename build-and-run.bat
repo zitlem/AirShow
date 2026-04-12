@@ -21,12 +21,28 @@ if not exist "C:\msys64\mingw64\bin\gcc.exe" (
     echo Install MSYS2 from https://www.msys2.org/ then run:
     echo   pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
     echo   pacman -S mingw-w64-x86_64-qt6-base mingw-w64-x86_64-qt6-declarative
+    echo   pacman -S mingw-w64-x86_64-qt6-networkauth
     echo   pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
     echo   pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad
     echo   pacman -S mingw-w64-x86_64-gst-libav
     echo   pacman -S mingw-w64-x86_64-openssl mingw-w64-x86_64-libupnp
-    echo   pacman -S mingw-w64-x86_64-libplist
+    echo   pacman -S mingw-w64-x86_64-libplist mingw-w64-x86_64-protobuf
+    echo.
+    echo For mDNS discovery (AirPlay/Cast), install one of:
+    echo   - iTunes       https://www.apple.com/itunes/
+    echo   - iCloud       https://www.microsoft.com/store/apps/icloud
+    echo   - Bonjour Print Services  https://support.apple.com/kb/DL999
     exit /b 1
+)
+
+REM --- Check Bonjour (runtime dependency for mDNS) ---
+if not exist "%WINDIR%\System32\dnssd.dll" (
+    if not exist "%WINDIR%\SysWOW64\dnssd.dll" (
+        echo WARNING: Bonjour ^(dnssd.dll^) not found. AirPlay and Cast will not be discoverable.
+        echo Install iTunes, iCloud, or Bonjour Print Services to enable device discovery.
+        echo Build will continue, but the receiver will not appear in device pickers.
+        echo.
+    )
 )
 
 REM Add MSYS2 to PATH for this session

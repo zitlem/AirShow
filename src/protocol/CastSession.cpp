@@ -159,23 +159,29 @@ void CastSession::onDeviceAuth(const CastMessage& msg) {
 
     qDebug("CastSession: received AuthChallenge, sending precomputed signature response");
 
-    // Look up precomputed signature for current 48h window
+    // Look up precomputed signature for current 2-day window
     uint64_t nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
-    size_t idx = (nowSecs / 172800) % cast::kCastAuthSignatureCount;
-    const uint8_t* sig = &cast::kCastAuthSignatures[idx][0];
+    const uint8_t* sig = cast::getSignatureForTime(nowSecs);
 
-    // Build AuthResponse
+    // Build AuthResponse with real certificates from shanocast/AirReceiver
     AuthResponse authResponse;
     authResponse.set_signature(
         reinterpret_cast<const char*>(sig),
         cast::kCastAuthSignatureSize);
+    // Device auth certificate (signed by Google "Eureka Gen1 ICA")
     authResponse.set_client_auth_certificate(
-        reinterpret_cast<const char*>(cast::kCastAuthPeerCert),
-        cast::kCastAuthPeerCertSize);
+        reinterpret_cast<const char*>(cast::auth_crt),
+        cast::auth_crt_len);
+    // Intermediate CA certificate (chain link to Google root)
+    authResponse.add_intermediate_certificate(
+        std::string(reinterpret_cast<const char*>(cast::intermediate_crt),
+                    cast::intermediate_crt_len));
     authResponse.set_signature_algorithm(
         extensions::api::cast_channel::RSASSA_PKCS1v15);
     authResponse.set_hash_algorithm(
         extensions::api::cast_channel::SHA256);
+    // Do NOT set sender_nonce — AirReceiver omits it, and Chrome's
+    // enforce_nonce_checking is false.
 
     // Wrap in DeviceAuthMessage
     DeviceAuthMessage responseMsg;
@@ -600,6 +606,31 @@ void CastSession::onWebrtc(const CastMessage& msg) {
         return;
     }
 
+    // Register ICE candidate callback BEFORE initializing the pipeline.
+    // This captures candidates that webrtcbin discovers and relays them to the sender.
+    QString senderSourceId = QString::fromStdString(msg.source_id());
+    QString ourDestId = QString::fromStdString(msg.destination_id());
+    m_pipeline->setIceCandidateCallback(
+        [this, senderSourceId, ourDestId](unsigned int mlineIndex, const std::string& candidate) {
+            // Build and send ICE candidate to Cast sender on webrtc namespace
+            QJsonObject candidateObj;
+            candidateObj[QStringLiteral("sdpMLineIndex")] = static_cast<int>(mlineIndex);
+            candidateObj[QStringLiteral("candidate")] = QString::fromStdString(candidate);
+
+            QJsonObject iceMsg;
+            iceMsg[QStringLiteral("type")] = QStringLiteral("ICE");
+            iceMsg[QStringLiteral("seqNum")] = 0;
+            iceMsg[QStringLiteral("candidates")] = QJsonArray{candidateObj};
+
+            QByteArray payload = QJsonDocument(iceMsg).toJson(QJsonDocument::Compact);
+            CastMessage iceReply = makeJsonMsg(ourDestId, senderSourceId,
+                QStringLiteral("urn:x-cast:com.google.cast.webrtc"), payload);
+            // Must use invokeMethod since this callback comes from GStreamer thread
+            QMetaObject::invokeMethod(this, [this, iceReply]() {
+                sendMessage(iceReply);
+            }, Qt::QueuedConnection);
+        });
+
     // Initialize WebRTC pipeline (uses stored m_qmlVideoItem, NO argument)
     if (!m_pipeline->initWebrtcPipeline()) {
         qWarning("CastSession: onWebrtc — initWebrtcPipeline() failed");
@@ -618,32 +649,32 @@ void CastSession::onWebrtc(const CastMessage& msg) {
         return;
     }
 
-    // Parse the answer SDP to extract local SSRCs for the ANSWER JSON
-    // For the Cast ANSWER, we report send indexes [0, 1] and our local SSRCs.
-    // Since we are a pure receiver, we use the sender's SSRCs as references.
     // Extract video/audio SSRCs from the offer for the sendIndexes response.
-    int videoPayloadType = 96, audioPayloadType = 97;
     uint32_t videoSsrc = 0, audioSsrc = 0;
 
     for (const QJsonValue& sv : streams) {
         QJsonObject stream    = sv.toObject();
         QString streamType    = stream.value(QStringLiteral("type")).toString();
         if (streamType == QStringLiteral("video_source")) {
-            videoPayloadType = stream.value(QStringLiteral("rtpPayloadType")).toInt(96);
-            videoSsrc        = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+            videoSsrc = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
         } else if (streamType == QStringLiteral("audio_source")) {
-            audioPayloadType = stream.value(QStringLiteral("rtpPayloadType")).toInt(97);
-            audioSsrc        = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
+            audioSsrc = static_cast<uint32_t>(stream.value(QStringLiteral("ssrc")).toDouble(0));
         }
     }
-    Q_UNUSED(videoPayloadType)
-    Q_UNUSED(audioPayloadType)
 
     // Build Cast ANSWER JSON (per RESEARCH.md Pattern 6)
-    // udpPort is the local ICE port — webrtcbin will handle the actual connection.
-    // For the JSON response, we use a nominal port value of 9 (standard SDP dummy port).
+    // Use the actual local UDP port from webrtcbin ICE gathering.
+    // Falls back to 0 if ICE candidates haven't been gathered yet (webrtcbin
+    // reports them asynchronously, but ANSWER must be sent immediately).
+    uint16_t localPort = m_pipeline->webrtcLocalPort();
+    if (localPort == 0) {
+        // webrtcbin hasn't gathered candidates yet — use a reasonable default.
+        // The actual port will be communicated via ICE candidate messages.
+        localPort = 0;
+    }
+
     QJsonObject answerBody;
-    answerBody[QStringLiteral("udpPort")]     = 9;
+    answerBody[QStringLiteral("udpPort")]     = static_cast<int>(localPort);
     answerBody[QStringLiteral("sendIndexes")] = QJsonArray{0, 1};
 
     QJsonArray ssrcs;
@@ -669,14 +700,9 @@ void CastSession::onWebrtc(const CastMessage& msg) {
         payload);
     sendMessage(replyMsg);
 
-    qDebug("CastSession: onWebrtc — sent ANSWER (seqNum=%d)", seqNum);
+    qDebug("CastSession: onWebrtc — sent ANSWER (seqNum=%d, udpPort=%u)", seqNum, localPort);
 
     // Transition the WebRTC pipeline to PLAYING state.
-    // MediaPipeline::play() sets the main appsrc pipeline to PLAYING.
-    // For the webrtcbin pipeline, call play() which acts on m_pipeline.
-    // However, the webrtcbin pipeline is separate from m_pipeline (the appsrc pipeline).
-    // Use the public play() method which handles the webrtcbin pipeline indirectly.
-    // The webrtcbin pipeline was put to PAUSED in initWebrtcPipeline() — now go to PLAYING.
     m_pipeline->play();
 
     qDebug("CastSession: onWebrtc — WebRTC pipeline transitioning to PLAYING");
