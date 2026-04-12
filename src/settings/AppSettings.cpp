@@ -43,7 +43,7 @@ QString AppSettings::defaultReceiverName() {
 
 bool AppSettings::requireApproval() const {
     QSettings s;
-    return s.value(QStringLiteral("security/requireApproval"), true).toBool();
+    return s.value(QStringLiteral("security/requireApproval"), false).toBool();
 }
 
 void AppSettings::setRequireApproval(bool v) {

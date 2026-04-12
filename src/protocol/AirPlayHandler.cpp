@@ -71,6 +71,29 @@ static void raop_cb_display_pin(void* cls, char* pin) {
     static_cast<airshow::AirPlayHandler*>(cls)->onDisplayPin(pin ? pin : "");
 }
 
+// UxPlay calls these callbacks unconditionally (no null guard in UxPlay source).
+// Without them the function pointers are null → assert / SIGSEGV.
+
+static double raop_cb_audio_set_client_volume(void* /*cls*/) {
+    // Called by raop_handler_info on every /info probe. Return -144 dB (muted/unset).
+    return -144.0;
+}
+
+static int raop_cb_video_set_codec(void* /*cls*/, video_codec_t /*codec*/) {
+    // Called when the mirror RTP thread detects a codec change (H.264/H.265).
+    // Return 0 = accepted. AirShow uses a fixed GStreamer pipeline so no action needed.
+    return 0;
+}
+
+static void raop_cb_video_reset(void* /*cls*/, reset_type_t /*reset_type*/) {
+    // Called on RTP shutdown / connection reset. Pipeline teardown is handled
+    // by onConnectionDestroy(); this stub satisfies UxPlay's unconditional call.
+}
+
+static void raop_cb_conn_feedback(void* /*cls*/) {
+    // Called on each client heartbeat "feedback" message. No-op for AirShow.
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace airshow {
@@ -94,18 +117,10 @@ AirPlayHandler::~AirPlayHandler() {
 
 void AirPlayHandler::setMediaPipeline(MediaPipeline* pipeline) {
     m_pipeline = pipeline;
-    if (!pipeline) {
-        m_videoAppsrc = nullptr;
-        m_audioAppsrc = nullptr;
-        return;
-    }
-    // Build the appsrc pipeline (nullptr = no QML item yet; ReceiverWindow sets it later)
-    if (!pipeline->initAppsrcPipeline(nullptr)) {
-        g_warning("AirPlayHandler::setMediaPipeline — initAppsrcPipeline() failed");
-        return;
-    }
-    m_videoAppsrc = pipeline->videoAppsrc();
-    m_audioAppsrc = pipeline->audioAppsrc();
+    // Do NOT call initAppsrcPipeline here — the QML video item is not yet available
+    // (sceneGraphInitialized hasn't fired). ReceiverWindow calls initAppsrcPipeline(videoItem)
+    // after the GL context is ready. m_videoAppsrc/m_audioAppsrc are fetched lazily in
+    // onVideoFrame/onAudioFrame via m_pipeline->videoAppsrc() / audioAppsrc().
 }
 
 // ── setSecurityManager() ─────────────────────────────────────────────────────
@@ -130,7 +145,11 @@ bool AirPlayHandler::start() {
     callbacks.conn_destroy          = raop_cb_conn_destroy;
     callbacks.conn_teardown         = raop_cb_conn_teardown;
     callbacks.audio_get_format      = raop_cb_audio_get_format;
-    callbacks.report_client_request = raop_cb_report_client_request;
+    callbacks.report_client_request       = raop_cb_report_client_request;
+    callbacks.audio_set_client_volume     = raop_cb_audio_set_client_volume;
+    callbacks.video_set_codec             = raop_cb_video_set_codec;
+    callbacks.video_reset                 = raop_cb_video_reset;
+    callbacks.conn_feedback               = raop_cb_conn_feedback;
     // PIN pairing (D-05, D-06): set display_pin trampoline if PIN is enabled
     if (m_securityManager && m_securityManager->isPinEnabled()) {
         callbacks.display_pin = raop_cb_display_pin;
@@ -145,14 +164,12 @@ bool AirPlayHandler::start() {
 
     // 2b. Set logger callback — UxPlay's logger asserts if no callback is set,
     //     causing a crash on the first HTTP request (e.g., /info from iOS/macOS).
-    raop_set_log_callback(m_raop, [](void* /*cls*/, int level, const char* msg) {
-        if (level <= 3) {  // LOGGER_ERR=0..LOGGER_WARNING=3
-            g_warning("UxPlay: %s", msg);
-        } else {
-            g_debug("UxPlay: %s", msg);
-        }
+    raop_set_log_callback(m_raop, [](void* /*cls*/, int /*level*/, const char* msg) {
+        // Print all UxPlay messages to stderr so they appear in the log.
+        // LOGGER_INFO=6, LOGGER_WARNING=4, LOGGER_ERR=3 — use g_message (always visible).
+        g_message("UxPlay: %s", msg);
     }, nullptr);
-    raop_set_log_level(m_raop, 5);  // LOGGER_DEBUG
+    raop_set_log_level(m_raop, 6);  // LOGGER_INFO — captures conn lifecycle messages
 
     // 2c. Initialize UxPlay's dnssd object — the /info handler reads features and
     //     TXT records from raop->dnssd. We don't use UxPlay's mDNS (our DiscoveryManager
@@ -235,7 +252,8 @@ void AirPlayHandler::stop() {
         m_raop = nullptr;
     }
     m_running       = false;
-    m_basetimeSet   = false;
+    m_videoAppsrc   = nullptr;
+    m_audioAppsrc   = nullptr;
     m_audioCapsSet  = false;
     m_currentDeviceName.clear();
 }
@@ -244,18 +262,15 @@ void AirPlayHandler::stop() {
 
 void AirPlayHandler::onVideoFrame(void* rawData) {
     auto* data       = static_cast<video_decode_struct*>(rawData);
+    // Fetch appsrc lazily — initAppsrcPipeline is called after sceneGraphInitialized,
+    // which happens after setMediaPipeline. Cache it once available.
+    if (!m_videoAppsrc && m_pipeline) {
+        m_videoAppsrc = m_pipeline->videoAppsrc();
+    }
     auto* videoAppsrc = static_cast<GstElement*>(m_videoAppsrc);
 
     if (!videoAppsrc || !data || data->data_len <= 0) {
         return;
-    }
-
-    // Capture basetime exactly once per session on first frame (Pitfall 4: A/V sync)
-    if (!m_basetimeSet && m_pipeline) {
-        m_basetime    = gst_element_get_base_time(m_pipeline->gstPipeline());
-        m_basetimeSet = true;
-        // Transition from PAUSED to PLAYING — pipeline was held in PAUSED by initAppsrcPipeline()
-        gst_element_set_state(m_pipeline->gstPipeline(), GST_STATE_PLAYING);
     }
 
     GstBuffer* buf = gst_buffer_new_allocate(nullptr, static_cast<gsize>(data->data_len), nullptr);
@@ -264,31 +279,34 @@ void AirPlayHandler::onVideoFrame(void* rawData) {
         return;
     }
     gst_buffer_fill(buf, 0, data->data, static_cast<gsize>(data->data_len));
+    // PTS is left as GST_CLOCK_TIME_NONE — appsrc do-timestamp=TRUE assigns the
+    // pipeline running_time automatically, which is correct for live screen mirroring.
 
-    // Normalise NTP timestamp to pipeline clock (Pitfall 4)
-    GST_BUFFER_PTS(buf) = (data->ntp_time_local >= m_basetime)
-                          ? (data->ntp_time_local - m_basetime)
-                          : GST_CLOCK_TIME_NONE;
+    static int s_videoFrameCount = 0;
+    ++s_videoFrameCount;
+    // Log every frame > 1000 bytes (scene change) and every 60th frame for heartbeat
+    if (data->data_len > 1000 || s_videoFrameCount <= 5 || s_videoFrameCount % 60 == 0) {
+        g_message("AirPlayHandler::onVideoFrame — frame #%d len=%d",
+                  s_videoFrameCount, data->data_len);
+    }
 
     GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(videoAppsrc), buf);
     if (ret != GST_FLOW_OK) {
-        g_warning("AirPlayHandler::onVideoFrame — gst_app_src_push_buffer failed (ret=%d)", ret);
+        g_warning("AirPlayHandler::onVideoFrame — push_buffer failed frame #%d ret=%d (%s)",
+                  s_videoFrameCount, ret, gst_flow_get_name(ret));
     }
 }
 
 void AirPlayHandler::onAudioFrame(void* rawData) {
     auto* data        = static_cast<audio_decode_struct*>(rawData);
+    // Fetch appsrc lazily — same deferred-init pattern as onVideoFrame.
+    if (!m_audioAppsrc && m_pipeline) {
+        m_audioAppsrc = m_pipeline->audioAppsrc();
+    }
     auto* audioAppsrc = static_cast<GstElement*>(m_audioAppsrc);
 
     if (!audioAppsrc || !data || data->data_len <= 0) {
         return;
-    }
-
-    // Capture basetime if not yet captured (whichever arrives first — video or audio)
-    if (!m_basetimeSet && m_pipeline) {
-        m_basetime    = gst_element_get_base_time(m_pipeline->gstPipeline());
-        m_basetimeSet = true;
-        gst_element_set_state(m_pipeline->gstPipeline(), GST_STATE_PLAYING);
     }
 
     GstBuffer* buf = gst_buffer_new_allocate(nullptr, static_cast<gsize>(data->data_len), nullptr);
@@ -297,10 +315,7 @@ void AirPlayHandler::onAudioFrame(void* rawData) {
         return;
     }
     gst_buffer_fill(buf, 0, data->data, static_cast<gsize>(data->data_len));
-
-    GST_BUFFER_PTS(buf) = (data->ntp_time_local >= m_basetime)
-                          ? (data->ntp_time_local - m_basetime)
-                          : GST_CLOCK_TIME_NONE;
+    // PTS left as GST_CLOCK_TIME_NONE — appsrc do-timestamp=TRUE handles timing.
 
     GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(audioAppsrc), buf);
     if (ret != GST_FLOW_OK) {
@@ -355,24 +370,31 @@ void AirPlayHandler::onReportClientRequest(char* deviceid, char* /*model*/,
 }
 
 void AirPlayHandler::onConnectionInit() {
+    g_message("AirPlayHandler::onConnectionInit — device='%s' bridge=%p",
+              m_currentDeviceName.c_str(), static_cast<void*>(m_connectionBridge));
     // Update HUD thread-safely via Qt queued connection (D-10)
     if (m_connectionBridge) {
         QString deviceName = QString::fromStdString(m_currentDeviceName);
         QMetaObject::invokeMethod(m_connectionBridge, [this, deviceName]() {
+            g_message("AirPlayHandler::onConnectionInit — setConnected(true) firing on main thread");
             m_connectionBridge->setConnected(true, deviceName, QStringLiteral("AirPlay"));
         }, Qt::QueuedConnection);
     }
 }
 
 void AirPlayHandler::onConnectionDestroy() {
+    g_message("AirPlayHandler::onConnectionDestroy — bridge=%p",
+              static_cast<void*>(m_connectionBridge));
     // Update HUD thread-safely (D-10, D-11)
     if (m_connectionBridge) {
         QMetaObject::invokeMethod(m_connectionBridge, [this]() {
+            g_message("AirPlayHandler::onConnectionDestroy — setConnected(false) firing on main thread");
             m_connectionBridge->setConnected(false);
         }, Qt::QueuedConnection);
     }
     // Reset per-session state so next connection starts clean
-    m_basetimeSet  = false;
+    m_videoAppsrc  = nullptr;
+    m_audioAppsrc  = nullptr;
     m_audioCapsSet = false;
 }
 

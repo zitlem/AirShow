@@ -13,7 +13,6 @@
 
 // Qt Core
 #include <QDebug>
-#include <QCryptographicHash>
 
 // OpenSSL 3.x (runtime self-signed cert generation per RESEARCH.md Pattern 3)
 #include <openssl/evp.h>
@@ -122,59 +121,28 @@ void CastHandler::onPendingConnection() {
         return;
     }
 
-    // Phase 7 (SEC-01): Require SecurityManager approval.
-    // CRITICAL: CastHandler runs on the Qt main thread — MUST use checkConnectionAsync.
-    // Using checkConnection (QSemaphore blocking) here would deadlock the event loop (Pitfall 1).
-    if (m_securityManager) {
-        // Use TLS peer certificate fingerprint as stable Cast device ID if available.
-        // Falls back to peer IP string if no peer cert (we use VerifyNone, so cert may be absent).
-        const QSslCertificate peerCert = socket->peerCertificate();
-        QString deviceId = peerCert.isNull()
-            ? peerAddr.toString()
-            : peerCert.digest(QCryptographicHash::Sha256).toHex();
-
-        // Store socket in QPointer so we can safely check if it was deleted during approval.
-        m_pendingSocket = socket;
-
-        // D-14: clear any existing session immediately (new connection replaces old).
-        m_session.reset();
-
-        m_securityManager->checkConnectionAsync(
-            QStringLiteral("Cast device"), QStringLiteral("Cast"), deviceId,
-            [this, socket](bool approved) {
-                // This callback is invoked on the Qt main thread by resolveApproval().
-                if (!approved) {
-                    qDebug("CastHandler: connection denied by security manager");
-                    if (m_pendingSocket == socket) {
-                        m_pendingSocket = nullptr;
-                    }
-                    socket->disconnectFromHost();
-                    socket->deleteLater();
-                    return;
-                }
-                // Check that the socket is still valid (QPointer catches deletion).
-                if (m_pendingSocket != socket || !socket) {
-                    qDebug("CastHandler: socket gone before approval resolved");
-                    return;
-                }
-                m_pendingSocket = nullptr;
-                qDebug("CastHandler: connection approved, creating CastSession");
-                m_session = std::make_unique<CastSession>(
-                    socket, m_connectionBridge, m_pipeline, this);
-                connect(m_session.get(), &CastSession::finished,
-                        this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
-            });
-    } else {
-        // No SecurityManager — admit all local connections (backward compatible).
-        // D-14: new connection replaces active session.
-        m_session.reset();
-        m_session = std::make_unique<CastSession>(socket, m_connectionBridge, m_pipeline, this);
-        connect(m_session.get(), &CastSession::finished,
-                this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
-    }
+    // Accept the connection immediately — many devices probe port 8009 during discovery
+    // without ever sending Cast protocol messages. Prompting for approval on every raw
+    // TCP/TLS probe is too noisy. Instead, CastSession defers the approval check until
+    // it receives an actual Cast CONNECT or LAUNCH message (proof of real intent).
+    //
+    // D-14: new connection replaces any existing session.
+    m_session.reset();
+    qDebug("CastHandler: connection approved, creating CastSession");
+    m_session = std::make_unique<CastSession>(
+        socket, m_connectionBridge, m_pipeline, m_securityManager, this);
+    connect(m_session.get(), &CastSession::finished,
+            this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
 }
 
 void CastHandler::onSessionFinished() {
+    // Guard: a new session may have been created before this queued signal fired
+    // (QueuedConnection means the old session's finished() can arrive late).
+    // Only destroy if the signal came from the session we currently own.
+    if (sender() != m_session.get()) {
+        qDebug("CastHandler: ignoring stale finished signal from replaced session");
+        return;
+    }
     qDebug("CastHandler: session finished, cleaning up");
     m_session.reset();
 }

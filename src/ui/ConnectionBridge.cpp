@@ -1,4 +1,5 @@
 #include "ui/ConnectionBridge.h"
+#include <QDebug>
 
 namespace airshow {
 
@@ -13,6 +14,9 @@ void ConnectionBridge::setConnected(bool connected,
                                     const QString& deviceName,
                                     const QString& protocol)
 {
+    qDebug("ConnectionBridge::setConnected(%s, '%s', '%s')",
+           connected ? "true" : "false",
+           qPrintable(deviceName), qPrintable(protocol));
     // When disconnecting, always clear device info regardless of what was passed.
     // Invariant: disconnected state has no device name or protocol (D-05).
     if (!connected) {

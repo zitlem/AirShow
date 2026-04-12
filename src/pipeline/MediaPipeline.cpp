@@ -1,5 +1,7 @@
 #include "pipeline/MediaPipeline.h"
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+#include <gst/video/video.h>
 #include <gst/sdp/gstsdpmessage.h>
 #include <gst/webrtc/webrtc.h>
 #include <glib.h>
@@ -297,28 +299,104 @@ void MediaPipeline::stop() {
     }
 }
 
+void MediaPipeline::setVideoFrameCallback(VideoFrameCallback cb)
+{
+    m_videoFrameCallback = std::move(cb);
+}
+
+// Static appsink new-sample callback — runs on GStreamer's streaming thread.
+// Pulls the sample, maps the video frame, converts to QImage (RGBA), and
+// invokes the registered VideoFrameCallback so the Qt item can render it.
+GstFlowReturn MediaPipeline::onNewVideoSample(GstAppSink* sink, gpointer userData)
+{
+    auto* self = static_cast<MediaPipeline*>(userData);
+    if (!self->m_videoFrameCallback) return GST_FLOW_OK;
+
+    GstSample* sample = gst_app_sink_pull_sample(sink);
+    if (!sample) return GST_FLOW_ERROR;
+
+    GstBuffer* buf  = gst_sample_get_buffer(sample);
+    GstCaps*   caps = gst_sample_get_caps(sample);
+
+    GstVideoInfo info;
+    if (caps && gst_video_info_from_caps(&info, caps)) {
+        GstVideoFrame vframe;
+        if (gst_video_frame_map(&vframe, &info, buf, GST_MAP_READ)) {
+            const int    w      = GST_VIDEO_FRAME_WIDTH(&vframe);
+            const int    h      = GST_VIDEO_FRAME_HEIGHT(&vframe);
+            const int    stride = GST_VIDEO_FRAME_PLANE_STRIDE(&vframe, 0);
+            const uchar* data   = static_cast<const uchar*>(
+                                    GST_VIDEO_FRAME_PLANE_DATA(&vframe, 0));
+
+            // RGBA in GStreamer memory maps directly to QImage::Format_RGBA8888.
+            QImage frame(data, w, h, stride, QImage::Format_RGBA8888);
+            QImage copy = frame.copy();  // Deep copy before unmapping GstBuffer.
+
+            gst_video_frame_unmap(&vframe);
+            self->m_videoFrameCallback(std::move(copy));
+        }
+    }
+
+    gst_sample_unref(sample);
+    return GST_FLOW_OK;
+}
+
 bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     // Phase 4 appsrc-based pipeline for receiving live AirPlay A/V frames (D-03).
     //
-    // Video branch: appsrc(video_appsrc) ! h264parse ! [vaapih264dec|avdec_h264]
-    //               ! videoconvert ! glupload ! qml6glsink  (or fakesink in headless mode)
+    // Video branch:
+    //   appsrc ! queue ! h264parse ! [vaapih264dec|avdec_h264] ! queue ! videoconvert
+    //          ! video/x-raw,format=RGBA ! appsink
     //
-    // Audio branch: appsrc(audio_appsrc) ! decodebin ! audioconvert ! audioresample ! autoaudiosink
-    //   decodebin is used for audio so AAC and ALAC are both handled via codec negotiation
-    //   without requiring separate code paths.
+    // Audio branch:
+    //   appsrc ! queue ! decodebin ! audioconvert ! audioresample ! autoaudiosink
     //
-    // The pipeline is started in GST_STATE_PAUSED; AirPlayHandler transitions it to
-    // GST_STATE_PLAYING when the first media frame arrives, allowing A/V sync establishment.
+    // Using appsink (not qml6glsink) avoids all GStreamer GL context sharing complexity
+    // and the GL buffer pool deadlock that caused qml6glsink to stall after frame #1.
+    // Decoded frames are delivered as RGBA QImages via m_videoFrameCallback, which
+    // VideoFrameSink uses to render on Qt's scene graph thread — no shared GL state.
+    //
+    // queue elements are CRITICAL: without them, gst_app_src_push_buffer() blocks on the
+    // UxPlay RAOP thread until the downstream sink releases the buffer, which requires the
+    // Qt main thread. This cross-thread wait stalls after the first frame. Queues decouple
+    // the producer (RAOP thread) from the consumer (decoder/renderer threads).
 
     GstElement* pipeline      = gst_pipeline_new("airshow-pipeline");
-    GstElement* videoAppsrc   = gst_element_factory_make("appsrc",       "video_appsrc");
-    GstElement* h264parse     = gst_element_factory_make("h264parse",    "h264parse");
-    GstElement* videoConvert  = gst_element_factory_make("videoconvert", "videoconvert");
-    GstElement* audioAppsrc   = gst_element_factory_make("appsrc",       "audio_appsrc");
-    GstElement* audioDecode   = gst_element_factory_make("decodebin",    "audiodecode");
-    GstElement* audioConvert  = gst_element_factory_make("audioconvert", "audioconvert");
-    GstElement* audioResample = gst_element_factory_make("audioresample","audioresample");
-    GstElement* audioSink     = gst_element_factory_make("autoaudiosink","audiosink");
+    GstElement* videoAppsrc   = gst_element_factory_make("appsrc",        "video_appsrc");
+    GstElement* videoQueue    = gst_element_factory_make("queue",          "video_queue");
+    GstElement* h264parse     = gst_element_factory_make("h264parse",      "h264parse");
+    GstElement* decodeQueue   = gst_element_factory_make("queue",          "decode_queue");
+    GstElement* videoConvert  = gst_element_factory_make("videoconvert",   "videoconvert");
+    GstElement* audioAppsrc   = gst_element_factory_make("appsrc",         "audio_appsrc");
+    GstElement* audioQueue    = gst_element_factory_make("queue",           "audio_queue");
+    GstElement* audioDecode   = gst_element_factory_make("decodebin",      "audiodecode");
+    GstElement* audioConvert  = gst_element_factory_make("audioconvert",   "audioconvert");
+    GstElement* audioResample = gst_element_factory_make("audioresample",  "audioresample");
+    GstElement* audioSink     = gst_element_factory_make("autoaudiosink",  "audiosink");
+
+    // Configure queues for live screen mirroring — leaky=2 drops oldest when full so
+    // we always display the latest frame rather than blocking the entire pipeline.
+    // max-size-bytes=0 and max-size-time=0 disable byte/time limits; only buffer count limits.
+    // videoQueue (encoded): hold a few encoded frames; drop oldest if decoder falls behind.
+    // decodeQueue (decoded): decoded 1080p frames are ~3MB each — without leaky the queue
+    //   fills after ~5 frames and permanently blocks avdec_h264. leaky=2 + max-buffers=2
+    //   keeps only the 2 most recent decoded frames and drops older ones.
+    if (videoQueue) {
+        g_object_set(videoQueue,
+            "max-size-buffers", 4,
+            "max-size-bytes",   0,
+            "max-size-time",    G_GUINT64_CONSTANT(0),
+            "leaky",            2,   // drop oldest
+            nullptr);
+    }
+    if (decodeQueue) {
+        g_object_set(decodeQueue,
+            "max-size-buffers", 2,
+            "max-size-bytes",   0,
+            "max-size-time",    G_GUINT64_CONSTANT(0),
+            "leaky",            2,   // drop oldest
+            nullptr);
+    }
 
     // Video decoder: try hardware (vaapih264dec) first, fall back to avdec_h264 (D-12)
     GstElement* videoDecode = gst_element_factory_make("vaapih264dec", "videodecode");
@@ -327,25 +405,29 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
         videoDecode = gst_element_factory_make("avdec_h264", "videodecode");
     }
 
-    // Video sink selection: qml6glsink with glupload in GL mode, fakesink in headless mode
-    const bool useGlSink = (qmlVideoItem != nullptr);
-    GstElement* glUpload  = useGlSink ? gst_element_factory_make("glupload",   "glupload")  : nullptr;
-    GstElement* videoSink = useGlSink ? gst_element_factory_make("qml6glsink", "videosink")
-                                      : gst_element_factory_make("fakesink",   "videosink");
+    // Video sink: appsink when a video callback is registered (normal mode),
+    // fakesink in headless/test mode (no callback registered).
+    const bool useAppsink = static_cast<bool>(m_videoFrameCallback);
+    GstElement* videoSink = useAppsink
+        ? gst_element_factory_make("appsink",  "videosink")
+        : gst_element_factory_make("fakesink", "videosink");
 
     // Verify all mandatory elements were created
-    if (!pipeline || !videoAppsrc || !h264parse || !videoDecode || !videoConvert || !videoSink ||
-        !audioAppsrc || !audioDecode || !audioConvert || !audioResample || !audioSink ||
-        (useGlSink && !glUpload)) {
+    if (!pipeline || !videoAppsrc || !videoQueue || !h264parse || !decodeQueue ||
+        !videoDecode || !videoConvert || !videoSink ||
+        !audioAppsrc || !audioQueue || !audioDecode ||
+        !audioConvert || !audioResample || !audioSink) {
         g_warning("MediaPipeline::initAppsrcPipeline — failed to create one or more GStreamer elements");
         if (pipeline)      gst_object_unref(pipeline);
         if (videoAppsrc)   gst_object_unref(videoAppsrc);
+        if (videoQueue)    gst_object_unref(videoQueue);
         if (h264parse)     gst_object_unref(h264parse);
+        if (decodeQueue)   gst_object_unref(decodeQueue);
         if (videoDecode)   gst_object_unref(videoDecode);
         if (videoConvert)  gst_object_unref(videoConvert);
-        if (glUpload)      gst_object_unref(glUpload);
         if (videoSink)     gst_object_unref(videoSink);
         if (audioAppsrc)   gst_object_unref(audioAppsrc);
+        if (audioQueue)    gst_object_unref(audioQueue);
         if (audioDecode)   gst_object_unref(audioDecode);
         if (audioConvert)  gst_object_unref(audioConvert);
         if (audioResample) gst_object_unref(audioResample);
@@ -353,62 +435,75 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
         return false;
     }
 
-    // Configure video appsrc: stream-type=0 (stream), format=TIME, is-live=TRUE
-    // caps set to byte-stream H.264 NAL units (AirPlay sends in byte-stream format)
+    // Configure video appsrc for live screen mirroring:
+    //   do-timestamp=TRUE — appsrc stamps each buffer with the pipeline running_time.
+    //   is-live=TRUE      — never blocks; drops if downstream is slow.
+    //   format=TIME       — PTS/DTS in nanoseconds.
     g_object_set(videoAppsrc,
-        "stream-type", 0,
-        "format",      GST_FORMAT_TIME,
-        "is-live",     TRUE,
+        "stream-type",   0,
+        "format",        GST_FORMAT_TIME,
+        "is-live",       TRUE,
+        "do-timestamp",  TRUE,
         nullptr);
+    // UxPlay delivers one complete H.264 access unit per video_process callback.
     GstCaps* videoCaps = gst_caps_from_string(
-        "video/x-h264,stream-format=byte-stream,alignment=nal");
+        "video/x-h264,stream-format=byte-stream,alignment=au");
     g_object_set(videoAppsrc, "caps", videoCaps, nullptr);
     gst_caps_unref(videoCaps);
 
-    // Configure audio appsrc: stream-type=0, format=TIME, is-live=TRUE
-    // caps will be set later via setAudioCaps() when the codec type is known
+    // Configure audio appsrc: same live settings, caps set later via setAudioCaps()
     g_object_set(audioAppsrc,
-        "stream-type", 0,
-        "format",      GST_FORMAT_TIME,
-        "is-live",     TRUE,
+        "stream-type",  0,
+        "format",       GST_FORMAT_TIME,
+        "is-live",      TRUE,
+        "do-timestamp", TRUE,
         nullptr);
 
-    // Set the QML video item on the sink BEFORE state change (D-04)
-    if (useGlSink) {
-        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
+    // Configure appsink: drop old frames when Qt is slow, output RGBA for direct
+    // QImage construction. Use gst_app_sink_set_callbacks (not g_signal_connect)
+    // so the GstAppSink* signature is enforced and the return value is handled.
+    //
+    // async=FALSE is CRITICAL for live pipelines: without it, appsink returns
+    // GST_STATE_CHANGE_ASYNC from PAUSED, blocking the pipeline in PAUSED forever
+    // because the live audio decodebin branch can't complete preroll (no caps yet).
+    if (useAppsink) {
+        GstCaps* sinkCaps = gst_caps_from_string("video/x-raw,format=RGBA");
+        g_object_set(videoSink,
+            "sync",        FALSE,
+            "async",       FALSE,
+            "max-buffers", 2,
+            "drop",        TRUE,
+            "caps",        sinkCaps,
+            nullptr);
+        gst_caps_unref(sinkCaps);
+
+        static GstAppSinkCallbacks appsinkCbs = {
+            nullptr,                               // eos
+            nullptr,                               // new_preroll
+            MediaPipeline::onNewVideoSample,       // new_sample
+            nullptr,                               // new_event (padding)
+        };
+        gst_app_sink_set_callbacks(GST_APP_SINK(videoSink), &appsinkCbs, this, nullptr);
     }
 
     // Add all elements to the pipeline
-    if (useGlSink) {
-        gst_bin_add_many(GST_BIN(pipeline),
-            videoAppsrc, h264parse, videoDecode, videoConvert, glUpload, videoSink,
-            audioAppsrc, audioDecode, audioConvert, audioResample, audioSink,
-            nullptr);
-    } else {
-        gst_bin_add_many(GST_BIN(pipeline),
-            videoAppsrc, h264parse, videoDecode, videoConvert, videoSink,
-            audioAppsrc, audioDecode, audioConvert, audioResample, audioSink,
-            nullptr);
+    gst_bin_add_many(GST_BIN(pipeline),
+        videoAppsrc, videoQueue, h264parse, videoDecode, decodeQueue,
+        videoConvert, videoSink,
+        audioAppsrc, audioQueue, audioDecode, audioConvert, audioResample, audioSink,
+        nullptr);
+
+    // Video branch: appsrc ! videoQueue ! h264parse ! decoder ! decodeQueue ! videoconvert ! appsink
+    if (!gst_element_link_many(videoAppsrc, videoQueue, h264parse, videoDecode,
+                               decodeQueue, videoConvert, videoSink, nullptr)) {
+        g_warning("MediaPipeline::initAppsrcPipeline — failed to link video branch");
+        gst_object_unref(pipeline);
+        return false;
     }
 
-    // Link video branch: appsrc ! h264parse ! videodecode ! videoconvert [! glupload] ! videosink
-    if (useGlSink) {
-        if (!gst_element_link_many(videoAppsrc, h264parse, videoDecode, videoConvert, glUpload, videoSink, nullptr)) {
-            g_warning("MediaPipeline::initAppsrcPipeline — failed to link video branch (GL)");
-            gst_object_unref(pipeline);
-            return false;
-        }
-    } else {
-        if (!gst_element_link_many(videoAppsrc, h264parse, videoDecode, videoConvert, videoSink, nullptr)) {
-            g_warning("MediaPipeline::initAppsrcPipeline — failed to link video branch (fake)");
-            gst_object_unref(pipeline);
-            return false;
-        }
-    }
-
-    // Audio branch: appsrc ! decodebin (dynamic pads) -> audioconvert ! audioresample ! autoaudiosink
+    // Audio branch: appsrc ! queue ! decodebin (dynamic pads) -> audioconvert ! audioresample ! autoaudiosink
     // Link up to decodebin; the rest is connected via pad-added signal
-    if (!gst_element_link(audioAppsrc, audioDecode)) {
+    if (!gst_element_link_many(audioAppsrc, audioQueue, audioDecode, nullptr)) {
         g_warning("MediaPipeline::initAppsrcPipeline — failed to link audio appsrc to decodebin");
         gst_object_unref(pipeline);
         return false;
@@ -453,15 +548,34 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     g_signal_connect(audioDecode, "pad-added",
                      G_CALLBACK(AudioPadHelper::callback), audioPadData);
 
+
+    // async=FALSE on audio sink child: autoaudiosink wraps pulsesink/alsasink which
+    // returns ASYNC for PAUSED (opening audio device). Without this the pipeline
+    // gets stuck in PAUSED forever when audio decodebin has no caps yet.
+    // autoaudiosink itself has no "async" property — must set it on the child sink
+    // via "element-added" signal, which fires when the real sink is created.
+    g_signal_connect(audioSink, "element-added",
+        G_CALLBACK(+[](GstBin*, GstElement* child, gpointer) {
+            g_object_set(child, "async", FALSE, "sync", FALSE, nullptr);
+        }), nullptr);
+
+    // decodebin async-handling=FALSE: prevents decodebin from propagating ASYNC
+    // from its children, so the pipeline doesn't wait for format detection
+    // before completing state transitions.
+    g_object_set(audioDecode, "async-handling", FALSE, nullptr);
+
     m_pipeline    = pipeline;
     m_audioSink   = audioSink;
     m_videoAppsrc = videoAppsrc;
     m_audioAppsrc = audioAppsrc;
 
-    // Start in PAUSED state — AirPlayHandler transitions to PLAYING when first frame arrives
-    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
+    // Start in PLAYING immediately — do-timestamp=TRUE on appsrc means the pipeline
+    // clock is the timing source, so we need it running before the first buffer arrives.
+    // (Previously held in PAUSED waiting for first frame; that approach broke because
+    //  the clock wasn't running when we tried to timestamp frames.)
+    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        g_warning("MediaPipeline::initAppsrcPipeline — GST_STATE_CHANGE_FAILURE on PAUSED");
+        g_warning("MediaPipeline::initAppsrcPipeline — GST_STATE_CHANGE_FAILURE on PLAYING");
         gst_object_unref(m_pipeline);
         m_pipeline    = nullptr;
         m_audioSink   = nullptr;
