@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 Phase: 11
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-04-02
+Last activity: 2026-04-12 - Completed quick task 260411-x6a: Fix CastHandler crash: use Qt::QueuedConnection for CastSession::finished signal
 
 Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 
@@ -65,6 +65,12 @@ Progress: [░░░░░░░░░░] 0% (v2.0 milestone)
 ### Pending Todos
 
 None yet.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260411-x6a | Fix CastHandler crash: use Qt::QueuedConnection for CastSession::finished signal | 2026-04-12 | edcee8a | [260411-x6a-fix-casthandler-crash-use-qt-queuedconne](.planning/quick/260411-x6a-fix-casthandler-crash-use-qt-queuedconne/) |
 
 ### Blockers/Concerns
 
