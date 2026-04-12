@@ -1,12 +1,14 @@
 #pragma once
 #include "DecoderInfo.h"
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
 #include <optional>
 #include <functional>
 #include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
+#include <QImage>
 
 namespace airshow {
 
@@ -47,10 +49,16 @@ public:
     GstElement* gstPipeline() const { return m_pipeline; }
 
     // Phase 4: appsrc-based pipeline for live protocol data (D-03)
-    // Video branch: appsrc ! h264parse ! [vaapih264dec|avdec_h264] ! videoconvert ! glupload ! qml6glsink
+    // Video branch: appsrc ! h264parse ! [vaapih264dec|avdec_h264] ! videoconvert ! appsink
     // Audio branch: appsrc ! decodebin ! audioconvert ! audioresample ! autoaudiosink
+    // Video frames are delivered as RGBA QImages via the VideoFrameCallback set below.
     // Uses decodebin for audio to handle AAC/ALAC codec negotiation automatically.
     bool initAppsrcPipeline(void* qmlVideoItem);
+
+    // Callback invoked from GStreamer's streaming thread when a decoded video frame
+    // is ready. The QImage is RGBA format. Must be set before initAppsrcPipeline().
+    using VideoFrameCallback = std::function<void(QImage)>;
+    void setVideoFrameCallback(VideoFrameCallback cb);
 
     // Accessors for protocol handlers to push encoded buffers into the pipeline.
     // Valid after initAppsrcPipeline() returns true; null otherwise.
@@ -181,6 +189,12 @@ private:
     // Declared here so it has natural access to private members via the
     // MediaPipeline* cast of the gpointer userdata — no friend needed.
     static void onElementAdded(GstBin* bin, GstElement* element, gpointer userData);
+
+    // Static appsink new-sample callback — called from GStreamer's streaming thread.
+    // Must match GstAppSinkCallbacks::new_sample signature (GstAppSink*, not GstElement*).
+    static GstFlowReturn onNewVideoSample(GstAppSink* sink, gpointer userData);
+
+    VideoFrameCallback m_videoFrameCallback;
 };
 
 } // namespace airshow

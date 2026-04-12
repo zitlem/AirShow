@@ -3,11 +3,11 @@
 #include "ui/AudioBridge.h"
 #include "ui/ConnectionBridge.h"
 #include "ui/SettingsBridge.h"
+#include "ui/VideoFrameSink.h"
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QUrl>
 #include <QQuickWindow>
-#include <gst/gst.h>
 #include <QDebug>
 
 namespace airshow {
@@ -16,14 +16,8 @@ ReceiverWindow::ReceiverWindow(MediaPipeline& pipeline, AppSettings& settings)
     : m_pipeline(pipeline), m_settings(settings) {}
 
 bool ReceiverWindow::load() {
-    // CRITICAL (Anti-Pattern from RESEARCH.md Pitfall 4):
-    // Preload qml6glsink BEFORE engine.load() to register GstGLVideoItem QML type.
-    GstElement* preload = gst_element_factory_make("qml6glsink", nullptr);
-    if (!preload) {
-        qFatal("qml6glsink not available — install gstreamer1.0-qt6");
-        return false;
-    }
-    gst_object_unref(preload);  // Side effect (type registration) already done.
+    // VideoFrameSink is a C++ QML_ELEMENT registered in the AirShow module.
+    // No GStreamer preloading needed (we use appsink, not qml6glsink).
 
     // Expose AudioBridge to QML as "audioBridge" context property.
     // AudioBridge is parented to the QML engine so it is destroyed with it.
@@ -60,21 +54,28 @@ bool ReceiverWindow::load() {
             if (m_pipelineInitialized) return;
             m_pipelineInitialized = true;
 
-            QObject* videoItem = rootObject->findChild<QObject*>("videoItem");
+            auto* videoItem = rootObject->findChild<VideoFrameSink*>("videoItem");
             if (!videoItem) {
-                qWarning("ReceiverWindow — could not find QML object named 'videoItem'");
-            }
-
-            // Phase 6: store the QML video item pointer for deferred Cast WebRTC pipeline
-            // creation. CastSession::onWebrtc() calls initWebrtcPipeline() (no arg) which
-            // uses this stored pointer. Must be called before any Cast connection arrives.
-            m_pipeline.setQmlVideoItem(videoItem);
-
-            if (!m_pipeline.init(videoItem)) {
-                qWarning("ReceiverWindow — MediaPipeline::init() failed");
+                qWarning("ReceiverWindow — could not find VideoFrameSink named 'videoItem'");
                 return;
             }
-            m_pipeline.play();
+
+            // Phase 6: store the QML video item pointer for deferred Cast WebRTC pipeline.
+            m_pipeline.setQmlVideoItem(videoItem);
+
+            // Wire decoded video frames from GStreamer appsink → VideoFrameSink.
+            // The callback runs on GStreamer's streaming thread; VideoFrameSink::pushFrame()
+            // is thread-safe (mutex + QueuedConnection invokeMethod).
+            m_pipeline.setVideoFrameCallback([videoItem](QImage frame) {
+                videoItem->pushFrame(frame);
+            });
+
+            // Phase 4: build the appsrc pipeline. No GL context dependency — appsink
+            // delivers RGBA frames to VideoFrameSink via CPU memory, no GL involved.
+            if (!m_pipeline.initAppsrcPipeline(videoItem)) {
+                qWarning("ReceiverWindow — MediaPipeline::initAppsrcPipeline() failed");
+                return;
+            }
         });
     } else {
         qWarning("ReceiverWindow::load — root object is not a QQuickWindow");

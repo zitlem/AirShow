@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
-import org.freedesktop.gstreamer.Qt6GLVideoItem 1.0
+import AirShow 1.0
 
 Window {
     id: root
@@ -15,15 +15,15 @@ Window {
     title: "AirShow"
     visible: true
 
-    // GstGLQt6VideoItem hosts the qml6glsink render output.
+    // VideoFrameSink receives RGBA frames from GStreamer's appsink and renders
+    // them via Qt's scene graph (QSGSimpleTextureNode). Replaces GstGLQt6VideoItem
+    // to avoid GStreamer GL context sharing and buffer pool deadlock issues.
     // objectName must match ReceiverWindow.cpp findChild("videoItem") call.
-    // forceAspectRatio: true — D-01/DISP-01: letterbox/pillarbox, never stretch.
-    // NOTE: fillMode does not exist on GstGLQt6VideoItem (RESEARCH.md Pitfall 1).
-    GstGLQt6VideoItem {
+    VideoFrameSink {
         id: videoItem
         objectName: "videoItem"
         anchors.fill: parent
-        forceAspectRatio: true   // D-01: letterbox — preserve aspect ratio, never stretch (default, explicit for clarity)
+        forceAspectRatio: true   // D-01: letterbox — preserve aspect ratio, never stretch
     }
 
     // DISP-03: Idle/waiting screen — visible when no device is connected.

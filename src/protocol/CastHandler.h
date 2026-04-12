@@ -56,14 +56,11 @@ private:
     // Clean up when a session emits finished().
     void onSessionFinished();
 
-    QSslServer*                  m_server          = nullptr;
+    QSslServer*                  m_server           = nullptr;
     std::unique_ptr<CastSession> m_session;
     ConnectionBridge*            m_connectionBridge = nullptr;
     MediaPipeline*               m_pipeline         = nullptr;
     SecurityManager*             m_securityManager  = nullptr;
-    // Holds the incoming socket during async security approval.
-    // QPointer ensures we detect socket deletion during the async wait.
-    QPointer<QSslSocket>         m_pendingSocket;
     bool                         m_running          = false;
 };
 

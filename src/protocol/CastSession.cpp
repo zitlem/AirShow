@@ -1,6 +1,7 @@
 #include "protocol/CastSession.h"
 #include "ui/ConnectionBridge.h"
 #include "pipeline/MediaPipeline.h"
+#include "security/SecurityManager.h"
 #include "cast/cast_auth_sigs.h"
 
 // Generated protobuf headers (from cast_channel.proto via protobuf_generate_cpp)
@@ -45,11 +46,13 @@ static constexpr const char* kAppIdDefaultMedia = "CC1AD845";
 CastSession::CastSession(QSslSocket* socket,
                           ConnectionBridge* connectionBridge,
                           MediaPipeline* pipeline,
+                          SecurityManager* securityManager,
                           QObject* parent)
     : QObject(parent)
     , m_socket(socket)
     , m_connectionBridge(connectionBridge)
     , m_pipeline(pipeline)
+    , m_securityManager(securityManager)
 {
     // Session owns the socket
     m_socket->setParent(this);
@@ -222,10 +225,31 @@ void CastSession::onConnection(const CastMessage& msg) {
             m_senderName = QStringLiteral("Cast Sender");
         }
 
+        // Approval gate: first real Cast CONNECT triggers the security check.
+        // Raw TCP/TLS probes (discovery) never reach here so we avoid spurious dialogs.
+        if (!m_approved && m_securityManager) {
+            const QString peerIp = m_socket ? m_socket->peerAddress().toString()
+                                            : QStringLiteral("unknown");
+            m_securityManager->checkConnectionAsync(
+                m_senderName, QStringLiteral("Cast"), peerIp,
+                [this](bool approved) {
+                    if (!approved) {
+                        qDebug("CastSession: Cast CONNECT denied by security manager");
+                        emit finished();
+                        return;
+                    }
+                    m_approved = true;
+                });
+            // Don't process further until approval resolves (handled in callback above).
+            return;
+        }
+        m_approved = true;
+
         // If connecting to our transportId (not receiver-0), announce connection
         if (msg.destination_id() == m_transportId.toStdString()) {
             qDebug("CastSession: CONNECT to transportId from '%s'",
                    qPrintable(m_senderName));
+            m_didConnect = true;
             if (m_connectionBridge) {
                 QMetaObject::invokeMethod(m_connectionBridge, [this]() {
                     m_connectionBridge->setConnected(true, m_senderName,
@@ -238,7 +262,7 @@ void CastSession::onConnection(const CastMessage& msg) {
         }
     } else if (type == QStringLiteral("CLOSE")) {
         qDebug("CastSession: received CLOSE, ending session");
-        if (m_connectionBridge) {
+        if (m_didConnect && m_connectionBridge) {
             QMetaObject::invokeMethod(m_connectionBridge, [this]() {
                 m_connectionBridge->setConnected(false);
             }, Qt::QueuedConnection);
@@ -712,7 +736,10 @@ void CastSession::onWebrtc(const CastMessage& msg) {
 
 void CastSession::onDisconnected() {
     qDebug("CastSession: socket disconnected");
-    if (m_connectionBridge) {
+    // Only clear connected state if this session was the one that set it.
+    // Probe sessions (auth challenge only, no CONNECT to transportId) must not
+    // wipe another protocol's active connection (e.g. AirPlay).
+    if (m_didConnect && m_connectionBridge) {
         QMetaObject::invokeMethod(m_connectionBridge, [this]() {
             m_connectionBridge->setConnected(false);
         }, Qt::QueuedConnection);

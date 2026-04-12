@@ -73,8 +73,6 @@ private:
     // Cast to GstElement* in the .cpp where GStreamer headers are included.
     void*             m_videoAppsrc      = nullptr;
     void*             m_audioAppsrc      = nullptr;
-    uint64_t          m_basetime         = 0;
-    bool              m_basetimeSet      = false;
     std::string       m_deviceId;
     std::string       m_keyfilePath;
     std::string       m_currentDeviceName;  // set by onReportClientRequest

@@ -18,6 +18,7 @@ namespace airshow {
 
 class ConnectionBridge;
 class MediaPipeline;
+class SecurityManager;
 
 // Per-connection CASTV2 session state machine (D-06, D-07, D-13).
 //
@@ -43,6 +44,7 @@ public:
     explicit CastSession(QSslSocket* socket,
                          ConnectionBridge* connectionBridge,
                          MediaPipeline* pipeline,
+                         SecurityManager* securityManager = nullptr,
                          QObject* parent = nullptr);
     ~CastSession() override;
 
@@ -89,9 +91,22 @@ private:
     // Build a RECEIVER_STATUS JSON payload for the given state.
     QByteArray buildReceiverStatus(int requestId) const;
 
-    QSslSocket*       m_socket       = nullptr;
+    QSslSocket*       m_socket           = nullptr;
     ConnectionBridge* m_connectionBridge = nullptr;
-    MediaPipeline*    m_pipeline     = nullptr;
+    MediaPipeline*    m_pipeline         = nullptr;
+    SecurityManager*  m_securityManager  = nullptr;
+
+    // Set to true once SecurityManager approval has been granted for this session.
+    // Approval is requested lazily on the first CONNECT or LAUNCH message (not on
+    // raw TCP connection, which is too early — many devices probe port 8009 during
+    // discovery without sending any Cast protocol messages).
+    bool m_approved = false;
+
+    // Set to true when this session calls setConnected(true) on the ConnectionBridge.
+    // Only sessions that set connected=true should reset it to false on teardown.
+    // Probe sessions (auth-only, no CONNECT to transportId) never set this, so they
+    // cannot accidentally wipe another protocol's connected state.
+    bool m_didConnect = false;
 
     // TCP accumulation buffer (never blocking — state machine per Pitfall 6)
     QByteArray m_buffer;

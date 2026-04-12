@@ -75,6 +75,7 @@ qt_add_executable(airshow
   src/ui/AudioBridge.cpp
   src/ui/ConnectionBridge.cpp
   src/ui/SettingsBridge.cpp
+  src/ui/VideoFrameSink.cpp
   src/protocol/ProtocolManager.cpp
   src/protocol/AirPlayHandler.cpp
   src/protocol/DlnaHandler.cpp
@@ -106,6 +107,7 @@ qt_add_qml_module(airshow
 
 target_include_directories(airshow PRIVATE
   src
+  src/ui   # Required for QML_ELEMENT auto-generated type registrations to find VideoFrameSink.h
   vendor/uxplay/lib
   ${CMAKE_CURRENT_BINARY_DIR}
   ${Protobuf_INCLUDE_DIRS}
