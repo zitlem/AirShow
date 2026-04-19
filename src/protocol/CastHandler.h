@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 // Forward declarations — avoid pulling in Qt network headers in the interface
 class QSslServer;
@@ -25,7 +26,12 @@ class SecurityManager;
 // self-signed certificate. CASTV2 protocol is implemented entirely in CastSession.
 //
 // Thread model: all I/O runs on the Qt event loop thread — no manual threading.
-// New connections replace any existing session (D-14 single-session model).
+//
+// Session model (revised D-14):
+// - Multiple inactive sessions (auth probes) are allowed to coexist so that
+//   simultaneous probes from different devices don't starve each other.
+// - Once one session goes active (sender sent CONNECT), all other sessions are
+//   dropped and new connections are rejected until the active session ends.
 class CastHandler : public QObject, public ProtocolHandler {
     Q_OBJECT
 public:
@@ -56,12 +62,16 @@ private:
     // Clean up when a session emits finished().
     void onSessionFinished();
 
-    QSslServer*                  m_server           = nullptr;
-    std::unique_ptr<CastSession> m_session;
-    ConnectionBridge*            m_connectionBridge = nullptr;
-    MediaPipeline*               m_pipeline         = nullptr;
-    SecurityManager*             m_securityManager  = nullptr;
-    bool                         m_running          = false;
+    QSslServer*                               m_server           = nullptr;
+    // All live sessions — probes and the active cast (if any).
+    std::vector<std::unique_ptr<CastSession>> m_sessions;
+    ConnectionBridge*                         m_connectionBridge = nullptr;
+    MediaPipeline*                            m_pipeline         = nullptr;
+    SecurityManager*                          m_securityManager  = nullptr;
+    bool                                      m_running          = false;
+
+    // Returns pointer to the active (casting) session, or nullptr.
+    CastSession* activeSession() const;
 };
 
 } // namespace airshow

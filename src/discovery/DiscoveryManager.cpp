@@ -88,19 +88,21 @@ bool DiscoveryManager::start() {
     m_advertiser->advertise("_raop._tcp", raopName, kAirPlayPort, raopTxt);
 
     // --- _googlecast._tcp (DISC-02) ---
-    // Remove hyphens from UUID for Cast id field
+    // Strip hyphens and braces from UUID — Cast id must be exactly 32 bare hex chars.
+    // QUuid::toString(WithBraces) produces "{xxxxxxxx-xxxx-...}" so we drop both.
     std::string castIdNoHyphens = castId;
     castIdNoHyphens.erase(
-        std::remove(castIdNoHyphens.begin(), castIdNoHyphens.end(), '-'),
+        std::remove_if(castIdNoHyphens.begin(), castIdNoHyphens.end(),
+                       [](char c){ return c == '-' || c == '{' || c == '}'; }),
         castIdNoHyphens.end()
     );
     std::vector<TxtRecord> castTxt = {
         {"id", castIdNoHyphens},
-        {"ve", "02"},
+        {"ve", "05"},
         {"md", "AirShow"},
         {"fn", name},
         {"ic", "/icon.png"},
-        {"ca", "5"},
+        {"ca", "4101"},  // 0x1005 = VIDEO_OUT|AUDIO_OUT|CAST_PROTOCOL_V2 — required for Chrome to list device
         {"st", "0"},
         {"rs", ""},
     };

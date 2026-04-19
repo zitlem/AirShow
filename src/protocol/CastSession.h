@@ -53,6 +53,10 @@ public:
     // offerJson: the top-level JSON object of the OFFER message (containing "offer" sub-object).
     static std::string buildSdpFromOffer(const QJsonObject& offerJson);
 
+    // Returns true once the sender has sent CONNECT to our transportId — i.e.
+    // the session is an active cast, not just a discovery probe (DeviceAuth only).
+    bool isActive() const { return m_didConnect; }
+
 signals:
     // Emitted when the session ends (socket disconnected or CLOSE received).
     // CastHandler connects this to its onSessionFinished slot.

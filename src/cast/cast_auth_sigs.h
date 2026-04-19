@@ -19,13 +19,23 @@
 //
 // Authentication flow (enforce_nonce_checking=false in Chrome):
 //   1. Chrome connects to port 8009 (TLS) and sends AuthChallenge on deviceauth namespace
-//   2. Receiver generates a self-signed TLS peer certificate using peer_key_der
-//   3. Receiver looks up the current signature: signatures[index * 256 .. (index+1)*256-1]
-//   4. Receiver sends AuthResponse with: signature, auth_crt, intermediate_crt
-//   5. Chrome verifies the certificate chain and signature against the TLS peer cert hash
+//   2. Receiver generates a self-signed TLS peer certificate using peer_key_der with:
+//      - CN = "4aa9ca2e-c340-11ea-8000-18ba395587df" (UUID from AirReceiver APK)
+//      - Serial = 0x51c9ac9 (confirmed via jnitrace on AirReceiver)
+//      - notBefore = window_start = 1692057600 + index * 172800
+//      - notAfter  = window_start + 172800
+//      - Signed with sha1WithRSAEncryption (peer cert self-signature)
+//   3. Receiver looks up signature[index * 256 .. (index+1)*256-1]
+//      where index = (unix_now - 1692057600) / 172800
+//   4. Receiver sends AuthResponse: signature, auth_crt, intermediate_crt, hash_algorithm=SHA256
+//      (The signature itself is RSA-PKCS1v15-SHA256 of the peer cert DER, signed with
+//       auth_crt's private key. Confirmed by RSA-decrypting a signature: DigestInfo shows
+//       SHA256 OID.)
+//   5. Chrome verifies: certificate chain (auth_crt → intermediate → root) and
+//      RSASSA_PKCS1v15_SHA256(auth_crt_pubkey, SHA256(tls_peer_cert_der)) == signature
 //
-// The sender_nonce is NOT included in the response (AirReceiver doesn't include it,
-// and Chrome's enforce_nonce_checking is false).
+// The sender_nonce is NOT included in the response (AirReceiver omits it).
+// Chrome's enforce_nonce_checking=false means nonce mismatch is ignored.
 
 namespace airshow::cast {
 

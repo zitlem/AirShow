@@ -181,6 +181,9 @@ void CastSession::onDeviceAuth(const CastMessage& msg) {
                     cast::intermediate_crt_len));
     authResponse.set_signature_algorithm(
         extensions::api::cast_channel::RSASSA_PKCS1v15);
+    // SHA256 — confirmed by RSA-decrypting the precomputed signatures: the DigestInfo
+    // contains SHA256 OID (2.16.840.1.101.3.4.2.1). Chrome verifies the signature using
+    // whatever hash_algorithm we declare, so this must match the actual signing algorithm.
     authResponse.set_hash_algorithm(
         extensions::api::cast_channel::SHA256);
     // Do NOT set sender_nonce — AirReceiver omits it, and Chrome's

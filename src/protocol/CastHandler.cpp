@@ -12,6 +12,7 @@
 #include <QHostAddress>
 
 // Qt Core
+#include <QDateTime>
 #include <QDebug>
 
 // OpenSSL 3.x (runtime self-signed cert generation per RESEARCH.md Pattern 3)
@@ -24,6 +25,8 @@
 
 // Cast auth warning
 #include "cast/cast_auth_sigs.h"
+
+#include <algorithm>
 
 namespace airshow {
 
@@ -82,8 +85,7 @@ void CastHandler::stop() {
     if (!m_running) return;
     m_running = false;
 
-    // Destroy active session first (D-14)
-    m_session.reset();
+    m_sessions.clear();
 
     if (m_server) {
         m_server->close();
@@ -99,6 +101,14 @@ void CastHandler::setMediaPipeline(MediaPipeline* pipeline) {
 
 void CastHandler::setSecurityManager(SecurityManager* sm) {
     m_securityManager = sm;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+CastSession* CastHandler::activeSession() const {
+    for (const auto& s : m_sessions)
+        if (s && s->isActive()) return s.get();
+    return nullptr;
 }
 
 // ── Private slots ─────────────────────────────────────────────────────────────
@@ -121,30 +131,38 @@ void CastHandler::onPendingConnection() {
         return;
     }
 
-    // Accept the connection immediately — many devices probe port 8009 during discovery
-    // without ever sending Cast protocol messages. Prompting for approval on every raw
-    // TCP/TLS probe is too noisy. Instead, CastSession defers the approval check until
-    // it receives an actual Cast CONNECT or LAUNCH message (proof of real intent).
-    //
-    // D-14: new connection replaces any existing session.
-    m_session.reset();
+    // D-14 (revised): if there is an ACTIVE (casting) session, reject all new
+    // connections — a cast is in progress and cannot be interrupted by probes.
+    if (activeSession()) {
+        qDebug("CastHandler: dropping probe from %s — active session in progress",
+               qPrintable(peerAddr.toString()));
+        socket->disconnectFromHost();
+        socket->deleteLater();
+        return;
+    }
+
+    // No active session: accept this connection as a new probe/auth session.
+    // Multiple inactive sessions (auth probes) are allowed to coexist so that
+    // simultaneous probes from different devices don't starve each other.
     qDebug("CastHandler: connection approved, creating CastSession");
-    m_session = std::make_unique<CastSession>(
+    auto session = std::make_unique<CastSession>(
         socket, m_connectionBridge, m_pipeline, m_securityManager, this);
-    connect(m_session.get(), &CastSession::finished,
+    connect(session.get(), &CastSession::finished,
             this, &CastHandler::onSessionFinished, Qt::QueuedConnection);
+    m_sessions.push_back(std::move(session));
 }
 
 void CastHandler::onSessionFinished() {
-    // Guard: a new session may have been created before this queued signal fired
-    // (QueuedConnection means the old session's finished() can arrive late).
-    // Only destroy if the signal came from the session we currently own.
-    if (sender() != m_session.get()) {
-        qDebug("CastHandler: ignoring stale finished signal from replaced session");
-        return;
+    CastSession* finished = qobject_cast<CastSession*>(sender());
+    // Remove the finished session from the list.
+    auto it = std::find_if(m_sessions.begin(), m_sessions.end(),
+                           [finished](const std::unique_ptr<CastSession>& s) {
+                               return s.get() == finished;
+                           });
+    if (it != m_sessions.end()) {
+        qDebug("CastHandler: session finished, cleaning up");
+        m_sessions.erase(it);
     }
-    qDebug("CastHandler: session finished, cleaning up");
-    m_session.reset();
 }
 
 // ── Self-signed certificate generation ───────────────────────────────────────
@@ -180,22 +198,39 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     }
 
     X509_set_version(cert, 2);  // version 3 (0-indexed)
-    // Use a fixed serial number matching shanocast
-    ASN1_INTEGER_set(X509_get_serialNumber(cert), 0x51c9ac6);
-    // Valid from 24 hours ago to 24 hours from now (48-hour window centered on now)
-    X509_gmtime_adj(X509_getm_notBefore(cert), -24 * 60 * 60);
-    X509_gmtime_adj(X509_getm_notAfter(cert), 24 * 60 * 60);
+    // Serial number 0x51c9ac9 — matches AirReceiver APK (confirmed from jnitrace capture).
+    // The precomputed signatures in cast_auth_sigs.h were computed against certs with this
+    // exact serial. Using 0x51c9ac6 or any other value produces a different DER → signature mismatch.
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 0x51c9ac9);
+
+    // Timestamps MUST be aligned to the same 2-day window boundaries used when computing
+    // the precomputed signatures. AirReceiver aligns cert validity to the window: notBefore
+    // = window_start, notAfter = window_start + 172800s. Using now±24h produces a different
+    // DER each startup, so the precomputed signature never verifies.
+    static constexpr uint64_t kSigStartEpoch   = 1692057600ULL;  // 2023-08-15 00:00:00 UTC
+    static constexpr uint64_t kWindowSeconds   = 172800ULL;       // 48 hours
+    const uint64_t nowSecs =
+        static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
+    const uint64_t windowIndex =
+        (nowSecs - kSigStartEpoch) / kWindowSeconds;
+    const time_t windowStart =
+        static_cast<time_t>(kSigStartEpoch + windowIndex * kWindowSeconds);
+    const time_t windowEnd   = windowStart + static_cast<time_t>(kWindowSeconds);
+    ASN1_TIME_set(X509_getm_notBefore(cert), windowStart);
+    ASN1_TIME_set(X509_getm_notAfter(cert),  windowEnd);
 
     X509_set_pubkey(cert, pkey);
 
-    // Set subject and issuer — self-signed peer certificate
+    // CN "4aa9ca2e-c340-11ea-8000-18ba395587df" — the UUID embedded in AirReceiver APK.
+    // Confirmed via jnitrace on the original app. Any other CN changes the cert DER.
     X509_NAME* name = X509_get_subject_name(cert);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               reinterpret_cast<const unsigned char*>("AirShow Cast Receiver"),
+                               reinterpret_cast<const unsigned char*>(
+                                   "4aa9ca2e-c340-11ea-8000-18ba395587df"),
                                -1, -1, 0);
     X509_set_issuer_name(cert, name);  // self-signed: issuer == subject
 
-    // Sign with SHA-1 (matching shanocast's approach)
+    // Sign with SHA-1 (AirReceiver uses sha1WithRSAEncryption for the peer cert)
     if (X509_sign(cert, pkey, EVP_sha1()) <= 0) {
         qCritical("CastHandler: X509_sign failed");
         X509_free(cert);
