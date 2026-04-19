@@ -68,44 +68,81 @@ Window {
         }
     }
 
-    // Close button — appears top-right when mouse moves
-    Item {
-        id: closeButton
+    // Top-right button row — fullscreen toggle + close button
+    Row {
         anchors {
             top: parent.top
             right: parent.right
             topMargin: 16
             rightMargin: 16
         }
-        width: 40
-        height: 40
+        spacing: 8
         opacity: mouseTracker.controlsVisible ? 0.9 : 0
         visible: opacity > 0
 
         Behavior on opacity { NumberAnimation { duration: 200 } }
 
-        Rectangle {
-            anchors.fill: parent
-            color: hovered ? "#E0FF4444" : "#B3000000"
-            radius: 20
+        // Fullscreen toggle button
+        Item {
+            id: fullscreenButton
+            width: 40
+            height: 40
 
-            property bool hovered: closeMouseArea.containsMouse
+            Rectangle {
+                anchors.fill: parent
+                color: fsMouseArea.containsMouse ? "#E0AAAAFF" : "#B3000000"
+                radius: 20
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: "\u26F6"
+                color: "white"
+                font.pixelSize: 20
+                font.family: "sans-serif"
+            }
+
+            MouseArea {
+                id: fsMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    root.visibility = root.visibility === Window.FullScreen
+                        ? Window.Windowed
+                        : Window.FullScreen
+                }
+            }
         }
 
-        Text {
-            anchors.centerIn: parent
-            text: "\u2715"
-            color: "white"
-            font.pixelSize: 20
-            font.family: "sans-serif"
-        }
+        // Close button
+        Item {
+            id: closeButton
+            width: 40
+            height: 40
 
-        MouseArea {
-            id: closeMouseArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: Qt.quit()
+            Rectangle {
+                anchors.fill: parent
+                color: closeMouseArea.containsMouse ? "#E0FF4444" : "#B3000000"
+                radius: 20
+            }
+
+            Text {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: 2
+                text: "\u2715"
+                color: "white"
+                font.pixelSize: 20
+                font.family: "sans-serif"
+            }
+
+            MouseArea {
+                id: closeMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Qt.quit()
+            }
         }
     }
 
