@@ -115,7 +115,7 @@ Based on the research, a 6-phase structure is recommended. The first phase is re
 **Delivers:** iOS Broadcast Upload Extension with VideoToolbox H.264 encode + direct outbound socket to receiver; `RPSystemBroadcastPickerView` launcher in main app; App Groups setup if needed for session lifecycle coordination; QR code fallback (needed for iOS users on corporate networks, ship here)
 **Implements:** iOS screen capture architecture component, iOS app extension, QR code scanner
 **Avoids:** 50 MB memory limit (encode immediately in extension, no raw frame buffering); iOS extension IPC problem (extension opens its own outbound socket rather than routing through main app)
-**Research flag:** Needs `/gsd:research-phase` — ReplayKit extension + direct outbound socket pattern in a Flutter context has sparse official documentation. The App Groups vs. direct socket decision needs a concrete recommendation before implementation begins.
+**Research flag:** Needs dedicated research — ReplayKit extension + direct outbound socket pattern in a Flutter context has sparse official documentation. The App Groups vs. direct socket decision needs a concrete recommendation before implementation begins.
 
 ### Phase 4: macOS Sender
 **Rationale:** macOS is the easiest desktop capture platform (ScreenCaptureKit is stable and well-documented) and is the typical development machine — faster iteration than Windows or Linux. Completing macOS sender also validates the desktop plugin FFI architecture before the more complex Windows dual-path implementation.
@@ -143,7 +143,7 @@ Based on the research, a 6-phase structure is recommended. The first phase is re
 ### Research Flags
 
 Phases needing deeper research during planning:
-- **Phase 3 (iOS sender):** ReplayKit Broadcast Extension direct outbound socket pattern in a Flutter context is the least-documented combination in the research. Needs `/gsd:research-phase` to find concrete implementation examples before architecture is finalized.
+- **Phase 3 (iOS sender):** ReplayKit Broadcast Extension direct outbound socket pattern in a Flutter context is the least-documented combination in the research. Needs dedicated research to find concrete implementation examples before architecture is finalized.
 - **Phase 4 (macOS signing):** TCC + code-signing identity interaction during CI/CD builds (every GitHub Actions rebuild potentially invalidating TCC permission) needs a concrete CI signing setup decision before implementation starts.
 
 Phases with standard patterns (skip research-phase):

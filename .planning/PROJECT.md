@@ -10,20 +10,13 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 
 ## Requirements
 
-### Validated
+Full list and per-requirement status in `REQUIREMENTS.md`; plan and current status in `ROADMAP.md`.
 
-- ✓ Run on Linux, macOS, and Windows — Phase 1 (build system + cross-platform presets)
-- ✓ Display mirrored content in a fullscreen receiver window — Phase 1 (GStreamer + qml6glsink)
-- ✓ Play audio from mirrored devices with mute toggle — Phase 1 (autoaudiosink + AudioBridge)
-- ✓ Receive AirPlay screen mirroring from iOS/macOS devices — Phase 4 (UxPlay RAOP + appsrc injection, pending human device testing)
-- ✓ Receive DLNA media streams — Phase 5 (DlnaHandler + uridecodebin + AVTransport SOAP, pending human device testing)
+Nothing has been verified end-to-end on a real sender device yet. Summary:
 
-### Active
-
-- ✓ Receive Google Cast screen mirroring from Android/Chrome devices — Phase 6 (CastHandler + CASTV2 + WebRTC, pending auth signature extraction + human testing)
-- ✓ Receive Miracast screen mirroring from Windows/Android devices — Phase 8 (MS-MICE over Infrastructure, pending Windows device testing)
-- ✓ Auto-discover and advertise as a receiver on the local network — Phase 2 (mDNS + SSDP)
-- ✓ Android companion sender app — Phase 10 (Flutter BLoC + Kotlin MediaProjection/H264Encoder + AirShow protocol, pending physical device E2E testing)
+- Implemented, needs device testing: cross-platform build, receiver window + audio, mDNS/SSDP discovery, AirPlay, DLNA, Miracast (MS-MICE), AirShow protocol receiver, Android sender
+- Known broken: Google Cast media receive (uses WebRTC; Chrome speaks Cast Streaming)
+- Not started: iOS / macOS / Windows senders, local web interface
 
 ### Out of Scope
 
@@ -63,24 +56,10 @@ Any device can mirror its screen to any computer, for free — no licenses, no s
 |----------|-----------|---------|
 | Fullscreen receiver UI (minimal) | User wants a TV-like experience, not a complex settings app | — Pending |
 | All major protocols (AirPlay, Cast, Miracast, DLNA) | Differentiation over single-protocol alternatives | — Pending |
-| Tech stack TBD | Will be decided during research phase | — Pending |
-
-## Evolution
-
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd:transition`):
-1. Requirements invalidated? -> Move to Out of Scope with reason
-2. Requirements validated? -> Move to Validated with phase reference
-3. New requirements emerged? -> Add to Active
-4. Decisions to log? -> Add to Key Decisions
-5. "What This Is" still accurate? -> Update if drifted
-
-**After each milestone** (via `/gsd:complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+| C++17 + Qt 6.8 + GStreamer receiver | Protocol libraries (UxPlay, pupnp, openscreen) are C/C++; GStreamer gives cross-platform HW decode | Adopted |
+| Flutter for the companion sender | One codebase for Android, iOS, macOS, Windows | Adopted |
+| Cast auth via shanocast/AirReceiver precomputed signatures | Only known way to pass Chrome device auth without a Google-issued cert | Adopted; expires ~2027-12-21 |
+| Cast media via openscreen `cast/streaming` | Chrome mirroring uses Cast Streaming (RTP + AES-CTR + RTCP ACKs), not WebRTC | Planned (roadmap step 4) |
 
 ---
-*Last updated: 2026-04-01 — Phase 10 complete: Android sender MVP with BLoC discovery, Kotlin MediaProjection/H264 capture pipeline, receiver audio wiring*
+*Last updated: 2026-10-16 — status reset to device-verified reality*
