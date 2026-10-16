@@ -63,9 +63,25 @@ pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
 # (mirrors the order in vendor/uxplay/CMakeLists.txt: llhttp, playfair, lib)
 # Pre-set OPENSSL_FOUND so UxPlay's find_package(OpenSSL 1.1.1) uses already-found OpenSSL
 set(OPENSSL_FOUND TRUE)
+# Windows: UxPlay's dnssd.c loads dnssd.dll at runtime, so only dns_sd.h is needed
+# to build — use the vendored copy instead of requiring the Bonjour SDK.
+if(WIN32)
+  set(DNSSD_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/avahi/include/avahi-compat-libdns_sd"
+      CACHE PATH "Directory containing dns_sd.h")
+endif()
 add_subdirectory(vendor/uxplay/lib/llhttp)
 add_subdirectory(vendor/uxplay/lib/playfair)
 add_subdirectory(vendor/uxplay/lib)
+if(WIN32)
+  # ...and drop the Bonjour SDK import library UxPlay links unconditionally.
+  foreach(prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+    get_target_property(_airplay_libs airplay ${prop})
+    if(_airplay_libs)
+      list(FILTER _airplay_libs EXCLUDE REGEX "dnssd\\.lib$")
+      set_target_properties(airplay PROPERTIES ${prop} "${_airplay_libs}")
+    endif()
+  endforeach()
+endif()
 
 # Main executable
 qt_add_executable(airshow

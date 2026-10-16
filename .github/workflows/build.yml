@@ -2,48 +2,135 @@ name: Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [master, 'ci/**']
+    tags: ['v*']
   pull_request:
-    branches: [ main ]
+    branches: [master]
+  workflow_dispatch:
 
 jobs:
   linux:
-    name: Linux (Ubuntu)
-    runs-on: ubuntu-latest
-
+    name: Linux (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Install Qt6
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build pkg-config \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
+            libavahi-client-dev libavahi-compat-libdnssd-dev \
+            libupnp-dev libplist-dev libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libgtest-dev libgmock-dev libspdlog-dev \
+            libgl1-mesa-dev libxkbcommon-dev
+
+      - name: Install Qt 6.8
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.*'
-          host: 'linux'
-          target: 'desktop'
-          modules: 'qtquick qtqml'
-
-      - name: Install GStreamer dev packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-bad1.0-dev \
-            gstreamer1.0-qt6 \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad \
-            gstreamer1.0-libav \
-            libspdlog-dev \
-            libgtest-dev \
-            libgmock-dev \
-            ninja-build
+          cache: true
 
       - name: Configure
-        run: cmake --preset linux-debug
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
-        run: cmake --build build/linux-debug
+        run: cmake --build build
 
       - name: Test
-        run: ctest --test-dir build/linux-debug --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure -j1
+
+  macos:
+    name: macOS (Homebrew)
+    runs-on: macos-15
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: brew install ninja pkgconf qt gstreamer protobuf googletest libplist libupnp spdlog
+
+      - name: Configure
+        run: cmake --preset macos-debug
+
+      - name: Build
+        run: cmake --build build/macos-debug
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build/macos-debug --output-on-failure -j1
+
+  windows:
+    name: Windows (MSYS2 UCRT64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: zip
+          pacboy: >-
+            toolchain:p cmake:p ninja:p pkgconf:p
+            qt6-base:p qt6-declarative:p qt6-tools:p
+            gstreamer:p gst-plugins-base:p gst-plugins-good:p
+            gst-plugins-bad:p gst-plugins-ugly:p gst-libav:p
+            openssl:p libupnp:p libplist:p protobuf:p gtest:p spdlog:p
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        # Windows test results are reported but don't block the download yet.
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure -j1
+
+      - name: Package
+        run: |
+          packaging/windows/package.sh build dist/AirShow
+          (cd dist && zip -qr AirShow-windows-x64.zip AirShow)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AirShow-windows-x64
+          path: dist/AirShow-windows-x64.zip
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AirShow-windows-x64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: AirShow-windows-x64.zip
+          generate_release_notes: true

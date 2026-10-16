@@ -20,6 +20,34 @@
 #include "protocol/ProtocolManager.h"
 #include "web/WebInterface.h"
 
+#ifdef _WIN32
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#  include <filesystem>
+#  include <cstdlib>
+#endif
+
+// Packaged Windows build: use the GStreamer plugins shipped next to airshow.exe
+// (lib/gstreamer-1.0) rather than a system-wide GStreamer install. Must run
+// before gst_init(). No-op when the bundled directory isn't there (dev builds).
+static void useBundledGStreamer() {
+#ifdef _WIN32
+    wchar_t exe[MAX_PATH];
+    const DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    if (n == 0 || n == MAX_PATH) return;
+    const std::filesystem::path dir = std::filesystem::path(exe).parent_path();
+    const std::filesystem::path plugins = dir / "lib" / "gstreamer-1.0";
+    if (!std::filesystem::is_directory(plugins)) return;
+    _wputenv_s(L"GST_PLUGIN_SYSTEM_PATH_1_0", plugins.wstring().c_str());
+    // Scan plugins in-process: the bundled DLLs live next to airshow.exe, where a
+    // separate gst-plugin-scanner.exe couldn't find them.
+    _wputenv_s(L"GST_REGISTRY_FORK", L"no");
+#endif
+}
+
 static void checkRequiredPlugins() {
     struct { const char* name; const char* pkg; } required[] = {
         {"appsink",       "gstreamer1.0-plugins-base"},
@@ -80,6 +108,7 @@ static void checkRequiredPlugins() {
 }
 
 int main(int argc, char* argv[]) {
+    useBundledGStreamer();
     gst_init(&argc, &argv);
     checkRequiredPlugins();
 
