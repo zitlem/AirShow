@@ -4,6 +4,7 @@
 #include <QString>
 #include <QJsonObject>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@ class CastMessage;
 
 namespace airshow {
 
+namespace cast { class CastStreamingReceiver; }
 class ConnectionBridge;
 class MediaPipeline;
 class SecurityManager;
@@ -38,7 +40,7 @@ class SecurityManager;
 //   heartbeat   ->  onHeartbeat()    — PING/PONG keepalive
 //   receiver    ->  onReceiver()     — LAUNCH/GET_STATUS/STOP
 //   media       ->  onMedia()        — GET_STATUS/LOAD (uridecodebin)
-//   webrtc      ->  onWebrtc()       — stub (Plan 02 will implement)
+//   webrtc      ->  onWebrtc()       — Cast Streaming OFFER/ANSWER, GET_CAPABILITIES
 class CastSession : public QObject {
     Q_OBJECT
 public:
@@ -48,11 +50,6 @@ public:
                          SecurityManager* securityManager = nullptr,
                          QObject* parent = nullptr);
     ~CastSession() override;
-
-    // Phase 6: Translate Cast OFFER JSON to a standard SDP string for webrtcbin.
-    // Exposed as public static for unit testing in test_cast.cpp.
-    // offerJson: the top-level JSON object of the OFFER message (containing "offer" sub-object).
-    static std::string buildSdpFromOffer(const QJsonObject& offerJson);
 
     // Returns true once the sender has sent CONNECT to our transportId — i.e.
     // the session is an active cast, not just a discovery probe (DeviceAuth only).
@@ -86,6 +83,9 @@ private:
     void onReceiver(const extensions::api::cast_channel::CastMessage& msg);
     void onMedia(const extensions::api::cast_channel::CastMessage& msg);
     void onWebrtc(const extensions::api::cast_channel::CastMessage& msg);
+
+    // Tear down the Cast Streaming receiver and its playback pipeline, if running.
+    void stopStreaming();
 
     // Send a serialized CastMessage with 4-byte big-endian length prefix.
     void sendMessage(const extensions::api::cast_channel::CastMessage& msg);
@@ -132,6 +132,9 @@ private:
     bool       m_appLaunched   = false;
     QString    m_launchedAppId;
     QString    m_senderName;    // populated on CONNECT message
+
+    // Active Cast Streaming session (created on OFFER)
+    std::unique_ptr<cast::CastStreamingReceiver> m_streaming;
 };
 
 } // namespace airshow

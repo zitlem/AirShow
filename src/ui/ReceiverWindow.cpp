@@ -60,7 +60,7 @@ bool ReceiverWindow::load() {
                 return;
             }
 
-            // Phase 6: store the QML video item pointer for deferred Cast WebRTC pipeline.
+            // Store the QML video item pointer (startup wiring; video goes via the frame callback).
             m_pipeline.setQmlVideoItem(videoItem);
 
             // Wire decoded video frames from GStreamer appsink → VideoFrameSink.

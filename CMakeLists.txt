@@ -54,12 +54,6 @@ protobuf_generate_cpp(CAST_PROTO_SRCS CAST_PROTO_HDRS src/cast/cast_channel.prot
 set(CAST_PROTO_SRCS "${CAST_PROTO_SRCS}" CACHE INTERNAL "CASTV2 protobuf generated sources")
 set(CAST_PROTO_HDRS "${CAST_PROTO_HDRS}" CACHE INTERNAL "CASTV2 protobuf generated headers")
 
-# GStreamer WebRTC (for Plan 02 WebRTC media pipeline — link now, headers used later)
-pkg_check_modules(GST_WEBRTC IMPORTED_TARGET
-  gstreamer-webrtc-1.0>=1.20
-  gstreamer-sdp-1.0>=1.20
-)
-
 # libplist — required by UxPlay lib/ for Apple plist parsing (D-07)
 pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
 
@@ -87,6 +81,8 @@ qt_add_executable(airshow
   src/protocol/DlnaHandler.cpp
   src/protocol/CastHandler.cpp
   src/protocol/CastSession.cpp
+  src/cast/CastStreamingOffer.cpp
+  src/cast/CastStreamingReceiver.cpp
   src/protocol/MiracastHandler.cpp
   src/protocol/AirShowHandler.cpp
   ${CAST_PROTO_SRCS}
@@ -140,10 +136,6 @@ target_link_libraries(airshow PRIVATE
   protobuf::libprotobuf
 )
 
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(airshow PRIVATE PkgConfig::GST_WEBRTC)
-  target_compile_definitions(airshow PRIVATE GST_USE_UNSTABLE_API)
-endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(airshow PRIVATE PkgConfig::AVAHI)

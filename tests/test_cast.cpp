@@ -15,6 +15,11 @@
 #include <QSslCertificate>
 #include <QSslSocket>
 #include <QTimer>
+#include <QUdpSocket>
+#include <QElapsedTimer>
+
+#include <cstring>
+#include <optional>
 #include <gst/gst.h>
 
 // OpenSSL — verify the Cast auth signature the way Chrome does
@@ -27,6 +32,8 @@
 #include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
 #include "cast/cast_auth_sigs.h"
+#include "cast/CastStreamingOffer.h"
+#include "cast/CastStreamingReceiver.h"
 
 // Generated protobuf header (from cast_channel.proto)
 #include "cast_channel.pb.h"
@@ -277,184 +284,282 @@ TEST(CastHandlerTest, SignatureTableHasCorrectConstants) {
     EXPECT_LT(sig, tableEnd);
 }
 
-// ── Phase 6 Tests: SDP translation and WebRTC pipeline ───────────────────────
+// ── Cast Streaming: OFFER parsing, stream selection, ANSWER ──────────────────
 
-// ── Test 8: OfferJsonToSdp_VideoStream ────────────────────────────────────────
-// Cast OFFER JSON with one video_source (VP8, pt=96, ssrc=12345678)
-// should produce SDP with m=video, a=rtpmap:96 VP8/90000, a=ssrc:12345678
-
-TEST(CastSdpTest, OfferJsonToSdp_VideoStream) {
-    // Build a Cast OFFER JSON with a single video_source stream
-    QJsonObject videoStream;
-    videoStream[QStringLiteral("type")]           = QStringLiteral("video_source");
-    videoStream[QStringLiteral("codecName")]      = QStringLiteral("vp8");
-    videoStream[QStringLiteral("rtpPayloadType")] = 96;
-    videoStream[QStringLiteral("ssrc")]           = 12345678;
-
-    QJsonArray streams;
-    streams.append(videoStream);
-
-    QJsonObject innerOffer;
-    innerOffer[QStringLiteral("supportedStreams")] = streams;
-
-    QJsonObject offerJson;
-    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
-    offerJson[QStringLiteral("seqNum")] = 1;
-    offerJson[QStringLiteral("offer")]  = innerOffer;
-
-    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
-
-    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
-    EXPECT_NE(sdp.find("m=video"), std::string::npos)
-        << "SDP should contain m=video line";
-    EXPECT_NE(sdp.find("a=rtpmap:96 VP8/90000"), std::string::npos)
-        << "SDP should contain VP8 rtpmap with correct payload type and clock rate";
-    EXPECT_NE(sdp.find("a=ssrc:12345678"), std::string::npos)
-        << "SDP should contain the sender's SSRC";
+// Shaped like Chrome's mirroring OFFER: audio indexes first, one video stream
+// per codec, PT 127/96 regardless of codec (openscreen "Android RTP hack").
+static QJsonObject chromeStyleOffer() {
+    auto stream = [](int index, const char* type, const char* codec, int pt, double ssrc,
+                     const char* timeBase) {
+        QJsonObject o;
+        o["index"] = index;
+        o["type"] = type;
+        o["codecName"] = codec;
+        o["rtpProfile"] = "cast";
+        o["rtpPayloadType"] = pt;
+        o["ssrc"] = ssrc;
+        o["timeBase"] = timeBase;
+        o["targetDelay"] = 400;
+        o["aesKey"] = "000102030405060708090a0b0c0d0e0f";
+        o["aesIvMask"] = "f0e0d0c0b0a090807060504030201000";
+        return o;
+    };
+    QJsonObject audio = stream(0, "audio_source", "opus", 127, 3000000001.0, "1/48000");
+    audio["channels"] = 2;
+    audio["bitRate"] = 102000;
+    QJsonArray streams{audio,
+                       stream(1, "video_source", "h264", 96, 2000001, "1/90000"),
+                       stream(2, "video_source", "vp8", 96, 2000002, "1/90000")};
+    QJsonObject offerBody;
+    offerBody["castMode"] = "mirroring";
+    offerBody["supportedStreams"] = streams;
+    QJsonObject msg;
+    msg["type"] = "OFFER";
+    msg["seqNum"] = 42;
+    msg["offer"] = offerBody;
+    return msg;
 }
 
-// ── Test 9: OfferJsonToSdp_AudioStream ────────────────────────────────────────
-// Cast OFFER JSON with one audio_source (opus, pt=97, ssrc=87654321)
-// should produce SDP with m=audio, a=rtpmap:97 OPUS/48000/2
+TEST(CastOfferTest, ParsesChromeStyleOffer) {
+    const auto offer = airshow::cast::parseOffer(chromeStyleOffer());
+    ASSERT_TRUE(offer.has_value());
+    EXPECT_EQ(offer->seqNum, 42);
+    ASSERT_EQ(offer->streams.size(), 3u);
 
-TEST(CastSdpTest, OfferJsonToSdp_AudioStream) {
-    QJsonObject audioStream;
-    audioStream[QStringLiteral("type")]           = QStringLiteral("audio_source");
-    audioStream[QStringLiteral("codecName")]      = QStringLiteral("opus");
-    audioStream[QStringLiteral("rtpPayloadType")] = 97;
-    audioStream[QStringLiteral("ssrc")]           = 87654321;
-    audioStream[QStringLiteral("sampleRate")]     = 48000;
-    audioStream[QStringLiteral("channels")]       = 2;
-
-    QJsonArray streams;
-    streams.append(audioStream);
-
-    QJsonObject innerOffer;
-    innerOffer[QStringLiteral("supportedStreams")] = streams;
-
-    QJsonObject offerJson;
-    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
-    offerJson[QStringLiteral("seqNum")] = 1;
-    offerJson[QStringLiteral("offer")]  = innerOffer;
-
-    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
-
-    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a valid OFFER";
-    EXPECT_NE(sdp.find("m=audio"), std::string::npos)
-        << "SDP should contain m=audio line";
-    EXPECT_NE(sdp.find("a=rtpmap:97 OPUS/48000/2"), std::string::npos)
-        << "SDP should contain OPUS rtpmap with correct payload type, rate, and channels";
-    EXPECT_NE(sdp.find("a=ssrc:87654321"), std::string::npos)
-        << "SDP should contain the sender's audio SSRC";
+    const auto& audio = offer->streams[0];
+    EXPECT_EQ(audio.kind, airshow::cast::CastStream::Kind::Audio);
+    EXPECT_EQ(audio.codec, "opus");
+    EXPECT_EQ(audio.senderSsrc, 3000000001u);   // above INT32_MAX
+    EXPECT_EQ(audio.receiverSsrc(), 3000000002u);
+    EXPECT_EQ(audio.rtpTimebase, 48000);
+    EXPECT_EQ(audio.channels, 2);
+    EXPECT_EQ(audio.aesKey[0], 0x00);
+    EXPECT_EQ(audio.aesKey[15], 0x0f);
+    EXPECT_EQ(audio.aesIvMask[0], 0xf0);
+    EXPECT_EQ(audio.gstCaps(), "audio/x-opus,channel-mapping-family=0,channels=2,rate=48000");
 }
 
-// ── Test 10: OfferJsonToSdp_BothStreams ───────────────────────────────────────
-// Full OFFER with video + audio should produce SDP with both m-lines and BUNDLE
+TEST(CastOfferTest, SelectsVp8AndOpusThenFallsBackToH264) {
+    const auto offer = airshow::cast::parseOffer(chromeStyleOffer());
+    ASSERT_TRUE(offer.has_value());
 
-TEST(CastSdpTest, OfferJsonToSdp_BothStreams) {
-    QJsonObject videoStream;
-    videoStream[QStringLiteral("type")]           = QStringLiteral("video_source");
-    videoStream[QStringLiteral("codecName")]      = QStringLiteral("vp8");
-    videoStream[QStringLiteral("rtpPayloadType")] = 96;
-    videoStream[QStringLiteral("ssrc")]           = 11111111;
+    auto sel = airshow::cast::selectStreams(*offer, [](const std::string&) { return true; });
+    ASSERT_TRUE(sel.video && sel.audio);
+    EXPECT_EQ(sel.video->codec, "vp8");
+    EXPECT_EQ(sel.video->index, 2);
+    EXPECT_EQ(sel.audio->index, 0);
 
-    QJsonObject audioStream;
-    audioStream[QStringLiteral("type")]           = QStringLiteral("audio_source");
-    audioStream[QStringLiteral("codecName")]      = QStringLiteral("opus");
-    audioStream[QStringLiteral("rtpPayloadType")] = 97;
-    audioStream[QStringLiteral("ssrc")]           = 22222222;
-    audioStream[QStringLiteral("sampleRate")]     = 48000;
-    audioStream[QStringLiteral("channels")]       = 2;
+    sel = airshow::cast::selectStreams(*offer, [](const std::string& c) { return c != "vp8"; });
+    ASSERT_TRUE(sel.video);
+    EXPECT_EQ(sel.video->codec, "h264");
 
-    QJsonArray streams;
-    streams.append(videoStream);
-    streams.append(audioStream);
-
-    QJsonObject innerOffer;
-    innerOffer[QStringLiteral("supportedStreams")] = streams;
-
-    QJsonObject offerJson;
-    offerJson[QStringLiteral("type")]   = QStringLiteral("OFFER");
-    offerJson[QStringLiteral("seqNum")] = 1;
-    offerJson[QStringLiteral("offer")]  = innerOffer;
-
-    std::string sdp = airshow::CastSession::buildSdpFromOffer(offerJson);
-
-    ASSERT_FALSE(sdp.empty()) << "SDP should not be empty for a full OFFER";
-    EXPECT_NE(sdp.find("m=video"), std::string::npos)   << "SDP should have m=video";
-    EXPECT_NE(sdp.find("m=audio"), std::string::npos)   << "SDP should have m=audio";
-    EXPECT_NE(sdp.find("a=group:BUNDLE"), std::string::npos)
-        << "SDP should have BUNDLE group when both video and audio are present";
+    sel = airshow::cast::selectStreams(*offer, [](const std::string&) { return false; });
+    EXPECT_TRUE(sel.empty());
 }
 
-// ── Test 11: WebrtcPipelineInit_RequiresQmlVideoItem ─────────────────────────
-// Calling initWebrtcPipeline() without first calling setQmlVideoItem() must return false.
+TEST(CastOfferTest, AnswerListsAudioThenVideo) {
+    const auto offer = airshow::cast::parseOffer(chromeStyleOffer());
+    const auto sel = airshow::cast::selectStreams(*offer, [](const std::string&) { return true; });
+    const QJsonObject reply = airshow::cast::buildAnswer(offer->seqNum, 51234, sel);
 
-TEST(CastPipelineTest, WebrtcPipelineInit_RequiresQmlVideoItem) {
-    airshow::MediaPipeline pipeline;
-
-    // Do NOT call setQmlVideoItem — m_qmlVideoItem is null by default
-    bool result = pipeline.initWebrtcPipeline();
-
-    EXPECT_FALSE(result)
-        << "initWebrtcPipeline() should return false when setQmlVideoItem() has not been called";
+    EXPECT_EQ(reply["type"].toString(), "ANSWER");
+    EXPECT_EQ(reply["seqNum"].toInt(), 42);
+    EXPECT_EQ(reply["result"].toString(), "ok");
+    const QJsonObject answer = reply["answer"].toObject();
+    EXPECT_EQ(answer["udpPort"].toInt(), 51234);
+    EXPECT_EQ(answer["sendIndexes"].toArray(), (QJsonArray{0, 2}));
+    EXPECT_EQ(answer["ssrcs"].toArray(), (QJsonArray{qint64(3000000002LL), qint64(2000003)}));
 }
 
-// ── Test 12: WebrtcPipelineInit_CreatesElements ───────────────────────────────
-// After setQmlVideoItem(nullptr), initWebrtcPipeline should attempt pipeline creation.
-// In headless CI (no display), webrtcbin may be unavailable — skip if so.
+TEST(CastOfferTest, DropsStreamsWithInvalidMandatoryFields) {
+    QJsonObject msg = chromeStyleOffer();
+    QJsonObject body = msg["offer"].toObject();
+    QJsonArray streams = body["supportedStreams"].toArray();
+    QJsonObject bad0 = streams[0].toObject(); bad0["aesKey"] = "abcd";          // too short
+    QJsonObject bad1 = streams[1].toObject(); bad1["timeBase"] = "2/90000";     // numerator != 1
+    streams[0] = bad0;
+    streams[1] = bad1;
+    body["supportedStreams"] = streams;
+    msg["offer"] = body;
 
-TEST(CastPipelineTest, WebrtcPipelineInit_CreatesElements) {
-    // Check if webrtcbin is available in this environment
-    GstElement* probe = gst_element_factory_make("webrtcbin", nullptr);
-    if (!probe) {
-        GTEST_SKIP() << "webrtcbin element not available in this environment — skipping";
+    const auto offer = airshow::cast::parseOffer(msg);
+    ASSERT_TRUE(offer.has_value());
+    ASSERT_EQ(offer->streams.size(), 1u);
+    EXPECT_EQ(offer->streams[0].codec, "vp8");
+
+    QJsonObject notOffer = chromeStyleOffer();
+    notOffer["type"] = "ANSWER";
+    EXPECT_FALSE(airshow::cast::parseOffer(notOffer).has_value());
+}
+
+// ── Cast Streaming: receiver loopback (we play Chrome's sender role) ─────────
+
+namespace {
+
+QByteArray ctrCrypt(const airshow::cast::CastStream& s, uint32_t frameId, const QByteArray& in) {
+    std::array<uint8_t, 16> iv{};
+    iv[8] = uint8_t(frameId >> 24); iv[9] = uint8_t(frameId >> 16);
+    iv[10] = uint8_t(frameId >> 8); iv[11] = uint8_t(frameId);
+    for (size_t i = 0; i < 16; ++i) iv[i] ^= s.aesIvMask[i];
+    QByteArray out(in.size(), Qt::Uninitialized);
+    int len = 0;
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(ctx, EVP_aes_128_ctr(), nullptr, s.aesKey.data(), iv.data());
+    EVP_EncryptUpdate(ctx, reinterpret_cast<unsigned char*>(out.data()), &len,
+                      reinterpret_cast<const unsigned char*>(in.constData()), int(in.size()));
+    EVP_CIPHER_CTX_free(ctx);
+    return out;
+}
+
+void append16(QByteArray& b, uint16_t v) { b.append(char(v >> 8)); b.append(char(v)); }
+void append32(QByteArray& b, uint32_t v) { append16(b, uint16_t(v >> 16)); append16(b, uint16_t(v)); }
+
+// One Cast RTP packet as openscreen's RtpPacketizer writes it (R bit always set).
+QByteArray castRtpPacket(const airshow::cast::CastStream& s, uint16_t seq, uint32_t frameId,
+                         bool key, uint16_t pid, uint16_t maxPid, const QByteArray& chunk) {
+    QByteArray b;
+    b.append(char(0x80));
+    b.append(char((pid == maxPid ? 0x80 : 0) | s.rtpPayloadType));
+    append16(b, seq);
+    append32(b, frameId * 3000);
+    append32(b, s.senderSsrc);
+    b.append(char((key ? 0x80 : 0) | 0x40));        // K | R, no extensions
+    b.append(char(frameId & 0xFF));
+    append16(b, pid);
+    append16(b, maxPid);
+    b.append(char((key ? frameId : frameId - 1) & 0xFF));  // reference frame id
+    b.append(chunk);
+    return b;
+}
+
+QByteArray senderReport(uint32_t ssrc) {
+    QByteArray b;
+    b.append(char(0x80)); b.append(char(200)); append16(b, 6);
+    append32(b, ssrc);
+    append32(b, 0xE5000000); append32(b, 0x12345678);  // NTP
+    append32(b, 0); append32(b, 0); append32(b, 0);    // RTP ts, packet & octet count
+    return b;
+}
+
+struct Feedback { int checkpoint = -2; std::vector<std::pair<int, int>> losses; };
+
+// Extract the Cast Feedback (PSFB FMT 15) from a compound RTCP packet.
+std::optional<Feedback> parseFeedback(const QByteArray& pkt) {
+    const auto* d = reinterpret_cast<const uint8_t*>(pkt.constData());
+    size_t off = 0, n = size_t(pkt.size());
+    while (off + 4 <= n) {
+        const size_t len = (size_t((d[off + 2] << 8) | d[off + 3]) + 1) * 4;
+        if (d[off + 1] == 206 && (d[off] & 0x1F) == 15 && off + 20 <= n &&
+            memcmp(d + off + 12, "CAST", 4) == 0) {
+            Feedback fb;
+            fb.checkpoint = d[off + 16];
+            for (int i = 0; i < d[off + 17]; ++i) {
+                const uint8_t* l = d + off + 20 + 4 * i;
+                fb.losses.push_back({l[0], (l[1] << 8) | l[2]});
+            }
+            return fb;
+        }
+        off += len;
     }
-    gst_object_unref(probe);
-
-    airshow::MediaPipeline pipeline;
-    // Set a non-null sentinel value to pass the null check.
-    // In headless test mode with no QML scene, qml6glsink creation may fail
-    // (no GL context). The test verifies the function returns a predictable result.
-    void* fakeQmlItem = reinterpret_cast<void*>(0x1);  // non-null sentinel
-    pipeline.setQmlVideoItem(fakeQmlItem);
-
-    // initWebrtcPipeline may return false in headless mode (qml6glsink unavailable)
-    // but it must NOT crash.
-    bool result = pipeline.initWebrtcPipeline();
-
-    // The webrtcbin element is available (checked above), so either:
-    //   - result == true: pipeline created (full GStreamer stack available)
-    //   - result == false: qml6glsink or other element failed (headless mode OK)
-    // Either way, the function must not crash.
-    (void)result;  // Accept both outcomes; test just verifies no crash
-    SUCCEED() << "initWebrtcPipeline() did not crash (result=" << result << ")";
+    return std::nullopt;
 }
 
-// ── Test 13: CastDecryptionKeys_StoredCorrectly ──────────────────────────────
-// setCastDecryptionKeys() should accept valid 32-char hex strings without crashing.
-
-TEST(CastPipelineTest, CastDecryptionKeys_StoredCorrectly) {
-    airshow::MediaPipeline pipeline;
-
-    // Valid 32-char hex strings = 16 bytes each (AES-128)
-    const std::string aesKey    = "0123456789abcdef0123456789abcdef";
-    const std::string aesIvMask = "fedcba9876543210fedcba9876543210";
-
-    // Should not crash and should not emit any error for valid key lengths
-    EXPECT_NO_THROW({
-        pipeline.setCastDecryptionKeys(12345678u, aesKey, aesIvMask);
-    }) << "setCastDecryptionKeys() should not throw for valid hex key strings";
+template <typename Pred> bool spinUntil(Pred pred, int ms = 2000) {
+    QElapsedTimer t;
+    t.start();
+    while (!pred() && t.elapsed() < ms) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+    return pred();
 }
 
-// ── Test 14: OfferJsonToSdp_EmptyOffer ───────────────────────────────────────
-// Empty offer JSON should return empty SDP (graceful failure, no crash).
+} // namespace
 
-TEST(CastSdpTest, OfferJsonToSdp_EmptyOffer) {
-    QJsonObject emptyOffer;
-    std::string sdp = airshow::CastSession::buildSdpFromOffer(emptyOffer);
-    EXPECT_TRUE(sdp.empty())
-        << "buildSdpFromOffer() should return empty string for an empty offer";
+TEST(CastStreamingReceiverTest, LoopbackDeliversDecryptedFramesAndNacksLoss) {
+    const auto offer = airshow::cast::parseOffer(chromeStyleOffer());
+    const auto sel = airshow::cast::selectStreams(*offer, [](const std::string&) { return true; });
+    const airshow::cast::CastStream video = *sel.video;
+    const airshow::cast::CastStream audio = *sel.audio;
+
+    std::vector<QByteArray> gotVideo, gotAudio;
+    std::vector<bool> gotKey;
+    airshow::cast::CastStreamingReceiver receiver;
+    receiver.setFrameCallback([&](airshow::cast::CastStream::Kind k, const uint8_t* d, size_t n, bool key) {
+        QByteArray f(reinterpret_cast<const char*>(d), qsizetype(n));
+        if (k == airshow::cast::CastStream::Kind::Video) { gotVideo.push_back(f); gotKey.push_back(key); }
+        else gotAudio.push_back(f);
+    });
+    ASSERT_TRUE(receiver.start({audio, video}));
+    const quint16 port = receiver.localPort();
+    ASSERT_NE(port, 0);
+
+    QUdpSocket sender;
+    ASSERT_TRUE(sender.bind(QHostAddress::LocalHost, 0));
+    std::vector<QByteArray> rtcp;
+    auto pump = [&] {
+        while (sender.hasPendingDatagrams()) {
+            QByteArray b(int(sender.pendingDatagramSize()), Qt::Uninitialized);
+            sender.readDatagram(b.data(), b.size());
+            rtcp.push_back(b);
+        }
+    };
+    auto send = [&](const QByteArray& b) { sender.writeDatagram(b, QHostAddress::LocalHost, port); };
+
+    // Three 2500-byte video frames, 1000-byte chunks → packet IDs 0..2.
+    std::vector<QByteArray> plain;
+    for (int i = 0; i < 3; ++i) {
+        QByteArray f(2500, Qt::Uninitialized);
+        for (int j = 0; j < f.size(); ++j) f[j] = char((i * 31 + j * 7) & 0xFF);
+        plain.push_back(f);
+    }
+    uint16_t seq = 1000;
+    auto packets = [&](uint32_t frameId) {
+        const QByteArray enc = ctrCrypt(video, frameId, plain[frameId]);
+        std::vector<QByteArray> out;
+        for (uint16_t pid = 0; pid <= 2; ++pid)
+            out.push_back(castRtpPacket(video, seq++, frameId, frameId == 0, pid, 2,
+                                        enc.mid(pid * 1000, 1000)));
+        return out;
+    };
+
+    send(senderReport(video.senderSsrc));
+    const auto f0 = packets(0), f1 = packets(1), f2 = packets(2);
+    for (const auto& p : f0) send(p);
+    send(f1[0]); send(f1[2]);                  // f1 packet 1 "lost"
+    for (const auto& p : f2) send(p);
+
+    ASSERT_TRUE(spinUntil([&] { return gotVideo.size() == 1; }));
+    // Receiver must NACK frame 1 / packet 1 with checkpoint 0.
+    ASSERT_TRUE(spinUntil([&] {
+        pump();
+        for (const auto& b : rtcp)
+            if (auto fb = parseFeedback(b))
+                if (fb->checkpoint == 0 && !fb->losses.empty() &&
+                    fb->losses[0] == std::make_pair(1, 1)) return true;
+        return false;
+    })) << "no NACK for frame 1 packet 1";
+
+    send(f1[1]);                               // retransmission
+    ASSERT_TRUE(spinUntil([&] { return gotVideo.size() == 3; }));
+    EXPECT_EQ(gotVideo[0], plain[0]);
+    EXPECT_EQ(gotVideo[1], plain[1]);
+    EXPECT_EQ(gotVideo[2], plain[2]);
+    EXPECT_TRUE(gotKey[0]);
+    EXPECT_FALSE(gotKey[1]);
+
+    // Checkpoint advances to frame 2.
+    rtcp.clear();
+    ASSERT_TRUE(spinUntil([&] {
+        pump();
+        for (const auto& b : rtcp)
+            if (auto fb = parseFeedback(b)) if (fb->checkpoint == 2) return true;
+        return false;
+    })) << "checkpoint did not advance";
+
+    // Audio: a single-packet frame on the audio SSRC.
+    const QByteArray opus("opus-frame-bytes");
+    send(castRtpPacket(audio, 1, 0, true, 0, 0, ctrCrypt(audio, 0, opus)));
+    ASSERT_TRUE(spinUntil([&] { return gotAudio.size() == 1; }));
+    EXPECT_EQ(gotAudio[0], opus);
+    EXPECT_EQ(receiver.framesDelivered(airshow::cast::CastStream::Kind::Video), 3u);
 }
 
 // ── Test 15: Integration — CastHandler_IntegrationStartStop ──────────────────
@@ -566,4 +671,34 @@ TEST(CastHandlerIntegrationTest, PeerCertMatchesPrecomputedSignature) {
 
     socket.disconnectFromHost();
     handler.stop();
+}
+
+// 8-bit frame IDs on the wire wrap every 256 frames; the receiver must expand
+// them (and use the expanded ID in the AES IV) for a long-running stream.
+TEST(CastStreamingReceiverTest, FrameIdsExpandAcrossWrap) {
+    const auto offer = airshow::cast::parseOffer(chromeStyleOffer());
+    const auto sel = airshow::cast::selectStreams(*offer, [](const std::string&) { return true; });
+    const airshow::cast::CastStream audio = *sel.audio;
+
+    int delivered = 0;
+    bool allMatch = true;
+    airshow::cast::CastStreamingReceiver receiver;
+    receiver.setFrameCallback([&](airshow::cast::CastStream::Kind, const uint8_t* d, size_t n, bool) {
+        const QByteArray expected = QByteArray::number(delivered);
+        allMatch = allMatch && QByteArray(reinterpret_cast<const char*>(d), qsizetype(n)) == expected;
+        ++delivered;
+    });
+    ASSERT_TRUE(receiver.start({audio}));
+
+    QUdpSocket sender;
+    ASSERT_TRUE(sender.bind(QHostAddress::LocalHost, 0));
+    for (uint32_t id = 0; id < 300; ++id) {
+        const QByteArray plain = QByteArray::number(id);
+        sender.writeDatagram(castRtpPacket(audio, uint16_t(id), id, true, 0, 0,
+                                           ctrCrypt(audio, id, plain)),
+                             QHostAddress::LocalHost, receiver.localPort());
+        if (id % 20 == 0) spinUntil([&] { return delivered == int(id) + 1; }, 500);
+    }
+    ASSERT_TRUE(spinUntil([&] { return delivered == 300; }));
+    EXPECT_TRUE(allMatch);
 }

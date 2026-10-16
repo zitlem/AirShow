@@ -29,11 +29,6 @@ static void checkRequiredPlugins() {
         {"avdec_h264",    "gstreamer1.0-libav"},
         {"h264parse",     "gstreamer1.0-plugins-bad"},
         {"avdec_aac",     "gstreamer1.0-libav"},
-        // Cast-specific plugins (Phase 6)
-        {"webrtcbin",     "gstreamer1.0-plugins-bad"},
-        {"rtpvp8depay",   "gstreamer1.0-plugins-good"},
-        {"rtpopusdepay",  "gstreamer1.0-plugins-good"},
-        {"opusdec",       "gstreamer1.0-plugins-base"},
     };
     for (auto& p : required) {
         if (!gst_registry_check_feature_version(
@@ -43,14 +38,15 @@ static void checkRequiredPlugins() {
         }
     }
 
-    // Non-fatal warning: vp8dec (Cast VP8 hardware/software decode, avdec_vp8 is the fallback)
-    if (!gst_registry_check_feature_version(gst_registry_get(), "vp8dec", 1, 20, 0)) {
-        qWarning("GStreamer plugin 'vp8dec' not found — Cast VP8 will use avdec_vp8 fallback (gst-libav)");
+    // Google Cast decoders — non-fatal: without them only Cast is affected.
+    // decodebin picks vp8dec/avdec_vp8 and opusdec automatically.
+    if (!gst_registry_check_feature_version(gst_registry_get(), "vp8dec", 1, 20, 0) &&
+        !gst_registry_check_feature_version(gst_registry_get(), "avdec_vp8", 1, 20, 0)) {
+        qWarning("No VP8 decoder (vp8dec / avdec_vp8) — Google Cast video will not play");
     }
-
-    // Non-fatal warning: nicesrc (ICE for webrtcbin, Pitfall 4)
-    if (!gst_registry_check_feature_version(gst_registry_get(), "nicesrc", 0, 1, 14)) {
-        qWarning("GStreamer plugin 'nicesrc' not found — Cast WebRTC may fail. Install: gstreamer1.0-nice");
+    if (!gst_registry_check_feature_version(gst_registry_get(), "opusdec", 1, 20, 0)) {
+        qWarning("GStreamer plugin 'opusdec' not found — Google Cast audio will not play. "
+                 "Install: gstreamer1.0-plugins-base");
     }
 
     // Miracast-specific plugin checks (Phase 8)
@@ -73,7 +69,11 @@ static void checkRequiredPlugins() {
         qWarning("GStreamer plugin 'vaapidecodebin' not found — Miracast will use avdec_h264 software decode");
     }
 
-    // Non-fatal: aacparse — some Miracast streams carry LPCM only; AAC parsing is optional
+    // Non-fatal: Miracast sources may send AAC or LPCM audio (we advertise both)
+    if (!gst_registry_check_feature_version(gst_registry_get(), "dvdlpcmdec", 1, 20, 0)) {
+        qWarning("GStreamer plugin 'dvdlpcmdec' not found — Miracast LPCM audio will be silent. "
+                 "Install: gstreamer1.0-plugins-ugly");
+    }
     if (!gst_registry_check_feature_version(gst_registry_get(), "aacparse", 1, 20, 0)) {
         qWarning("GStreamer plugin 'aacparse' not found — Miracast AAC audio streams may not decode correctly");
     }
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
     airshow::MediaPipeline pipeline;
     airshow::ReceiverWindow window(pipeline, settings);
 
-    // Phase 6: Pre-register pipeline for Cast WebRTC deferred pipeline creation.
+    // Pre-register the QML video item slot.
     // ReceiverWindow::load() calls pipeline.setQmlVideoItem(videoItem) again with
     // the real QML VideoOutput pointer after sceneGraphInitialized fires.
     // This pre-call establishes that setQmlVideoItem is part of startup wiring.

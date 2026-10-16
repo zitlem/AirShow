@@ -2,11 +2,9 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
-#include <gst/sdp/gstsdpmessage.h>
-#include <gst/webrtc/webrtc.h>
+#include <gst/app/gstappsrc.h>
 #include <glib.h>
 #include <tuple>
-#include <openssl/evp.h>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -89,13 +87,6 @@ void MediaPipeline::play() {
             g_warning("MediaPipeline::play — GST_STATE_CHANGE_FAILURE on m_pipeline");
         }
         m_needsPlay = false;
-    }
-    // Phase 6: also transition WebRTC pipeline if active
-    if (m_webrtcPipeline) {
-        GstStateChangeReturn ret = gst_element_set_state(m_webrtcPipeline, GST_STATE_PLAYING);
-        if (ret == GST_STATE_CHANGE_FAILURE) {
-            g_warning("MediaPipeline::play — GST_STATE_CHANGE_FAILURE on m_webrtcPipeline");
-        }
     }
 }
 
@@ -250,13 +241,7 @@ void MediaPipeline::stop() {
         m_uriAudioSink = nullptr;
         m_uriVolume    = nullptr;
     }
-    // Phase 6: clean up WebRTC pipeline
-    if (m_webrtcPipeline) {
-        gst_element_set_state(m_webrtcPipeline, GST_STATE_NULL);
-        gst_object_unref(m_webrtcPipeline);
-        m_webrtcPipeline = nullptr;
-        m_webrtcbin      = nullptr;
-    }
+    stopCast();
     // Phase 8: clean up Miracast pipeline
     if (m_miracastPipeline) {
         gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
@@ -786,422 +771,184 @@ void MediaPipeline::onElementAdded(GstBin* /*bin*/, GstElement* element, gpointe
     }
 }
 
-// ── Phase 6: WebRTC pipeline for Cast mirroring ──────────────────────────────
-
 void MediaPipeline::setQmlVideoItem(void* item) {
     m_qmlVideoItem = item;
     g_message("MediaPipeline: QML video item stored for deferred pipeline creation");
 }
 
-// Context struct passed to the pad-added callback
-struct WebrtcPadAddedData {
-    GstElement* pipeline;
-    void*       qmlVideoItem;
-    // We capture the MediaPipeline* only for accessing m_castCryptoKeys (read-only)
+// ── Google Cast Streaming playback ────────────────────────────────────────────
+//
+// CastStreamingReceiver handles the network side (RTP, AES-CTR, frame assembly,
+// RTCP feedback) and hands over complete encoded frames. This pipeline only decodes
+// and renders them:
+//   appsrc(video caps) ! queue ! decodebin ~> queue ! videoconvert ! appsink
+//   appsrc(audio caps) ! queue ! decodebin ~> audioconvert ! audioresample ! autoaudiosink
+
+namespace {
+
+// decodebin pad-added: link pads of the given media type ("video/" or "audio/")
+// to the first element of the pre-linked downstream chain.
+struct DecodebinLink {
+    const char* mediaPrefix;
+    GstElement* target;
+
+    static void onPadAdded(GstElement* /*decodebin*/, GstPad* pad, gpointer data) {
+        auto* self = static_cast<DecodebinLink*>(data);
+        GstCaps* caps = gst_pad_get_current_caps(pad);
+        if (!caps) caps = gst_pad_query_caps(pad, nullptr);
+        if (!caps) return;
+        const bool matches = g_str_has_prefix(
+            gst_structure_get_name(gst_caps_get_structure(caps, 0)), self->mediaPrefix);
+        gst_caps_unref(caps);
+        if (!matches) return;
+
+        GstPad* sinkPad = gst_element_get_static_pad(self->target, "sink");
+        if (sinkPad && !GST_PAD_IS_LINKED(sinkPad) &&
+            gst_pad_link(pad, sinkPad) != GST_PAD_LINK_OK) {
+            g_warning("MediaPipeline: Cast %s decodebin pad link failed", self->mediaPrefix);
+        }
+        if (sinkPad) gst_object_unref(sinkPad);
+    }
+
+    static void free(gpointer data, GClosure*) { delete static_cast<DecodebinLink*>(data); }
 };
 
-// onWebrtcPadAdded: handles video (VP8) and audio (Opus) pads from webrtcbin.
-// Called from GStreamer streaming thread — only GStreamer calls allowed here;
-// any Qt signal emission must use QMetaObject::invokeMethod(Qt::QueuedConnection).
-static void onWebrtcPadAdded(GstElement* /*webrtcbin*/, GstPad* pad, gpointer userData)
-{
-    auto* data = static_cast<WebrtcPadAddedData*>(userData);
-    if (!data) return;
-
-    // Only handle source pads (webrtcbin emits src pads for received streams)
-    if (gst_pad_get_direction(pad) != GST_PAD_SRC) return;
-
-    // Determine stream type from pad caps
-    GstCaps* caps = gst_pad_get_current_caps(pad);
-    if (!caps) caps = gst_pad_query_caps(pad, nullptr);
-    if (!caps) {
-        g_warning("onWebrtcPadAdded: pad has no caps — skipping");
-        return;
-    }
-
-    const GstStructure* s = gst_caps_get_structure(caps, 0);
-    const gchar* mediaType = gst_structure_get_name(s);
-    gst_caps_unref(caps);
-
-    const bool isVideo = g_str_has_prefix(mediaType, "application/x-rtp") &&
-                         [s]() {
-                             const gchar* enc = gst_structure_get_string(s, "encoding-name");
-                             return enc && (g_ascii_strcasecmp(enc, "VP8") == 0);
-                         }();
-    const bool isAudio = g_str_has_prefix(mediaType, "application/x-rtp") &&
-                         [s]() {
-                             const gchar* enc = gst_structure_get_string(s, "encoding-name");
-                             return enc && (g_ascii_strcasecmp(enc, "OPUS") == 0);
-                         }();
-
-    if (!isVideo && !isAudio) {
-        g_message("onWebrtcPadAdded: unknown pad caps '%s' — skipping", mediaType);
-        return;
-    }
-
-    GstElement* pipeline = data->pipeline;
-
-    if (isVideo) {
-        g_message("onWebrtcPadAdded: creating VP8 video decode chain");
-
-        GstElement* depay        = gst_element_factory_make("rtpvp8depay",  "cast-rtpvp8depay");
-        // Try vp8dec first (gst-plugins-good via libvpx), fall back to avdec_vp8 (gst-libav)
-        GstElement* vp8dec       = gst_element_factory_make("vp8dec",       "cast-vp8dec");
-        if (!vp8dec) {
-            g_message("onWebrtcPadAdded: vp8dec not available — trying avdec_vp8 (fallback)");
-            vp8dec = gst_element_factory_make("avdec_vp8", "cast-vp8dec");
-        }
-        GstElement* videoConvert = gst_element_factory_make("videoconvert",  "cast-videoconvert");
-        GstElement* glUpload     = nullptr;
-        GstElement* videoSink    = nullptr;
-
-        const bool useGl = (data->qmlVideoItem != nullptr);
-        if (useGl) {
-            glUpload  = gst_element_factory_make("glupload",   "cast-glupload");
-            videoSink = gst_element_factory_make("qml6glsink", "cast-videosink");
-            if (videoSink) {
-                g_object_set(videoSink, "widget", data->qmlVideoItem, nullptr);
-            }
-        } else {
-            videoSink = gst_element_factory_make("fakesink", "cast-videosink");
-        }
-
-        if (!depay || !vp8dec || !videoConvert || !videoSink || (useGl && !glUpload)) {
-            g_warning("onWebrtcPadAdded: failed to create VP8 video chain elements");
-            if (depay)        gst_object_unref(depay);
-            if (vp8dec)       gst_object_unref(vp8dec);
-            if (videoConvert) gst_object_unref(videoConvert);
-            if (glUpload)     gst_object_unref(glUpload);
-            if (videoSink)    gst_object_unref(videoSink);
-            return;
-        }
-
-        // Add elements to pipeline
-        if (useGl) {
-            gst_bin_add_many(GST_BIN(pipeline),
-                depay, vp8dec, videoConvert, glUpload, videoSink, nullptr);
-        } else {
-            gst_bin_add_many(GST_BIN(pipeline),
-                depay, vp8dec, videoConvert, videoSink, nullptr);
-        }
-
-        // Sync states with parent before linking
-        gst_element_sync_state_with_parent(depay);
-        gst_element_sync_state_with_parent(vp8dec);
-        gst_element_sync_state_with_parent(videoConvert);
-        if (glUpload) gst_element_sync_state_with_parent(glUpload);
-        gst_element_sync_state_with_parent(videoSink);
-
-        // Link chain: rtpvp8depay ! vp8dec ! videoconvert [! glupload] ! videosink
-        gboolean linked = FALSE;
-        if (useGl) {
-            linked = gst_element_link_many(depay, vp8dec, videoConvert, glUpload, videoSink, nullptr);
-        } else {
-            linked = gst_element_link_many(depay, vp8dec, videoConvert, videoSink, nullptr);
-        }
-        if (!linked) {
-            g_warning("onWebrtcPadAdded: failed to link VP8 video chain");
-            return;
-        }
-
-        // Link webrtcbin pad to the depayloader sink
-        GstPad* depayerSink = gst_element_get_static_pad(depay, "sink");
-        if (!depayerSink) {
-            g_warning("onWebrtcPadAdded: rtpvp8depay has no sink pad");
-            return;
-        }
-        if (gst_pad_link(pad, depayerSink) != GST_PAD_LINK_OK) {
-            g_warning("onWebrtcPadAdded: failed to link webrtcbin video pad to rtpvp8depay");
-        } else {
-            g_message("onWebrtcPadAdded: VP8 video chain linked successfully");
-        }
-        gst_object_unref(depayerSink);
-
-    } else if (isAudio) {
-        g_message("onWebrtcPadAdded: creating Opus audio decode chain");
-
-        GstElement* depay        = gst_element_factory_make("rtpopusdepay",  "cast-rtpopusdepay");
-        GstElement* opusDec      = gst_element_factory_make("opusdec",       "cast-opusdec");
-        GstElement* audioConvert = gst_element_factory_make("audioconvert",  "cast-audioconvert");
-        GstElement* resample     = gst_element_factory_make("audioresample", "cast-audioresample");
-        GstElement* audioSink    = gst_element_factory_make("autoaudiosink", "cast-audiosink");
-
-        if (!depay || !opusDec || !audioConvert || !resample || !audioSink) {
-            g_warning("onWebrtcPadAdded: failed to create Opus audio chain elements");
-            if (depay)        gst_object_unref(depay);
-            if (opusDec)      gst_object_unref(opusDec);
-            if (audioConvert) gst_object_unref(audioConvert);
-            if (resample)     gst_object_unref(resample);
-            if (audioSink)    gst_object_unref(audioSink);
-            return;
-        }
-
-        gst_bin_add_many(GST_BIN(pipeline),
-            depay, opusDec, audioConvert, resample, audioSink, nullptr);
-
-        gst_element_sync_state_with_parent(depay);
-        gst_element_sync_state_with_parent(opusDec);
-        gst_element_sync_state_with_parent(audioConvert);
-        gst_element_sync_state_with_parent(resample);
-        gst_element_sync_state_with_parent(audioSink);
-
-        if (!gst_element_link_many(depay, opusDec, audioConvert, resample, audioSink, nullptr)) {
-            g_warning("onWebrtcPadAdded: failed to link Opus audio chain");
-            return;
-        }
-
-        GstPad* depayerSink = gst_element_get_static_pad(depay, "sink");
-        if (!depayerSink) {
-            g_warning("onWebrtcPadAdded: rtpopusdepay has no sink pad");
-            return;
-        }
-        if (gst_pad_link(pad, depayerSink) != GST_PAD_LINK_OK) {
-            g_warning("onWebrtcPadAdded: failed to link webrtcbin audio pad to rtpopusdepay");
-        } else {
-            g_message("onWebrtcPadAdded: Opus audio chain linked successfully");
-        }
-        gst_object_unref(depayerSink);
-    }
+GstElement* makeLiveAppsrc(const char* name, const std::string& caps) {
+    GstElement* src = gst_element_factory_make("appsrc", name);
+    if (!src) return nullptr;
+    GstCaps* c = gst_caps_from_string(caps.c_str());
+    g_object_set(src,
+        "stream-type",  0,
+        "format",       GST_FORMAT_TIME,
+        "is-live",      TRUE,
+        "do-timestamp", TRUE,
+        "caps",         c,
+        nullptr);
+    gst_caps_unref(c);
+    return src;
 }
 
-bool MediaPipeline::initWebrtcPipeline() {
-    if (!m_qmlVideoItem) {
-        g_warning("MediaPipeline::initWebrtcPipeline — m_qmlVideoItem is null. "
-                  "Call setQmlVideoItem() before initWebrtcPipeline().");
-        return false;
+GstElement* makeLeakyQueue(const char* name, guint maxBuffers) {
+    GstElement* q = gst_element_factory_make("queue", name);
+    if (q) {
+        g_object_set(q,
+            "max-size-buffers", maxBuffers,
+            "max-size-bytes",   0,
+            "max-size-time",    G_GUINT64_CONSTANT(0),
+            "leaky",            2,   // drop oldest — always show the latest frame
+            nullptr);
     }
+    return q;
+}
 
-    // Clean up any previous WebRTC pipeline
-    if (m_webrtcPipeline) {
-        gst_element_set_state(m_webrtcPipeline, GST_STATE_NULL);
-        gst_object_unref(m_webrtcPipeline);
-        m_webrtcPipeline = nullptr;
-        m_webrtcbin      = nullptr;
-    }
+} // namespace
 
-    GstElement* pipeline = gst_pipeline_new("cast-webrtc-pipeline");
-    if (!pipeline) {
-        g_warning("MediaPipeline::initWebrtcPipeline — failed to create pipeline");
-        return false;
-    }
+bool MediaPipeline::initCastPipeline(const std::string& videoCaps, const std::string& audioCaps) {
+    stopCast();
+    if (videoCaps.empty() && audioCaps.empty()) return false;
 
-    // Create webrtcbin element
-    GstElement* webrtcbin = gst_element_factory_make("webrtcbin", "castwebrtc");
-    if (!webrtcbin) {
-        g_warning("MediaPipeline::initWebrtcPipeline — webrtcbin element not available. "
-                  "Install gstreamer1.0-plugins-bad.");
+    GstElement* pipeline = gst_pipeline_new("cast-pipeline");
+    if (!pipeline) return false;
+
+    auto fail = [pipeline](const char* what) {
+        g_warning("MediaPipeline::initCastPipeline — %s", what);
         gst_object_unref(pipeline);
         return false;
+    };
+
+    GstElement* videoSrc = nullptr;
+    if (!videoCaps.empty()) {
+        videoSrc                 = makeLiveAppsrc("cast-video-src", videoCaps);
+        GstElement* inQueue      = makeLeakyQueue("cast-video-queue", 8);
+        GstElement* decode       = gst_element_factory_make("decodebin", "cast-video-decode");
+        GstElement* outQueue     = makeLeakyQueue("cast-video-outqueue", 2);
+        GstElement* convert      = gst_element_factory_make("videoconvert", "cast-videoconvert");
+        GstElement* sink         = createVideoSink("cast-videosink", /*realtime=*/true);
+        if (!videoSrc || !inQueue || !decode || !outQueue || !convert || !sink) {
+            for (GstElement* e : {videoSrc, inQueue, decode, outQueue, convert, sink})
+                if (e) gst_object_unref(e);
+            return fail("failed to create video elements");
+        }
+        gst_bin_add_many(GST_BIN(pipeline), videoSrc, inQueue, decode, outQueue, convert, sink, nullptr);
+        if (!gst_element_link_many(videoSrc, inQueue, decode, nullptr) ||
+            !gst_element_link_many(outQueue, convert, sink, nullptr)) {
+            return fail("failed to link video branch");
+        }
+        g_object_set(decode, "async-handling", FALSE, nullptr);
+        g_signal_connect_data(decode, "pad-added", G_CALLBACK(DecodebinLink::onPadAdded),
+                              new DecodebinLink{"video/", outQueue}, DecodebinLink::free,
+                              GConnectFlags(0));
     }
 
-    // Configure webrtcbin:
-    //   bundle-policy=3 (max-bundle) — all streams use one DTLS connection
-    //   stun-server=NULL — local network only per project constraint
-    g_object_set(webrtcbin,
-        "bundle-policy", 3,         // GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE
-        "stun-server",   nullptr,
-        nullptr);
-
-    gst_bin_add(GST_BIN(pipeline), webrtcbin);
-
-    // Allocate data for the pad-added callback (pipeline lifetime)
-    auto* padData = new WebrtcPadAddedData{pipeline, m_qmlVideoItem};
-    g_signal_connect(webrtcbin, "pad-added",
-                     G_CALLBACK(onWebrtcPadAdded), padData);
-
-    // ICE candidate signal — relay to CastSession for forwarding to sender
-    g_signal_connect(webrtcbin, "on-ice-candidate",
-        G_CALLBACK(+[](GstElement* /*webrtcbin*/, guint mline, gchar* candidate, gpointer userData) {
-            auto* self = static_cast<MediaPipeline*>(userData);
-            g_message("webrtcbin ICE candidate: mline=%u candidate=%s", mline, candidate);
-
-            // Extract port from ICE candidate string (format: "candidate:... <ip> <port> ...")
-            if (candidate) {
-                std::string cand(candidate);
-                // Parse port: tokens are space-separated, port is after the IP address
-                // Format: "candidate:<foundation> <component> <protocol> <priority> <ip> <port> ..."
-                size_t pos = 0;
-                int tokenIdx = 0;
-                while (pos < cand.size() && tokenIdx < 5) {
-                    pos = cand.find(' ', pos);
-                    if (pos == std::string::npos) break;
-                    pos++;
-                    tokenIdx++;
-                }
-                if (tokenIdx == 5 && pos < cand.size()) {
-                    size_t end = cand.find(' ', pos);
-                    std::string portStr = (end != std::string::npos)
-                        ? cand.substr(pos, end - pos) : cand.substr(pos);
-                    int port = std::atoi(portStr.c_str());
-                    if (port > 0 && port < 65536 && self->m_webrtcLocalPort == 0) {
-                        self->m_webrtcLocalPort = static_cast<uint16_t>(port);
-                        g_message("webrtcbin local UDP port: %u", self->m_webrtcLocalPort);
-                    }
-                }
-
-                if (self->m_iceCandidateCallback) {
-                    self->m_iceCandidateCallback(mline, std::string(candidate));
-                }
-            }
-        }), this);
-
-    m_webrtcPipeline = pipeline;
-    m_webrtcbin      = webrtcbin;
-
-    // Start in PAUSED state — will transition to PLAYING after OFFER/ANSWER exchange
-    GstStateChangeReturn ret = gst_element_set_state(m_webrtcPipeline, GST_STATE_PAUSED);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
-        g_warning("MediaPipeline::initWebrtcPipeline — GST_STATE_CHANGE_FAILURE on PAUSED");
-        gst_element_set_state(m_webrtcPipeline, GST_STATE_NULL);
-        gst_object_unref(m_webrtcPipeline);
-        m_webrtcPipeline = nullptr;
-        m_webrtcbin      = nullptr;
-        return false;
+    GstElement* audioSrc = nullptr;
+    if (!audioCaps.empty()) {
+        audioSrc             = makeLiveAppsrc("cast-audio-src", audioCaps);
+        GstElement* queue    = makeLeakyQueue("cast-audio-queue", 16);
+        GstElement* decode   = gst_element_factory_make("decodebin", "cast-audio-decode");
+        GstElement* convert  = gst_element_factory_make("audioconvert", "cast-audioconvert");
+        GstElement* resample = gst_element_factory_make("audioresample", "cast-audioresample");
+        GstElement* sink     = gst_element_factory_make("autoaudiosink", "cast-audiosink");
+        if (!audioSrc || !queue || !decode || !convert || !resample || !sink) {
+            for (GstElement* e : {audioSrc, queue, decode, convert, resample, sink})
+                if (e) gst_object_unref(e);
+            return fail("failed to create audio elements");
+        }
+        gst_bin_add_many(GST_BIN(pipeline), audioSrc, queue, decode, convert, resample, sink, nullptr);
+        if (!gst_element_link_many(audioSrc, queue, decode, nullptr) ||
+            !gst_element_link_many(convert, resample, sink, nullptr)) {
+            return fail("failed to link audio branch");
+        }
+        g_object_set(decode, "async-handling", FALSE, nullptr);
+        g_signal_connect_data(decode, "pad-added", G_CALLBACK(DecodebinLink::onPadAdded),
+                              new DecodebinLink{"audio/", convert}, DecodebinLink::free,
+                              GConnectFlags(0));
+        // Same as the AirPlay pipeline: the real audio sink inside autoaudiosink must not
+        // wait for preroll, or the live pipeline stalls in PAUSED.
+        g_signal_connect(sink, "element-added",
+            G_CALLBACK(+[](GstBin*, GstElement* child, gpointer) {
+                if (g_object_class_find_property(G_OBJECT_GET_CLASS(child), "async"))
+                    g_object_set(child, "async", FALSE, "sync", FALSE, nullptr);
+            }), nullptr);
+        m_castAudioSink = sink;
     }
 
-    g_message("MediaPipeline::initWebrtcPipeline — pipeline created and PAUSED");
+    if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        m_castAudioSink = nullptr;
+        return fail("GST_STATE_CHANGE_FAILURE on PLAYING");
+    }
+
+    m_castPipeline = pipeline;
+    m_castVideoSrc = videoSrc;
+    m_castAudioSrc = audioSrc;
+    g_message("MediaPipeline: Cast pipeline started (video='%s' audio='%s')",
+              videoCaps.c_str(), audioCaps.c_str());
     return true;
 }
 
-bool MediaPipeline::setRemoteOffer(const std::string& sdpOffer) {
-    if (!m_webrtcbin) {
-        g_warning("MediaPipeline::setRemoteOffer — webrtcbin not initialized");
-        return false;
-    }
-
-    // Parse SDP text into a GstSDPMessage
-    GstSDPMessage* sdp = nullptr;
-    gst_sdp_message_new(&sdp);
-    GstSDPResult sdpResult = gst_sdp_message_parse_buffer(
-        reinterpret_cast<const guint8*>(sdpOffer.c_str()),
-        static_cast<guint>(sdpOffer.size()),
-        sdp);
-    if (sdpResult != GST_SDP_OK) {
-        g_warning("MediaPipeline::setRemoteOffer — failed to parse SDP offer");
-        gst_sdp_message_free(sdp);
-        return false;
-    }
-
-    // Create offer description and set as remote description
-    GstWebRTCSessionDescription* offerDesc =
-        gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_OFFER, sdp);
-
-    GstPromise* setRemotePromise = gst_promise_new();
-    g_signal_emit_by_name(m_webrtcbin, "set-remote-description", offerDesc, setRemotePromise);
-    gst_promise_wait(setRemotePromise);
-
-    const GstStructure* setRemoteReply = gst_promise_get_reply(setRemotePromise);
-    if (setRemoteReply) {
-        const GValue* errVal = gst_structure_get_value(setRemoteReply, "error");
-        if (errVal) {
-            GError* err = static_cast<GError*>(g_value_get_boxed(errVal));
-            if (err) {
-                g_warning("MediaPipeline::setRemoteOffer — set-remote-description error: %s", err->message);
-                gst_promise_unref(setRemotePromise);
-                gst_webrtc_session_description_free(offerDesc);
-                return false;
-            }
-        }
-    }
-    gst_promise_unref(setRemotePromise);
-    gst_webrtc_session_description_free(offerDesc);
-
-    // Create answer SDP
-    GstPromise* createAnswerPromise = gst_promise_new();
-    g_signal_emit_by_name(m_webrtcbin, "create-answer", nullptr, createAnswerPromise);
-    gst_promise_wait(createAnswerPromise);
-
-    const GstStructure* answerReply = gst_promise_get_reply(createAnswerPromise);
-    if (!answerReply) {
-        g_warning("MediaPipeline::setRemoteOffer — create-answer returned no reply");
-        gst_promise_unref(createAnswerPromise);
-        return false;
-    }
-
-    const GValue* answerVal = gst_structure_get_value(answerReply, "answer");
-    if (!answerVal) {
-        g_warning("MediaPipeline::setRemoteOffer — create-answer reply missing 'answer' field");
-        gst_promise_unref(createAnswerPromise);
-        return false;
-    }
-
-    GstWebRTCSessionDescription* answerDesc =
-        static_cast<GstWebRTCSessionDescription*>(g_value_get_boxed(answerVal));
-    if (!answerDesc || !answerDesc->sdp) {
-        g_warning("MediaPipeline::setRemoteOffer — create-answer produced null SDP");
-        gst_promise_unref(createAnswerPromise);
-        return false;
-    }
-
-    // Store the answer SDP string for getLocalAnswer()
-    gchar* sdpStr = gst_sdp_message_as_text(answerDesc->sdp);
-    if (sdpStr) {
-        m_localAnswerSdp = std::string(sdpStr);
-        g_free(sdpStr);
-    }
-
-    // Set the answer as local description
-    GstWebRTCSessionDescription* localAnswerDesc =
-        gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_ANSWER, answerDesc->sdp);
-
-    GstPromise* setLocalPromise = gst_promise_new();
-    g_signal_emit_by_name(m_webrtcbin, "set-local-description", localAnswerDesc, setLocalPromise);
-    gst_promise_wait(setLocalPromise);
-    gst_promise_unref(setLocalPromise);
-    // Note: do NOT free localAnswerDesc->sdp here — webrtcbin takes ownership via set-local-description
-
-    gst_promise_unref(createAnswerPromise);
-    gst_webrtc_session_description_free(localAnswerDesc);
-
-    g_message("MediaPipeline::setRemoteOffer — remote offer set, local answer created (%zu bytes SDP)",
-              m_localAnswerSdp.size());
-    return !m_localAnswerSdp.empty();
+static void pushFrame(GstElement* appsrc, const uint8_t* data, size_t size, bool keyFrame) {
+    if (!appsrc || !data || size == 0) return;
+    GstBuffer* buf = gst_buffer_new_allocate(nullptr, size, nullptr);
+    gst_buffer_fill(buf, 0, data, size);
+    if (!keyFrame) GST_BUFFER_FLAG_SET(buf, GST_BUFFER_FLAG_DELTA_UNIT);
+    gst_app_src_push_buffer(GST_APP_SRC(appsrc), buf);  // takes ownership
 }
 
-std::string MediaPipeline::getLocalAnswer() {
-    return m_localAnswerSdp;
+void MediaPipeline::pushCastVideoFrame(const uint8_t* data, size_t size, bool keyFrame) {
+    pushFrame(m_castVideoSrc, data, size, keyFrame);
 }
 
-void MediaPipeline::setIceCandidateCallback(IceCandidateCallback cb) {
-    m_iceCandidateCallback = std::move(cb);
+void MediaPipeline::pushCastAudioFrame(const uint8_t* data, size_t size) {
+    pushFrame(m_castAudioSrc, data, size, /*keyFrame=*/true);
 }
 
-uint16_t MediaPipeline::webrtcLocalPort() const {
-    return m_webrtcLocalPort;
-}
-
-void MediaPipeline::setCastDecryptionKeys(uint32_t ssrc,
-                                           const std::string& aesKeyHex,
-                                           const std::string& aesIvMaskHex)
-{
-    // Parse hex strings to byte vectors (each 32 hex chars = 16 bytes = AES-128)
-    auto hexToBytes = [](const std::string& hex) -> std::vector<uint8_t> {
-        std::vector<uint8_t> bytes;
-        bytes.reserve(hex.size() / 2);
-        for (size_t i = 0; i + 1 < hex.size(); i += 2) {
-            unsigned int byte = 0;
-            if (sscanf(hex.c_str() + i, "%02x", &byte) == 1) {
-                bytes.push_back(static_cast<uint8_t>(byte));
-            }
-        }
-        return bytes;
-    };
-
-    CastCryptoKeys keys;
-    keys.aesKey    = hexToBytes(aesKeyHex);
-    keys.aesIvMask = hexToBytes(aesIvMaskHex);
-
-    if (keys.aesKey.size() != 16 || keys.aesIvMask.size() != 16) {
-        g_warning("MediaPipeline::setCastDecryptionKeys — invalid key/ivMask length "
-                  "(ssrc=%u, keyLen=%zu, ivMaskLen=%zu)",
-                  ssrc,
-                  keys.aesKey.size(),
-                  keys.aesIvMask.size());
-        return;
-    }
-
-    m_castCryptoKeys[ssrc] = std::move(keys);
-    g_message("MediaPipeline::setCastDecryptionKeys — AES-CTR keys stored for SSRC %u", ssrc);
+void MediaPipeline::stopCast() {
+    if (!m_castPipeline) return;
+    gst_element_set_state(m_castPipeline, GST_STATE_NULL);
+    gst_object_unref(m_castPipeline);
+    m_castPipeline  = nullptr;
+    m_castVideoSrc  = nullptr;
+    m_castAudioSrc  = nullptr;
+    m_castAudioSink = nullptr;
 }
 
 // ── Phase 8: Miracast MPEG-TS/RTP receive pipeline ────────────────────────────
@@ -1212,7 +959,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     // Static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
     // Video branch (pad-added): queue ! h264parse ! [vaapidecodebin|avdec_h264]
     //                           ! videoconvert ! appsink  (or fakesink)
-    // Audio branch (pad-added): queue ! aacparse ! avdec_aac
+    // Audio branch (pad-added): queue ! decodebin (AAC or LPCM — we advertise both)
     //                           ! audioconvert ! audioresample ! autoaudiosink
     //
     // tsdemux emits dynamic pads when it identifies TS stream contents via PAT/PMT.
@@ -1252,8 +999,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
 
     // Audio branch (pre-created, linked in pad-added)
     GstElement* audioQueue    = gst_element_factory_make("queue",        "mir-audioqueue");
-    GstElement* aacparse      = gst_element_factory_make("aacparse",     "mir-aacparse");
-    GstElement* avdecAac      = gst_element_factory_make("avdec_aac",    "mir-avdecaac");
+    GstElement* audioDecode   = gst_element_factory_make("decodebin",    "mir-audiodecode");
     GstElement* audioConvert  = gst_element_factory_make("audioconvert", "mir-audioconvert");
     GstElement* audioResample = gst_element_factory_make("audioresample","mir-audioresample");
     GstElement* audioSink     = gst_element_factory_make("autoaudiosink","mir-audiosink");
@@ -1261,7 +1007,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     // Verify all mandatory elements were created
     const bool allCreated = pipeline && udpsrc && rtpmp2tdepay && tsparse && tsdemux &&
                             videoQueue && h264parse && videoDecode && videoConvert && videoSink &&
-                            audioQueue && aacparse && avdecAac && audioConvert &&
+                            audioQueue && audioDecode && audioConvert &&
                             audioResample && audioSink;
 
     if (!allCreated) {
@@ -1278,8 +1024,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         if (videoConvert)  gst_object_unref(videoConvert);
         if (videoSink)     gst_object_unref(videoSink);
         if (audioQueue)    gst_object_unref(audioQueue);
-        if (aacparse)      gst_object_unref(aacparse);
-        if (avdecAac)      gst_object_unref(avdecAac);
+        if (audioDecode)   gst_object_unref(audioDecode);
         if (audioConvert)  gst_object_unref(audioConvert);
         if (audioResample) gst_object_unref(audioResample);
         if (audioSink)     gst_object_unref(audioSink);
@@ -1300,7 +1045,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     gst_bin_add_many(GST_BIN(pipeline),
         udpsrc, rtpmp2tdepay, tsparse, tsdemux,
         videoQueue, h264parse, videoDecode, videoConvert, videoSink,
-        audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
+        audioQueue, audioDecode, audioConvert, audioResample, audioSink,
         nullptr);
 
     // Link the static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
@@ -1319,7 +1064,14 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     }
 
     // Pre-link the audio branch internal chain
-    if (!gst_element_link_many(audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink, nullptr)) {
+    // Sources may pick either codec from our M3 wfd_audio_codecs (LPCM is mandatory in
+    // the Wi-Fi Display spec); decodebin selects avdec_aac or dvdlpcmdec accordingly.
+    g_object_set(audioDecode, "async-handling", FALSE, nullptr);
+    g_signal_connect_data(audioDecode, "pad-added", G_CALLBACK(DecodebinLink::onPadAdded),
+                          new DecodebinLink{"audio/", audioConvert}, DecodebinLink::free,
+                          GConnectFlags(0));
+    if (!gst_element_link(audioQueue, audioDecode) ||
+        !gst_element_link_many(audioConvert, audioResample, audioSink, nullptr)) {
         g_warning("MediaPipeline::initMiracastPipeline — failed to link audio branch");
         gst_object_unref(pipeline);
         return false;

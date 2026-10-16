@@ -11,8 +11,8 @@ A free, open-source, cross-platform screen mirroring receiver. Turn any computer
 | Protocol | Source Devices | Status |
 |----------|---------------|--------|
 | **AirPlay** | iPhone, iPad, Mac | Working (needs device testing) |
-| **Google Cast** | Chrome browser (desktop) | Not working yet — device auth passes, media receive path being rebuilt |
-| **Miracast** | Windows 10/11 | Infrastructure built (MS-MICE, needs device testing) |
+| **Google Cast** | Chrome browser (desktop) | Implemented (Cast Streaming receiver), needs device testing |
+| **Miracast** | Windows 10/11 | Implemented (MS-MICE), needs device testing |
 | **DLNA** | Any DLNA controller app | Working (needs device testing) |
 
 ## Features
@@ -124,7 +124,7 @@ qml/
 | Video Rendering | GStreamer appsink → Qt `VideoFrameSink` |
 | AirPlay | UxPlay (embedded) |
 | DLNA | libupnp (pupnp) |
-| Google Cast | protobuf + OpenSSL TLS |
+| Google Cast | protobuf + OpenSSL (TLS, AES-CTR) + Cast Streaming over UDP |
 | Miracast | MS-MICE (TCP/RTSP) |
 | Discovery | Avahi (Linux), Bonjour (macOS/Windows) |
 | Build | CMake + Ninja |
@@ -141,7 +141,7 @@ AirShow includes three security layers:
 ## Known Limitations
 
 - **Google Cast authentication** uses precomputed RSA signatures from AirReceiver (via shanocast). They cover through ~2027-12-21 and cannot be regenerated; Google may also revoke them at any time. Android "Cast screen" is not expected to work with these credentials.
-- **Google Cast media** currently does not display: Chrome mirroring uses Cast Streaming (RTP + AES-CTR), not WebRTC. See `.planning/ROADMAP.md` step 4.
+- **Google Cast media** uses AirShow's own Cast Streaming receiver (`src/cast/CastStreamingReceiver`): RTP + AES-128-CTR + RTCP feedback, VP8/VP9/H.264 video and Opus audio. Not yet verified against a real Chrome sender.
 - **Miracast** uses MS-MICE (infrastructure mode) only. Wi-Fi Direct Miracast is not supported due to unstable Linux kernel/wpa_supplicant P2P APIs.
 - **Android Miracast** support varies by OEM. Most Android devices use Wi-Fi Direct only and won't connect via MS-MICE.
 - **HDCP content** (Netflix, Disney+, etc.) is blocked at the protocol level by DRM --- this is not a bug.

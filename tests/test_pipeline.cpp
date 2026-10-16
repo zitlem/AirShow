@@ -10,8 +10,13 @@
 
 #include <gtest/gtest.h>
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+#include <atomic>
+#include <chrono>
 #include <set>
 #include <string>
+#include <thread>
+#include <vector>
 #include "pipeline/MediaPipeline.h"
 #include "pipeline/DecoderInfo.h"
 
@@ -154,4 +159,87 @@ TEST(SmokeTest, required_plugins_available) {
             << "Missing GStreamer plugin: " << p.name
             << " (install: " << p.pkg << ")";
     }
+}
+
+// Encode a few frames with a GStreamer launch line ending in "appsink name=out"
+// and return each encoded buffer (bytes + whether it is a key frame).
+struct EncodedFrame { std::vector<uint8_t> bytes; bool key; };
+static std::vector<EncodedFrame> encodeFrames(const char* launch) {
+    std::vector<EncodedFrame> frames;
+    GstElement* p = gst_parse_launch(launch, nullptr);
+    if (!p) return frames;
+    GstElement* out = gst_bin_get_by_name(GST_BIN(p), "out");
+    gst_element_set_state(p, GST_STATE_PLAYING);
+    while (GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(out))) {
+        GstBuffer* buf = gst_sample_get_buffer(sample);
+        GstMapInfo map;
+        if (gst_buffer_map(buf, &map, GST_MAP_READ)) {
+            frames.push_back({std::vector<uint8_t>(map.data, map.data + map.size),
+                              !GST_BUFFER_FLAG_IS_SET(buf, GST_BUFFER_FLAG_DELTA_UNIT)});
+            gst_buffer_unmap(buf, &map);
+        }
+        gst_sample_unref(sample);
+    }
+    gst_element_set_state(p, GST_STATE_NULL);
+    gst_object_unref(out);
+    gst_object_unref(p);
+    return frames;
+}
+
+// Cast Streaming playback: complete encoded VP8 frames pushed into the Cast
+// pipeline (as CastStreamingReceiver does) come out as decoded RGBA images.
+TEST_F(PipelineTest, test_cast_vp8_frames_render) {
+    auto frames = encodeFrames(
+        "videotestsrc num-buffers=15 ! video/x-raw,width=320,height=240,framerate=30/1 "
+        "! vp8enc deadline=1 keyframe-max-dist=5 ! appsink name=out sync=false");
+    ASSERT_GE(frames.size(), 10u) << "vp8enc unavailable?";
+    ASSERT_TRUE(frames.front().key);
+
+    std::atomic<int> rendered{0};
+    std::atomic<int> width{0};
+    airshow::MediaPipeline pipeline;
+    pipeline.setVideoFrameCallback([&](QImage img) {
+        width = img.width();
+        ++rendered;
+    });
+    ASSERT_TRUE(pipeline.initCastPipeline("video/x-vp8", ""));
+
+    for (const auto& f : frames) {
+        pipeline.pushCastVideoFrame(f.bytes.data(), f.bytes.size(), f.key);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    for (int i = 0; i < 300 && rendered < 5; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    EXPECT_GE(rendered.load(), 5);
+    EXPECT_EQ(width.load(), 320);
+    pipeline.stopCast();
+    EXPECT_EQ(pipeline.castPipeline(), nullptr);
+}
+
+// Opus audio frames are accepted by the Cast audio branch without errors.
+TEST_F(PipelineTest, test_cast_opus_audio_branch) {
+    auto frames = encodeFrames(
+        "audiotestsrc num-buffers=20 ! audio/x-raw,rate=48000,channels=2 "
+        "! opusenc ! appsink name=out sync=false");
+    ASSERT_GE(frames.size(), 5u) << "opusenc unavailable?";
+
+    airshow::MediaPipeline pipeline;
+    ASSERT_TRUE(pipeline.initCastPipeline(
+        "", "audio/x-opus,channel-mapping-family=0,channels=2,rate=48000"));
+    for (const auto& f : frames)
+        pipeline.pushCastAudioFrame(f.bytes.data(), f.bytes.size());
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    GstBus* bus = gst_element_get_bus(pipeline.castPipeline());
+    GstMessage* err = gst_bus_pop_filtered(bus, GST_MESSAGE_ERROR);
+    if (err) {
+        GError* e = nullptr;
+        gst_message_parse_error(err, &e, nullptr);
+        ADD_FAILURE() << "Cast audio pipeline error: " << (e ? e->message : "?");
+        if (e) g_error_free(e);
+        gst_message_unref(err);
+    }
+    gst_object_unref(bus);
+    pipeline.stopCast();
 }

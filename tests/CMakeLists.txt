@@ -17,9 +17,6 @@ target_link_libraries(test_pipeline PRIVATE
   Qt6::Gui
   PkgConfig::GST
 )
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_pipeline PRIVATE PkgConfig::GST_WEBRTC)
-endif()
 
 # Register test filters matching VALIDATION.md per-task verification map
 gtest_discover_tests(test_pipeline
@@ -109,9 +106,6 @@ endif()
 if(WIN32)
   target_link_libraries(test_airplay PRIVATE iphlpapi ws2_32)
 endif()
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_airplay PRIVATE PkgConfig::GST_WEBRTC)
-endif()
 
 add_test(NAME test_airplay COMMAND test_airplay)
 
@@ -133,9 +127,6 @@ target_link_libraries(test_dlna PRIVATE
   GTest::gtest_main GTest::gmock
   Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST PkgConfig::UPNP
 )
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_dlna PRIVATE PkgConfig::GST_WEBRTC)
-endif()
 gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
 # Cast CASTV2 unit tests (Phase 06 Plan 01)
@@ -145,6 +136,8 @@ add_executable(test_cast
   test_cast.cpp
   ${CMAKE_SOURCE_DIR}/src/protocol/CastHandler.cpp
   ${CMAKE_SOURCE_DIR}/src/protocol/CastSession.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastStreamingOffer.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastStreamingReceiver.cpp
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
   ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
@@ -170,11 +163,6 @@ target_link_libraries(test_cast PRIVATE
   protobuf::libprotobuf
 )
 
-# Phase 6: Link GStreamer WebRTC/SDP for MediaPipeline::initWebrtcPipeline (Plan 02)
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_cast PRIVATE PkgConfig::GST_WEBRTC)
-  target_compile_definitions(test_cast PRIVATE GST_USE_UNSTABLE_API)
-endif()
 
 gtest_discover_tests(test_cast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
@@ -203,10 +191,6 @@ target_link_libraries(test_miracast PRIVATE
   OpenSSL::Crypto
 )
 
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_miracast PRIVATE PkgConfig::GST_WEBRTC)
-  target_compile_definitions(test_miracast PRIVATE GST_USE_UNSTABLE_API)
-endif()
 
 gtest_discover_tests(test_miracast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
@@ -225,10 +209,6 @@ target_link_libraries(test_airshow PRIVATE
   Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST
   OpenSSL::SSL OpenSSL::Crypto
 )
-if(GST_WEBRTC_FOUND)
-  target_link_libraries(test_airshow PRIVATE PkgConfig::GST_WEBRTC)
-  target_compile_definitions(test_airshow PRIVATE GST_USE_UNSTABLE_API)
-endif()
 gtest_discover_tests(test_airshow TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 
 # Phase 07 Plan 01 — SecurityManager unit tests (SEC-01, SEC-02, SEC-03)
