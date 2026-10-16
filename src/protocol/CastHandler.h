@@ -50,11 +50,16 @@ public:
     void        setSecurityManager(SecurityManager* sm);
 
 private:
-    // Generate a runtime self-signed RSA-2048 TLS certificate valid for 48 hours.
-    // Uses OpenSSL 3.x EVP API (not deprecated EVP_PKEY_CTX_new_from_name).
-    // Returns {certificate, privateKey} as Qt SSL types on success,
-    // or {QSslCertificate(), QSslKey()} on failure.
-    std::pair<QSslCertificate, QSslKey> generateSelfSignedCert();
+    // Build the TLS peer certificate for one auth signature window: fixed
+    // AirReceiver key/serial/CN, notBefore/notAfter = the window's bounds.
+    // Returns {certificate, privateKey} on success, or null Qt types on failure.
+    std::pair<QSslCertificate, QSslKey> generateSelfSignedCert(int64_t windowIndex);
+
+    // Ensure the server's TLS certificate matches the current auth window,
+    // regenerating it when the 2-day window has rolled over. Called before every
+    // TLS handshake. Returns false if no valid window exists (table expired) or
+    // certificate generation failed.
+    bool refreshCertificate();
 
     // Called when TLS handshake completes and a new socket is available.
     void onPendingConnection();
@@ -69,6 +74,8 @@ private:
     MediaPipeline*                            m_pipeline         = nullptr;
     SecurityManager*                          m_securityManager  = nullptr;
     bool                                      m_running          = false;
+    // Auth window the current server certificate was built for (-1 = none yet).
+    int64_t                                   m_certWindowIndex  = -1;
 
     // Returns pointer to the active (casting) session, or nullptr.
     CastSession* activeSession() const;

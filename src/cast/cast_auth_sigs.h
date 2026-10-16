@@ -2,6 +2,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "cast/cast_auth_window.h"
+
 // Cast device authentication data extracted from shanocast project
 // (https://github.com/rgerganov/shanocast) which derives from AirReceiver APK.
 //
@@ -17273,28 +17275,23 @@ static constexpr unsigned int peer_key_der_len = 1190;
 
 
 
-// Convenience constants
-static constexpr size_t kCastAuthSignatureCount = 795;
-static constexpr size_t kCastAuthSignatureSize = 256;
+// Convenience constants (window/count constants live in cast_auth_window.h)
 static constexpr size_t kCastAuthCertSize = sizeof(auth_crt);
 static constexpr size_t kCastAuthIntermediateCertSize = sizeof(intermediate_crt);
 static constexpr size_t kCastAuthPeerKeySize = sizeof(peer_key_der);
 
-// Start date for signature index calculation: 2023-08-15 00:00:00 UTC
-static constexpr uint64_t kCastAuthStartEpoch = 1692057600ULL;
+static_assert(sizeof(signatures) == kCastAuthSignatureCount * kCastAuthSignatureSize,
+              "signature table size does not match cast_auth_window.h");
 
-// Seconds per signature window (2 days)
-static constexpr uint64_t kCastAuthWindowSeconds = 172800ULL;
-
-// Get the signature for the current time.
-// Returns pointer to 256 bytes of signature data.
+// Signature for the 2-day window containing unixTimestamp (256 bytes), or
+// nullptr if the timestamp is outside the table (before 2023-08-15 or after
+// ~2027-12-21). There is no valid signature outside the table — wrapping
+// around would pair a cert for the current window with an old window's
+// signature, which Chrome rejects.
 inline const uint8_t* getSignatureForTime(uint64_t unixTimestamp) {
-    uint64_t index = (unixTimestamp - kCastAuthStartEpoch) / kCastAuthWindowSeconds;
-    // Bounds check (signatures cover through ~2027-12-21)
-    if (index >= kCastAuthSignatureCount) {
-        index = index % kCastAuthSignatureCount;
-    }
-    return &signatures[index * kCastAuthSignatureSize];
+    const int64_t index = castAuthWindowIndex(unixTimestamp);
+    if (index < 0) return nullptr;
+    return &signatures[static_cast<size_t>(index) * kCastAuthSignatureSize];
 }
 
 } // namespace airshow::cast

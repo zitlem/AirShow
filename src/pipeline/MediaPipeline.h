@@ -17,7 +17,9 @@ public:
     MediaPipeline();
     ~MediaPipeline();
 
-    // Initialise and start the test pipeline (videotestsrc + audiotestsrc)
+    // Initialise and start the test pipeline (videotestsrc + audiotestsrc).
+    // Video goes to the VideoFrameCallback; qmlVideoItem is unused (kept for API
+    // compatibility with the earlier qml6glsink design), as in the other init*() calls.
     bool init(void* qmlVideoItem);
 
     // Build a videotestsrc ! x264enc ! decodebin pipeline to exercise hardware
@@ -37,8 +39,7 @@ public:
 
     void stop();
 
-    // Transition from PAUSED to PLAYING. Call after QML scene has rendered
-    // at least one frame so the GL context is available for qml6glsink.
+    // Transition the active pipelines to PLAYING.
     void play();
 
     // True if init() succeeded but play() hasn't been called yet.
@@ -72,7 +73,7 @@ public:
     void setAudioCaps(const char* capsString);
 
     // Phase 5: URI-based pipeline for DLNA media playback (D-04, D-05)
-    // Pipeline: uridecodebin ! [video: videoconvert ! glupload ! qml6glsink]
+    // Pipeline: uridecodebin ! [video: videoconvert ! appsink → VideoFrameCallback]
     //                          [audio: audioconvert ! audioresample ! volume ! autoaudiosink]
     bool initUriPipeline(void* qmlVideoItem);
     void setUri(const std::string& uri);
@@ -130,11 +131,11 @@ public:
     // Phase 8: Miracast MPEG-TS/RTP receive pipeline (D-09, D-10).
     //
     // Pipeline: udpsrc(port=udpPort) ! rtpmp2tdepay ! tsparse ! tsdemux
-    //   [video: queue ! h264parse ! vaapidecodebin/avdec_h264 ! videoconvert ! glupload ! qml6glsink]
+    //   [video: queue ! h264parse ! vaapidecodebin/avdec_h264 ! videoconvert ! appsink]
     //   [audio: queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink]
     //
     // Uses dynamic pads from tsdemux (same pattern as uridecodebin in initUriPipeline).
-    // If qmlVideoItem is nullptr, uses fakesink for video (headless test mode).
+    // Video goes to the VideoFrameCallback (fakesink if none is set — headless tests).
     // Pipeline starts in GST_STATE_PAUSED; MiracastHandler calls play() when PLAY received.
     bool initMiracastPipeline(void* qmlVideoItem, int udpPort);
 
@@ -193,6 +194,13 @@ private:
     // Static appsink new-sample callback — called from GStreamer's streaming thread.
     // Must match GstAppSinkCallbacks::new_sample signature (GstAppSink*, not GstElement*).
     static GstFlowReturn onNewVideoSample(GstAppSink* sink, gpointer userData);
+
+    // Video output shared by every display pipeline: an appsink that delivers RGBA
+    // QImages to m_videoFrameCallback (→ VideoFrameSink in QML), or a fakesink when
+    // no callback is registered (headless tests). Callers put videoconvert in front.
+    // realtime: mirroring streams show frames as soon as they decode (no clock sync,
+    // no preroll); false for file/URI playback, which must play at its own pace.
+    GstElement* createVideoSink(const char* name, bool realtime);
 
     VideoFrameCallback m_videoFrameCallback;
 };

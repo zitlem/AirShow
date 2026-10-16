@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 // Forward declarations
 class QSslSocket;
@@ -71,7 +72,12 @@ private:
     enum class ReadState { READING_HEADER, READING_PAYLOAD };
 
     // Dispatch a fully assembled CastMessage to the appropriate handler.
+    // Messages that start or control a cast are held until approval is granted.
     void dispatchMessage(const extensions::api::cast_channel::CastMessage& msg);
+
+    // Ask SecurityManager once per session; held messages replay on approval.
+    void requestApproval();
+    void onApprovalResolved(bool approved);
 
     // Per-namespace handlers
     void onDeviceAuth(const extensions::api::cast_channel::CastMessage& msg);
@@ -100,11 +106,15 @@ private:
     MediaPipeline*    m_pipeline         = nullptr;
     SecurityManager*  m_securityManager  = nullptr;
 
-    // Set to true once SecurityManager approval has been granted for this session.
-    // Approval is requested lazily on the first CONNECT or LAUNCH message (not on
-    // raw TCP connection, which is too early — many devices probe port 8009 during
-    // discovery without sending any Cast protocol messages).
-    bool m_approved = false;
+    // Approval state. Chrome keeps a channel open to every discovered receiver
+    // (auth, CONNECT to receiver-0, GET_STATUS polling) just to populate its Cast
+    // menu, so those are never gated. Approval is requested on the first message
+    // that actually starts a cast (LAUNCH, CONNECT to our transportId, media,
+    // webrtc); those are held in m_heldMessages and replayed in order once approved.
+    bool m_approved        = false;
+    bool m_approvalPending = false;
+    bool m_rejected        = false;
+    std::vector<std::string> m_heldMessages;  // serialized CastMessages
 
     // Set to true when this session calls setConnected(true) on the ConnectionBridge.
     // Only sessions that set connected=true should reset it to false on teardown.

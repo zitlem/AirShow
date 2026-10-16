@@ -6,14 +6,14 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Build (Linux / macOS / Windows) | 🟡 | CMake presets exist; no CI run confirmed on all three |
-| Receiver window, HUD, idle screen | 🟡 | Video now rendered via `VideoFrameSink` (appsink → QImage), not `qml6glsink` |
-| Discovery (mDNS + SSDP) | 🟡 | `_airplay`, `_raop`, `_googlecast`, `_airshow`, `_display`, DLNA SSDP |
+| Build (Linux / macOS / Windows) | 🟡 | macOS builds and launches (Qt 6.12, GStreamer 1.28, OpenSSL 4, protobuf 36); Linux/Windows not re-checked |
+| Receiver window, HUD, idle screen | 🟡 | All pipelines render via `VideoFrameSink` (appsink → QImage); `qml6glsink` no longer required |
+| Discovery (mDNS + SSDP) | 🟡 | All five mDNS services register on macOS; not yet seen in a sender's picker |
 | AirPlay (iOS / macOS) | 🟡 | UxPlay embedded; recent crash fix for null callbacks on first `/info` probe |
-| DLNA renderer | 🟡 | pupnp + `uridecodebin` |
-| Google Cast | 🔴 | Device auth works; media receive path is wrong (see step 4) |
-| Miracast (MS-MICE, Windows) | 🟡 | Wi-Fi Direct deliberately unsupported |
-| Security (approval, PIN, LAN-only) | 🟡 | Cast approval flow has a bug (see step 3) |
+| DLNA renderer | 🟡 | Registration fixed (was passing a file path as the description URL); description + SCPDs served over HTTP; video now reaches the screen |
+| Google Cast | 🔴 | Auth signature verified against our TLS cert (automated test); media receive path is wrong (see step 4) |
+| Miracast (MS-MICE, Windows) | 🟡 | Video now reaches the screen (was going to fakesink); Wi-Fi Direct deliberately unsupported |
+| Security (approval, PIN, LAN-only) | 🟡 | Approval prompt on by default (SEC-01); Cast approval only prompts when a cast actually starts (step 3) |
 | AirShow protocol receiver (port 7400) | 🟡 | JSON handshake + 16-byte framed H.264/audio |
 | Android sender (Flutter) | 🟡 | Needs physical-device end-to-end test |
 | iOS / macOS / Windows senders | ⬜ | |
@@ -21,10 +21,11 @@
 
 ## Plan
 
-### 1. Working local build
+### 1. Working local build ✅ (macOS, 2026-10-16)
 - Install deps on macOS: `brew install cmake ninja qt@6 gstreamer libplist libupnp`
 - Build with `./build-and-run.sh` and run `ctest`
 - **Done when:** the app launches and the test suite passes on this machine
+- Result: launches; all 87 tests pass with `ctest -j1` (parallel runs collide on port 8009 / shared QSettings). Fixed along the way: UxPlay submodule not checked out, OpenSSL 4 const API, libupnp 22 callback type, protobuf ≥22 needing Abseil (now uses protobuf's CMake package), QML module dir colliding with the `airshow` binary on case-insensitive filesystems, `qml6glsink` hard requirement
 
 ### 2. Device testing baseline
 Test every protocol on real hardware and record the result in the table above.
@@ -35,10 +36,10 @@ Test every protocol on real hardware and record the result in the table above.
 - For each: connects, picture, sound, disconnect/reconnect, 30-minute session
 - **Done when:** every 🟡 row is either ✅ or has a written bug
 
-### 3. Cast quick fixes
+### 3. Cast quick fixes ✅ (2026-10-16)
 - **TLS cert window rollover:** `CastHandler::generateSelfSignedCert()` runs once at startup, but the precomputed signature changes every 48 h. Regenerate the cert when the window changes so auth keeps working after the first two days.
 - **Approval flow:** `CastSession::onConnection` drops the `CONNECT` that triggered the approval prompt (even if approved) and a second `CONNECT` during the prompt opens a duplicate dialog. Queue the pending message and replay it on approval; prompt once per session.
-- **Signature table expiry:** `getSignatureForTime()` wraps modulo after ~2027-12-21, which silently fails auth. Return "no signature" past the end, stop advertising `_googlecast._tcp`, log why, and show a warning in the UI a few months ahead.
+- **Signature table expiry:** `getSignatureForTime()` wraps modulo after ~2027-12-21, which silently fails auth. Return "no signature" past the end, stop advertising `_googlecast._tcp`, log why, and warn 90 days ahead. (Done; the warning is in the log only — a UI notice is still to do.)
 
 ### 4. Cast Streaming receive path
 Chrome tab/desktop mirroring uses **Cast Streaming**, not WebRTC: plain RTP over UDP with a Cast-specific frame header, AES-128-CTR payload encryption (keys in the OFFER), and RTCP frame ACKs the sender requires to keep sending. The current `webrtcbin` + SDP translation cannot work, `udpPort` is sent as 0, and the stored AES keys are never used.

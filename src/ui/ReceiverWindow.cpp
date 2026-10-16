@@ -36,7 +36,7 @@ bool ReceiverWindow::load() {
     m_engine.rootContext()->setContextProperty("appSettings", settingsBridge);
 
     // Load QML (GstGLQt6VideoItem is now registered, all context properties set)
-    m_engine.load(QUrl(QStringLiteral("qrc:/AirShow/qml/main.qml")));
+    m_engine.load(QUrl(QStringLiteral("qrc:/qt/qml/AirShow/qml/main.qml")));
 
     if (m_engine.rootObjects().isEmpty()) {
         qWarning("ReceiverWindow::load — QML engine failed to load main.qml");

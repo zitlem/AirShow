@@ -23,12 +23,39 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 
-// Cast auth warning
+// Cast auth: fixed peer key + signature window math
 #include "cast/cast_auth_sigs.h"
 
+#include <QTimeZone>
+
 #include <algorithm>
+#include <functional>
 
 namespace airshow {
+
+namespace {
+
+// QSslServer that runs a hook before each incoming connection starts its TLS
+// handshake, so the server certificate can be swapped for the current auth
+// window first. (pendingConnectionAvailable fires after the handshake — too late.)
+class CastSslServer : public QSslServer {
+public:
+    using QSslServer::QSslServer;
+    std::function<void()> beforeHandshake;
+
+protected:
+    void incomingConnection(qintptr handle) override {
+        if (beforeHandshake) beforeHandshake();
+        QSslServer::incomingConnection(handle);
+    }
+};
+
+QString utcDate(uint64_t secs) {
+    return QDateTime::fromSecsSinceEpoch(static_cast<qint64>(secs), QTimeZone::UTC)
+        .toString(Qt::ISODate);
+}
+
+} // namespace
 
 // ── CastHandler ───────────────────────────────────────────────────────────────
 
@@ -44,25 +71,35 @@ CastHandler::~CastHandler() {
 bool CastHandler::start() {
     if (m_running) return true;
 
-    qDebug("Cast auth: using real signatures from shanocast/AirReceiver (valid through 2027-12-21)");
-
-    // Generate a self-signed TLS certificate for port 8009
-    auto [cert, key] = generateSelfSignedCert();
-    if (cert.isNull() || key.isNull()) {
-        qCritical("CastHandler: failed to generate self-signed TLS certificate");
+    // Cast device auth only works while the precomputed signature table covers
+    // the current time. Past the end there is no valid signature to send.
+    const uint64_t nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
+    const QString expiry = utcDate(cast::kCastAuthEndEpoch);
+    if (!cast::isCastAuthAvailable(nowSecs)) {
+        qWarning("CastHandler: Cast auth signatures expired on %s — Google Cast disabled",
+                 qPrintable(expiry));
         return false;
     }
+    const uint64_t daysLeft = (cast::kCastAuthEndEpoch - nowSecs) / 86400;
+    if (daysLeft < 90) {
+        qWarning("CastHandler: Cast auth signatures expire on %s (%llu days left) — "
+                 "Google Cast will stop working after that",
+                 qPrintable(expiry), static_cast<unsigned long long>(daysLeft));
+    } else {
+        qDebug("Cast auth: using signatures from shanocast/AirReceiver (valid until %s)",
+               qPrintable(expiry));
+    }
 
-    // Configure TLS — self-signed cert is accepted by Chrome tab casting per D-01
-    QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
-    sslConfig.setLocalCertificate(cert);
-    sslConfig.setPrivateKey(key);
-    sslConfig.setProtocol(QSsl::TlsV1_2OrLater);
-    // Peer cert verification not needed (we accept any sender)
-    sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+    auto* server = new CastSslServer(this);
+    server->beforeHandshake = [this]() { refreshCertificate(); };
+    m_server = server;
 
-    m_server = new QSslServer(this);
-    m_server->setSslConfiguration(sslConfig);
+    if (!refreshCertificate()) {
+        qCritical("CastHandler: failed to generate self-signed TLS certificate");
+        delete m_server;
+        m_server = nullptr;
+        return false;
+    }
 
     // Accept new connections
     connect(m_server, &QSslServer::pendingConnectionAvailable,
@@ -92,7 +129,39 @@ void CastHandler::stop() {
         delete m_server;
         m_server = nullptr;
     }
+    m_certWindowIndex = -1;
     qDebug("CastHandler: stopped");
+}
+
+bool CastHandler::refreshCertificate() {
+    const uint64_t nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
+    const int64_t window = cast::castAuthWindowIndex(nowSecs);
+    if (window < 0) {
+        qWarning("CastHandler: no Cast auth signature for the current time — "
+                 "senders will reject this receiver");
+        return false;
+    }
+    if (window == m_certWindowIndex) return true;
+
+    auto [cert, key] = generateSelfSignedCert(window);
+    if (cert.isNull() || key.isNull()) return false;
+
+    // Self-signed peer cert; Chrome trusts it via the device-auth signature,
+    // not via TLS chain validation.
+    QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+    sslConfig.setLocalCertificate(cert);
+    sslConfig.setPrivateKey(key);
+    sslConfig.setProtocol(QSsl::TlsV1_2OrLater);
+    // Peer cert verification not needed (we accept any sender)
+    sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+    m_server->setSslConfiguration(sslConfig);
+
+    m_certWindowIndex = window;
+    qDebug("CastHandler: TLS certificate set for auth window %lld (%s – %s)",
+           static_cast<long long>(window),
+           qPrintable(utcDate(cast::castAuthWindowStart(window))),
+           qPrintable(utcDate(cast::castAuthWindowStart(window + 1))));
+    return true;
 }
 
 void CastHandler::setMediaPipeline(MediaPipeline* pipeline) {
@@ -167,7 +236,7 @@ void CastHandler::onSessionFinished() {
 
 // ── Self-signed certificate generation ───────────────────────────────────────
 
-std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
+std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert(int64_t windowIndex) {
     EVP_PKEY* pkey = nullptr;
     X509*     cert = nullptr;
     BIO*      certBio = nullptr;
@@ -207,15 +276,8 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
     // the precomputed signatures. AirReceiver aligns cert validity to the window: notBefore
     // = window_start, notAfter = window_start + 172800s. Using now±24h produces a different
     // DER each startup, so the precomputed signature never verifies.
-    static constexpr uint64_t kSigStartEpoch   = 1692057600ULL;  // 2023-08-15 00:00:00 UTC
-    static constexpr uint64_t kWindowSeconds   = 172800ULL;       // 48 hours
-    const uint64_t nowSecs =
-        static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
-    const uint64_t windowIndex =
-        (nowSecs - kSigStartEpoch) / kWindowSeconds;
-    const time_t windowStart =
-        static_cast<time_t>(kSigStartEpoch + windowIndex * kWindowSeconds);
-    const time_t windowEnd   = windowStart + static_cast<time_t>(kWindowSeconds);
+    const time_t windowStart = static_cast<time_t>(cast::castAuthWindowStart(windowIndex));
+    const time_t windowEnd   = static_cast<time_t>(cast::castAuthWindowStart(windowIndex + 1));
     ASN1_TIME_set(X509_getm_notBefore(cert), windowStart);
     ASN1_TIME_set(X509_getm_notAfter(cert),  windowEnd);
 
@@ -223,12 +285,15 @@ std::pair<QSslCertificate, QSslKey> CastHandler::generateSelfSignedCert() {
 
     // CN "4aa9ca2e-c340-11ea-8000-18ba395587df" — the UUID embedded in AirReceiver APK.
     // Confirmed via jnitrace on the original app. Any other CN changes the cert DER.
-    X509_NAME* name = X509_get_subject_name(cert);
+    // Build the name separately: X509_get_subject_name() returns const in OpenSSL 4.
+    X509_NAME* name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                reinterpret_cast<const unsigned char*>(
                                    "4aa9ca2e-c340-11ea-8000-18ba395587df"),
                                -1, -1, 0);
+    X509_set_subject_name(cert, name);
     X509_set_issuer_name(cert, name);  // self-signed: issuer == subject
+    X509_NAME_free(name);
 
     // Sign with SHA-1 (AirReceiver uses sha1WithRSAEncryption for the peer cert)
     if (X509_sign(cert, pkey, EVP_sha1()) <= 0) {

@@ -16,6 +16,9 @@
 #include <QUuid>
 #include <QDateTime>
 #include <QMetaObject>
+#include <QPointer>
+#include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QtEndian>
 #include <QDebug>
 
@@ -53,6 +56,7 @@ CastSession::CastSession(QSslSocket* socket,
     , m_connectionBridge(connectionBridge)
     , m_pipeline(pipeline)
     , m_securityManager(securityManager)
+    , m_approved(securityManager == nullptr)
 {
     // Session owns the socket
     m_socket->setParent(this);
@@ -119,7 +123,34 @@ void CastSession::onReadyRead() {
 
 // ── Message dispatch ──────────────────────────────────────────────────────────
 
+// True for messages that start or control an actual cast session. Everything
+// else (auth, heartbeat, receiver-0 CONNECT/CLOSE, GET_STATUS) is what Chrome
+// does for every receiver it discovers and must not trigger an approval prompt.
+static bool requiresApproval(const CastMessage& msg) {
+    const std::string& ns = msg.namespace_();
+    if (ns == kNsDeviceAuth || ns == kNsHeartbeat) return false;
+    if (ns == kNsMedia || ns == kNsWebrtc) return true;
+    if (ns != kNsConnection && ns != kNsReceiver) return false;
+    if (msg.payload_type() != CastMessage::STRING) return false;
+
+    const QString type = QJsonDocument::fromJson(QByteArray::fromStdString(msg.payload_utf8()))
+                             .object().value(QStringLiteral("type")).toString();
+    if (ns == kNsConnection)
+        return type == QStringLiteral("CONNECT") && msg.destination_id() != "receiver-0";
+    return type == QStringLiteral("LAUNCH");
+}
+
 void CastSession::dispatchMessage(const CastMessage& msg) {
+    if (m_rejected) return;
+
+    if (!m_approved && requiresApproval(msg)) {
+        std::string serialized;
+        msg.SerializeToString(&serialized);
+        m_heldMessages.push_back(std::move(serialized));
+        requestApproval();
+        return;
+    }
+
     const std::string& ns = msg.namespace_();
 
     if (ns == kNsDeviceAuth) {
@@ -136,6 +167,41 @@ void CastSession::dispatchMessage(const CastMessage& msg) {
         onWebrtc(msg);
     } else {
         qWarning("CastSession: unknown namespace '%s' — ignoring", ns.c_str());
+    }
+}
+
+void CastSession::requestApproval() {
+    if (m_approvalPending) return;
+    m_approvalPending = true;
+
+    const QString name = m_senderName.isEmpty() ? QStringLiteral("Cast Sender") : m_senderName;
+    const QString peerIp = m_socket ? m_socket->peerAddress().toString()
+                                    : QStringLiteral("unknown");
+    // The session can be destroyed (sender disconnects) while the prompt is open.
+    QPointer<CastSession> self(this);
+    m_securityManager->checkConnectionAsync(
+        name, QStringLiteral("Cast"), peerIp,
+        [self](bool approved) {
+            if (self) self->onApprovalResolved(approved);
+        });
+}
+
+void CastSession::onApprovalResolved(bool approved) {
+    m_approvalPending = false;
+    if (!approved) {
+        qDebug("CastSession: Cast session denied by security manager");
+        m_rejected = true;
+        m_heldMessages.clear();
+        emit finished();
+        return;
+    }
+
+    m_approved = true;
+    std::vector<std::string> held;
+    held.swap(m_heldMessages);
+    for (const std::string& bytes : held) {
+        CastMessage msg;
+        if (msg.ParseFromString(bytes)) dispatchMessage(msg);
     }
 }
 
@@ -162,9 +228,19 @@ void CastSession::onDeviceAuth(const CastMessage& msg) {
 
     qDebug("CastSession: received AuthChallenge, sending precomputed signature response");
 
-    // Look up precomputed signature for current 2-day window
-    uint64_t nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
-    const uint8_t* sig = cast::getSignatureForTime(nowSecs);
+    // The signature must match the TLS certificate this socket was handshaked
+    // with, so take the window from the cert's notBefore rather than the clock
+    // (a connection made just before a window boundary would otherwise mismatch).
+    const QSslCertificate localCert = m_socket->sslConfiguration().localCertificate();
+    const uint64_t windowSecs = localCert.isNull()
+        ? static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch())
+        : static_cast<uint64_t>(localCert.effectiveDate().toSecsSinceEpoch());
+    const uint8_t* sig = cast::getSignatureForTime(windowSecs);
+    if (!sig) {
+        qWarning("CastSession: no Cast auth signature for this time (table expired) — "
+                 "cannot authenticate sender");
+        return;
+    }
 
     // Build AuthResponse with real certificates from shanocast/AirReceiver
     AuthResponse authResponse;
@@ -228,27 +304,8 @@ void CastSession::onConnection(const CastMessage& msg) {
             m_senderName = QStringLiteral("Cast Sender");
         }
 
-        // Approval gate: first real Cast CONNECT triggers the security check.
-        // Raw TCP/TLS probes (discovery) never reach here so we avoid spurious dialogs.
-        if (!m_approved && m_securityManager) {
-            const QString peerIp = m_socket ? m_socket->peerAddress().toString()
-                                            : QStringLiteral("unknown");
-            m_securityManager->checkConnectionAsync(
-                m_senderName, QStringLiteral("Cast"), peerIp,
-                [this](bool approved) {
-                    if (!approved) {
-                        qDebug("CastSession: Cast CONNECT denied by security manager");
-                        emit finished();
-                        return;
-                    }
-                    m_approved = true;
-                });
-            // Don't process further until approval resolves (handled in callback above).
-            return;
-        }
-        m_approved = true;
-
-        // If connecting to our transportId (not receiver-0), announce connection
+        // (CONNECTs to our transportId only reach here after approval — see
+        // requiresApproval().) If connecting to our transportId (not receiver-0), announce connection
         if (msg.destination_id() == m_transportId.toStdString()) {
             qDebug("CastSession: CONNECT to transportId from '%s'",
                    qPrintable(m_senderName));

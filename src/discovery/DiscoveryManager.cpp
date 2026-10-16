@@ -1,6 +1,8 @@
 #include "discovery/DiscoveryManager.h"
 #include "discovery/ServiceAdvertiser.h"
 #include "settings/AppSettings.h"
+#include "cast/cast_auth_window.h"
+#include <QDateTime>
 #include <QSettings>
 #include <QUuid>
 #include <glib.h>
@@ -106,7 +108,14 @@ bool DiscoveryManager::start() {
         {"st", "0"},
         {"rs", ""},
     };
-    m_advertiser->advertise("_googlecast._tcp", name, kCastPort, castTxt);
+    // Don't show up in Cast menus once the auth signature table has run out —
+    // every sender would fail authentication (CastHandler also refuses to start).
+    const auto nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
+    if (cast::isCastAuthAvailable(nowSecs)) {
+        m_advertiser->advertise("_googlecast._tcp", name, kCastPort, castTxt);
+    } else {
+        g_warning("DiscoveryManager: Cast auth signatures expired — not advertising _googlecast._tcp");
+    }
 
     // --- _display._tcp (MS-MICE Miracast over Infrastructure — DISC-04, D-04) ---
     // Windows "Connect" app discovers receivers via this mDNS service type.

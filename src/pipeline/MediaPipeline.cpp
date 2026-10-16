@@ -21,36 +21,27 @@ MediaPipeline::~MediaPipeline() {
     stop();
 }
 
-bool MediaPipeline::init(void* qmlVideoItem) {
+bool MediaPipeline::init(void* /*qmlVideoItem*/) {
     // D-05: Phase 1 uses videotestsrc + audiotestsrc to validate the pipeline.
     // D-06: Single shared pipeline — all future protocols converge on one pipeline.
     // Pipeline string concept:
-    //   videotestsrc ! videoconvert ! qml6glsink
+    //   videotestsrc ! videoconvert ! appsink (→ VideoFrameCallback)
     //   audiotestsrc ! audioconvert ! autoaudiosink
 
     GstElement* pipeline     = gst_pipeline_new("airshow-pipeline");
     GstElement* videoSrc     = gst_element_factory_make("videotestsrc",  "videosrc");
     GstElement* videoConvert = gst_element_factory_make("videoconvert",  "videoconvert");
+    GstElement* videoSink    = createVideoSink("videosink", /*realtime=*/false);
     GstElement* audioSrc     = gst_element_factory_make("audiotestsrc",  "audiosrc");
     GstElement* audioConvert = gst_element_factory_make("audioconvert",  "audioconvert");
     GstElement* audioSink    = gst_element_factory_make("autoaudiosink", "audiosink");
 
-    // Video sink selection: when a QML video item is provided use the full GL chain
-    // (videoconvert ! glupload ! qml6glsink).  In headless/test mode (no item, no
-    // QGuiApplication), fall back to fakesink so the audio branch can still be tested.
-    const bool useGlSink = (qmlVideoItem != nullptr);
-    GstElement* glUpload  = useGlSink ? gst_element_factory_make("glupload",   "glupload")  : nullptr;
-    GstElement* videoSink = useGlSink ? gst_element_factory_make("qml6glsink", "videosink")
-                                      : gst_element_factory_make("fakesink",   "videosink");
-
     if (!pipeline || !videoSrc || !videoConvert || !videoSink ||
-        !audioSrc || !audioConvert || !audioSink ||
-        (useGlSink && !glUpload)) {
+        !audioSrc || !audioConvert || !audioSink) {
         g_warning("MediaPipeline::init — failed to create one or more GStreamer elements");
         if (pipeline)     gst_object_unref(pipeline);
         if (videoSrc)     gst_object_unref(videoSrc);
         if (videoConvert) gst_object_unref(videoConvert);
-        if (glUpload)     gst_object_unref(glUpload);
         if (videoSink)    gst_object_unref(videoSink);
         if (audioSrc)     gst_object_unref(audioSrc);
         if (audioConvert) gst_object_unref(audioConvert);
@@ -58,37 +49,15 @@ bool MediaPipeline::init(void* qmlVideoItem) {
         return false;
     }
 
-    // D-04: Set the QML GstGLVideoItem on the sink BEFORE state change.
-    if (useGlSink) {
-        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
-    }
+    gst_bin_add_many(GST_BIN(pipeline),
+        videoSrc, videoConvert, videoSink,
+        audioSrc, audioConvert, audioSink,
+        nullptr);
 
-    if (useGlSink) {
-        gst_bin_add_many(GST_BIN(pipeline),
-            videoSrc, videoConvert, glUpload, videoSink,
-            audioSrc, audioConvert, audioSink,
-            nullptr);
-    } else {
-        gst_bin_add_many(GST_BIN(pipeline),
-            videoSrc, videoConvert, videoSink,
-            audioSrc, audioConvert, audioSink,
-            nullptr);
-    }
-
-    // Video branch: videotestsrc ! videoconvert [ ! glupload ! qml6glsink | ! fakesink ]
-    // glupload bridges video/x-raw → video/x-raw(memory:GLMemory) for qml6glsink.
-    if (useGlSink) {
-        if (!gst_element_link_many(videoSrc, videoConvert, glUpload, videoSink, nullptr)) {
-            g_warning("MediaPipeline::init — failed to link video branch (GL)");
-            gst_object_unref(pipeline);
-            return false;
-        }
-    } else {
-        if (!gst_element_link_many(videoSrc, videoConvert, videoSink, nullptr)) {
-            g_warning("MediaPipeline::init — failed to link video branch (fake)");
-            gst_object_unref(pipeline);
-            return false;
-        }
+    if (!gst_element_link_many(videoSrc, videoConvert, videoSink, nullptr)) {
+        g_warning("MediaPipeline::init — failed to link video branch");
+        gst_object_unref(pipeline);
+        return false;
     }
     if (!gst_element_link_many(audioSrc, audioConvert, audioSink, nullptr)) {
         g_warning("MediaPipeline::init — failed to link audio branch");
@@ -99,19 +68,16 @@ bool MediaPipeline::init(void* qmlVideoItem) {
     m_pipeline  = pipeline;
     m_audioSink = audioSink;
 
-    // Start in PAUSED first — qml6glsink needs the QML scene to render at least
-    // one frame before the GL context is available. Going straight to PLAYING fails
-    // with "Could not initialize window system" if the context isn't ready yet.
-    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
+    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        g_warning("MediaPipeline::init — GST_STATE_CHANGE_FAILURE (PAUSED)");
+        g_warning("MediaPipeline::init — GST_STATE_CHANGE_FAILURE (PLAYING)");
         gst_object_unref(m_pipeline);
         m_pipeline  = nullptr;
         m_audioSink = nullptr;
         return false;
     }
 
-    m_needsPlay = true;
+    m_needsPlay = false;
     return true;
 }
 
@@ -341,6 +307,42 @@ GstFlowReturn MediaPipeline::onNewVideoSample(GstAppSink* sink, gpointer userDat
     return GST_FLOW_OK;
 }
 
+GstElement* MediaPipeline::createVideoSink(const char* name, bool realtime)
+{
+    if (!m_videoFrameCallback)
+        return gst_element_factory_make("fakesink", name);
+
+    GstElement* sink = gst_element_factory_make("appsink", name);
+    if (!sink) return nullptr;
+
+    // Drop old frames when Qt is slow; RGBA maps directly onto QImage::Format_RGBA8888.
+    GstCaps* caps = gst_caps_from_string("video/x-raw,format=RGBA");
+    g_object_set(sink,
+        "max-buffers", 2,
+        "drop",        TRUE,
+        "caps",        caps,
+        nullptr);
+    gst_caps_unref(caps);
+
+    // async=FALSE is CRITICAL for live pipelines: without it, appsink returns
+    // GST_STATE_CHANGE_ASYNC from PAUSED, blocking the pipeline in PAUSED forever
+    // because a live branch can't complete preroll (e.g. audio decodebin with no caps yet).
+    if (realtime) {
+        g_object_set(sink, "sync", FALSE, "async", FALSE, nullptr);
+    }
+
+    // gst_app_sink_set_callbacks (not g_signal_connect) so the GstAppSink* signature
+    // is enforced and the return value is handled.
+    static GstAppSinkCallbacks appsinkCbs = {
+        nullptr,                               // eos
+        nullptr,                               // new_preroll
+        MediaPipeline::onNewVideoSample,       // new_sample
+        nullptr,                               // new_event (padding)
+    };
+    gst_app_sink_set_callbacks(GST_APP_SINK(sink), &appsinkCbs, this, nullptr);
+    return sink;
+}
+
 bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
     // Phase 4 appsrc-based pipeline for receiving live AirPlay A/V frames (D-03).
     //
@@ -405,12 +407,7 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
         videoDecode = gst_element_factory_make("avdec_h264", "videodecode");
     }
 
-    // Video sink: appsink when a video callback is registered (normal mode),
-    // fakesink in headless/test mode (no callback registered).
-    const bool useAppsink = static_cast<bool>(m_videoFrameCallback);
-    GstElement* videoSink = useAppsink
-        ? gst_element_factory_make("appsink",  "videosink")
-        : gst_element_factory_make("fakesink", "videosink");
+    GstElement* videoSink = createVideoSink("videosink", /*realtime=*/true);
 
     // Verify all mandatory elements were created
     if (!pipeline || !videoAppsrc || !videoQueue || !h264parse || !decodeQueue ||
@@ -458,33 +455,6 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
         "is-live",      TRUE,
         "do-timestamp", TRUE,
         nullptr);
-
-    // Configure appsink: drop old frames when Qt is slow, output RGBA for direct
-    // QImage construction. Use gst_app_sink_set_callbacks (not g_signal_connect)
-    // so the GstAppSink* signature is enforced and the return value is handled.
-    //
-    // async=FALSE is CRITICAL for live pipelines: without it, appsink returns
-    // GST_STATE_CHANGE_ASYNC from PAUSED, blocking the pipeline in PAUSED forever
-    // because the live audio decodebin branch can't complete preroll (no caps yet).
-    if (useAppsink) {
-        GstCaps* sinkCaps = gst_caps_from_string("video/x-raw,format=RGBA");
-        g_object_set(videoSink,
-            "sync",        FALSE,
-            "async",       FALSE,
-            "max-buffers", 2,
-            "drop",        TRUE,
-            "caps",        sinkCaps,
-            nullptr);
-        gst_caps_unref(sinkCaps);
-
-        static GstAppSinkCallbacks appsinkCbs = {
-            nullptr,                               // eos
-            nullptr,                               // new_preroll
-            MediaPipeline::onNewVideoSample,       // new_sample
-            nullptr,                               // new_event (padding)
-        };
-        gst_app_sink_set_callbacks(GST_APP_SINK(videoSink), &appsinkCbs, this, nullptr);
-    }
 
     // Add all elements to the pipeline
     gst_bin_add_many(GST_BIN(pipeline),
@@ -589,9 +559,9 @@ bool MediaPipeline::initAppsrcPipeline(void* qmlVideoItem) {
 
 // ── Phase 5: URI-based pipeline (uridecodebin) ────────────────────────────────
 
-bool MediaPipeline::initUriPipeline(void* qmlVideoItem) {
+bool MediaPipeline::initUriPipeline(void* /*qmlVideoItem*/) {
     // D-04, D-05: URI-based pipeline for DLNA media playback.
-    // Pipeline: uridecodebin ! [video: videoconvert ! glupload ! qml6glsink (or fakesink)]
+    // Pipeline: uridecodebin ! [video: videoconvert ! appsink (or fakesink)]
     //                          [audio: audioconvert ! audioresample ! volume ! autoaudiosink]
     // uridecodebin emits pad-added for each decoded stream — pads are connected
     // dynamically via the same pattern as initAppsrcPipeline.
@@ -603,15 +573,11 @@ bool MediaPipeline::initUriPipeline(void* qmlVideoItem) {
     GstElement* volume        = gst_element_factory_make("volume",         "uri-volume");
     GstElement* audioSink     = gst_element_factory_make("autoaudiosink",  "uri-audiosink");
 
-    const bool useGlSink  = (qmlVideoItem != nullptr);
     GstElement* videoConvert = gst_element_factory_make("videoconvert",  "uri-videoconvert");
-    GstElement* glUpload     = useGlSink ? gst_element_factory_make("glupload",   "uri-glupload") : nullptr;
-    GstElement* videoSink    = useGlSink
-        ? gst_element_factory_make("qml6glsink", "uri-videosink")
-        : gst_element_factory_make("fakesink",   "uri-videosink");
+    GstElement* videoSink    = createVideoSink("uri-videosink", /*realtime=*/false);
 
     if (!pipeline || !uridecodebin || !audioConvert || !audioResample || !volume || !audioSink ||
-        !videoConvert || !videoSink || (useGlSink && !glUpload)) {
+        !videoConvert || !videoSink) {
         g_warning("MediaPipeline::initUriPipeline — failed to create one or more GStreamer elements");
         if (pipeline)      gst_object_unref(pipeline);
         if (uridecodebin)  gst_object_unref(uridecodebin);
@@ -620,29 +586,16 @@ bool MediaPipeline::initUriPipeline(void* qmlVideoItem) {
         if (volume)        gst_object_unref(volume);
         if (audioSink)     gst_object_unref(audioSink);
         if (videoConvert)  gst_object_unref(videoConvert);
-        if (glUpload)      gst_object_unref(glUpload);
         if (videoSink)     gst_object_unref(videoSink);
         return false;
     }
 
-    // Configure qml6glsink widget before state change
-    if (useGlSink) {
-        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
-    }
-
     // Add all elements to pipeline — uridecodebin is not linked to sinks yet;
     // dynamic pads will be linked via pad-added callback
-    if (useGlSink) {
-        gst_bin_add_many(GST_BIN(pipeline),
-            uridecodebin, videoConvert, glUpload, videoSink,
-            audioConvert, audioResample, volume, audioSink,
-            nullptr);
-    } else {
-        gst_bin_add_many(GST_BIN(pipeline),
-            uridecodebin, videoConvert, videoSink,
-            audioConvert, audioResample, volume, audioSink,
-            nullptr);
-    }
+    gst_bin_add_many(GST_BIN(pipeline),
+        uridecodebin, videoConvert, videoSink,
+        audioConvert, audioResample, volume, audioSink,
+        nullptr);
 
     // Pre-link the static parts of audio chain: audioconvert ! audioresample ! volume ! autoaudiosink
     // These are linked now; uridecodebin audio pad will link to audioconvert's sink in pad-added
@@ -652,19 +605,11 @@ bool MediaPipeline::initUriPipeline(void* qmlVideoItem) {
         return false;
     }
 
-    // Pre-link video chain: videoconvert [! glupload] ! videosink
-    if (useGlSink) {
-        if (!gst_element_link_many(videoConvert, glUpload, videoSink, nullptr)) {
-            g_warning("MediaPipeline::initUriPipeline — failed to pre-link video chain (GL)");
-            gst_object_unref(pipeline);
-            return false;
-        }
-    } else {
-        if (!gst_element_link(videoConvert, videoSink)) {
-            g_warning("MediaPipeline::initUriPipeline — failed to pre-link video chain (fake)");
-            gst_object_unref(pipeline);
-            return false;
-        }
+    // Pre-link video chain: videoconvert ! videosink
+    if (!gst_element_link(videoConvert, videoSink)) {
+        g_warning("MediaPipeline::initUriPipeline — failed to pre-link video chain");
+        gst_object_unref(pipeline);
+        return false;
     }
 
     // Connect pad-added signal on uridecodebin to link audio/video pads dynamically.
@@ -1261,12 +1206,12 @@ void MediaPipeline::setCastDecryptionKeys(uint32_t ssrc,
 
 // ── Phase 8: Miracast MPEG-TS/RTP receive pipeline ────────────────────────────
 
-bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
+bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     // D-09, D-10: Miracast MPEG-TS/RTP receive pipeline (RESEARCH.md Pattern 4).
     //
     // Static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
     // Video branch (pad-added): queue ! h264parse ! [vaapidecodebin|avdec_h264]
-    //                           ! videoconvert ! glupload ! qml6glsink  (or fakesink)
+    //                           ! videoconvert ! appsink  (or fakesink)
     // Audio branch (pad-added): queue ! aacparse ! avdec_aac
     //                           ! audioconvert ! audioresample ! autoaudiosink
     //
@@ -1301,11 +1246,9 @@ bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
 
     GstElement* videoConvert = gst_element_factory_make("videoconvert", "mir-videoconvert");
 
-    // Video sink: qml6glsink (with glupload) in GL mode, fakesink in headless mode
-    const bool useGlSink = (qmlVideoItem != nullptr);
-    GstElement* glUpload   = useGlSink ? gst_element_factory_make("glupload",   "mir-glupload")  : nullptr;
-    GstElement* videoSink  = useGlSink ? gst_element_factory_make("qml6glsink", "mir-videosink")
-                                       : gst_element_factory_make("fakesink",   "mir-videosink");
+    // Keeps clock sync (realtime=false) like the qml6glsink it replaces, so video is
+    // presented at the stream's PTS alongside the audio branch.
+    GstElement* videoSink  = createVideoSink("mir-videosink", /*realtime=*/false);
 
     // Audio branch (pre-created, linked in pad-added)
     GstElement* audioQueue    = gst_element_factory_make("queue",        "mir-audioqueue");
@@ -1319,8 +1262,7 @@ bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
     const bool allCreated = pipeline && udpsrc && rtpmp2tdepay && tsparse && tsdemux &&
                             videoQueue && h264parse && videoDecode && videoConvert && videoSink &&
                             audioQueue && aacparse && avdecAac && audioConvert &&
-                            audioResample && audioSink &&
-                            (!useGlSink || glUpload);
+                            audioResample && audioSink;
 
     if (!allCreated) {
         g_warning("MediaPipeline::initMiracastPipeline — failed to create one or more GStreamer elements");
@@ -1334,7 +1276,6 @@ bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
         if (h264parse)     gst_object_unref(h264parse);
         if (videoDecode)   gst_object_unref(videoDecode);
         if (videoConvert)  gst_object_unref(videoConvert);
-        if (glUpload)      gst_object_unref(glUpload);
         if (videoSink)     gst_object_unref(videoSink);
         if (audioQueue)    gst_object_unref(audioQueue);
         if (aacparse)      gst_object_unref(aacparse);
@@ -1355,25 +1296,12 @@ bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
         nullptr);
     gst_caps_unref(udpCaps);
 
-    // Set QML video item on sink BEFORE state change (D-04 pattern)
-    if (useGlSink) {
-        g_object_set(videoSink, "widget", qmlVideoItem, nullptr);
-    }
-
     // Add all elements to the pipeline bin before linking
-    if (useGlSink) {
-        gst_bin_add_many(GST_BIN(pipeline),
-            udpsrc, rtpmp2tdepay, tsparse, tsdemux,
-            videoQueue, h264parse, videoDecode, videoConvert, glUpload, videoSink,
-            audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
-            nullptr);
-    } else {
-        gst_bin_add_many(GST_BIN(pipeline),
-            udpsrc, rtpmp2tdepay, tsparse, tsdemux,
-            videoQueue, h264parse, videoDecode, videoConvert, videoSink,
-            audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
-            nullptr);
-    }
+    gst_bin_add_many(GST_BIN(pipeline),
+        udpsrc, rtpmp2tdepay, tsparse, tsdemux,
+        videoQueue, h264parse, videoDecode, videoConvert, videoSink,
+        audioQueue, aacparse, avdecAac, audioConvert, audioResample, audioSink,
+        nullptr);
 
     // Link the static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
     // Do NOT link tsdemux output yet — tsdemux pads are dynamic (Pitfall 4)
@@ -1384,18 +1312,10 @@ bool MediaPipeline::initMiracastPipeline(void* qmlVideoItem, int udpPort) {
     }
 
     // Pre-link the video branch internal chain (up to videosink) — not yet connected to tsdemux
-    if (useGlSink) {
-        if (!gst_element_link_many(videoQueue, h264parse, videoDecode, videoConvert, glUpload, videoSink, nullptr)) {
-            g_warning("MediaPipeline::initMiracastPipeline — failed to link video branch (GL)");
-            gst_object_unref(pipeline);
-            return false;
-        }
-    } else {
-        if (!gst_element_link_many(videoQueue, h264parse, videoDecode, videoConvert, videoSink, nullptr)) {
-            g_warning("MediaPipeline::initMiracastPipeline — failed to link video branch (fake)");
-            gst_object_unref(pipeline);
-            return false;
-        }
+    if (!gst_element_link_many(videoQueue, h264parse, videoDecode, videoConvert, videoSink, nullptr)) {
+        g_warning("MediaPipeline::initMiracastPipeline — failed to link video branch");
+        gst_object_unref(pipeline);
+        return false;
     }
 
     // Pre-link the audio branch internal chain

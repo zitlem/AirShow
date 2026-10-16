@@ -11,7 +11,15 @@
 #include <QHostAddress>
 #include <QAbstractSocket>
 #include <QtEndian>
+#include <QEventLoop>
+#include <QSslCertificate>
+#include <QSslSocket>
+#include <QTimer>
 #include <gst/gst.h>
+
+// OpenSSL — verify the Cast auth signature the way Chrome does
+#include <openssl/evp.h>
+#include <openssl/x509.h>
 
 // Project headers
 #include "protocol/CastHandler.h"
@@ -182,37 +190,33 @@ TEST(CastAuthTest, AuthResponseStructure) {
 }
 
 // ── Test 4: AuthSignature_IndexRotation ──────────────────────────────────────
-// Verify the index rotation formula: (timestamp / 172800) % 795
+// Signatures rotate every 2-day window starting at kCastAuthStartEpoch, and
+// there is no signature outside the table (no wrap-around).
 
 TEST(CastAuthTest, AuthSignatureIndexRotation) {
     using namespace airshow::cast;
 
-    // Two timestamps in different 48h windows must give different indices
-    uint64_t t1 = 1000000000ULL;               // some timestamp
-    uint64_t t2 = t1 + 172800ULL;              // exactly one window later
+    const uint64_t t1 = kCastAuthStartEpoch + 10 * kCastAuthWindowSeconds + 5;
+    const uint8_t* s1 = getSignatureForTime(t1);
+    ASSERT_NE(s1, nullptr);
 
-    size_t idx1 = (t1 / 172800) % kCastAuthSignatureCount;
-    size_t idx2 = (t2 / 172800) % kCastAuthSignatureCount;
+    // Same window → same signature
+    EXPECT_EQ(getSignatureForTime(t1 + 100), s1);
+    EXPECT_EQ(getSignatureForTime(castAuthWindowStart(10)), s1);
 
-    // They should differ (unless we wrapped around by exactly kCastAuthSignatureCount)
-    // With a 795-element table and a 1-step increment, they will always differ.
-    EXPECT_NE(idx1, idx2);
+    // Next window → next table entry
+    EXPECT_EQ(getSignatureForTime(t1 + kCastAuthWindowSeconds), s1 + kCastAuthSignatureSize);
 
-    // Two timestamps in the same 48h window must give the same index
-    uint64_t t3 = t1 + 100;         // 100 seconds later, same window
-    size_t idx3 = (t3 / 172800) % kCastAuthSignatureCount;
-    EXPECT_EQ(idx1, idx3);
+    // Window bounds line up with the index
+    EXPECT_EQ(castAuthWindowIndex(t1), 10);
+    EXPECT_EQ(castAuthWindowStart(11) - castAuthWindowStart(10), kCastAuthWindowSeconds);
 
-    // Index is always within bounds
-    EXPECT_LT(idx1, kCastAuthSignatureCount);
-    EXPECT_LT(idx2, kCastAuthSignatureCount);
-    EXPECT_LT(idx3, kCastAuthSignatureCount);
-
-    // Index wraps correctly at the table boundary
-    // After 795 windows the cycle repeats
-    uint64_t t_wrap = t1 + static_cast<uint64_t>(kCastAuthSignatureCount) * 172800ULL;
-    size_t idx_wrap = (t_wrap / 172800) % kCastAuthSignatureCount;
-    EXPECT_EQ(idx1, idx_wrap);
+    // Last window is valid; anything outside the table has no signature
+    EXPECT_NE(getSignatureForTime(kCastAuthEndEpoch - 1), nullptr);
+    EXPECT_EQ(getSignatureForTime(kCastAuthEndEpoch), nullptr);
+    EXPECT_EQ(getSignatureForTime(kCastAuthStartEpoch - 1), nullptr);
+    EXPECT_FALSE(isCastAuthAvailable(kCastAuthEndEpoch));
+    EXPECT_TRUE(isCastAuthAvailable(kCastAuthStartEpoch));
 }
 
 // ── Test 5: CastHandler_StartsOnPort8009 ──────────────────────────────────────
@@ -510,4 +514,56 @@ TEST(CastHandlerIntegrationTest, CastHandler_RejectsDoubleStart) {
 
     handler.stop();
     EXPECT_FALSE(handler.isRunning());
+}
+
+// ── PeerCertMatchesPrecomputedSignature ──────────────────────────────────────
+// The check Chrome performs during device auth: the precomputed signature for
+// the TLS certificate's window must verify (RSA PKCS#1 v1.5, SHA-256) against
+// the DER of the certificate the receiver actually presents, using auth_crt's
+// public key. Any change to the peer cert (serial, CN, validity, key, signing
+// digest) breaks this and makes every Cast sender reject the receiver.
+
+TEST(CastHandlerIntegrationTest, PeerCertMatchesPrecomputedSignature) {
+    airshow::ConnectionBridge bridge;
+    airshow::CastHandler handler(&bridge);
+    ASSERT_TRUE(handler.start());
+
+    QSslSocket socket;
+    socket.setPeerVerifyMode(QSslSocket::VerifyNone);
+    QEventLoop loop;
+    QObject::connect(&socket, &QSslSocket::encrypted, &loop, &QEventLoop::quit);
+    QObject::connect(&socket, &QSslSocket::errorOccurred, &loop, &QEventLoop::quit);
+    QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+    socket.connectToHostEncrypted(QStringLiteral("127.0.0.1"), 8009);
+    loop.exec();  // server and client share this thread — don't use waitForEncrypted()
+    ASSERT_TRUE(socket.isEncrypted()) << qPrintable(socket.errorString());
+
+    const QSslCertificate peer = socket.peerCertificate();
+    ASSERT_FALSE(peer.isNull());
+    const QByteArray peerDer = peer.toDer();
+
+    const uint8_t* sig = airshow::cast::getSignatureForTime(
+        static_cast<uint64_t>(peer.effectiveDate().toSecsSinceEpoch()));
+    ASSERT_NE(sig, nullptr) << "no signature for the certificate's window";
+
+    const unsigned char* crtPtr = airshow::cast::auth_crt;
+    X509* authCrt = d2i_X509(nullptr, &crtPtr, airshow::cast::auth_crt_len);
+    ASSERT_NE(authCrt, nullptr);
+    EVP_PKEY* authKey = X509_get_pubkey(authCrt);
+    ASSERT_NE(authKey, nullptr);
+
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    ASSERT_EQ(EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, authKey), 1);
+    const int verified = EVP_DigestVerify(
+        ctx, sig, airshow::cast::kCastAuthSignatureSize,
+        reinterpret_cast<const unsigned char*>(peerDer.constData()),
+        static_cast<size_t>(peerDer.size()));
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(authKey);
+    X509_free(authCrt);
+
+    EXPECT_EQ(verified, 1) << "precomputed Cast auth signature does not match the TLS peer cert";
+
+    socket.disconnectFromHost();
+    handler.stop();
 }

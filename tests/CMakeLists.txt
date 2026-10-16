@@ -82,6 +82,7 @@ add_executable(test_airplay
   ${CMAKE_SOURCE_DIR}/src/discovery/DiscoveryManager.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/AvahiAdvertiser.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/BonjourAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
   ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
 )
@@ -104,6 +105,9 @@ target_link_libraries(test_airplay PRIVATE
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(test_airplay PRIVATE PkgConfig::AVAHI)
+endif()
+if(WIN32)
+  target_link_libraries(test_airplay PRIVATE iphlpapi ws2_32)
 endif()
 if(GST_WEBRTC_FOUND)
   target_link_libraries(test_airplay PRIVATE PkgConfig::GST_WEBRTC)
@@ -163,7 +167,7 @@ target_link_libraries(test_cast PRIVATE
   PkgConfig::GST
   OpenSSL::SSL
   OpenSSL::Crypto
-  ${Protobuf_LIBRARIES}
+  protobuf::libprotobuf
 )
 
 # Phase 6: Link GStreamer WebRTC/SDP for MediaPipeline::initWebrtcPipeline (Plan 02)

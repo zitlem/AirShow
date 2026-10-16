@@ -30,8 +30,16 @@ void UpnpAdvertiser::setDlnaHandler(DlnaHandler* handler) {
     m_dlnaHandler = handler;
 }
 
-// SCPD XML content as inline static string literals — written to temp dir at start()
-// so libupnp's built-in HTTP server serves them alongside the device XML (Pitfall 2).
+// libupnp's web server serves files from the directory set with
+// UpnpSetWebServerRootDir(). Use a dedicated directory — never the temp dir
+// itself, which would expose every temp file on the machine to the LAN.
+static std::string webRootDir() {
+    return QDir::tempPath().toStdString() + "/airshow-dlna";
+}
+static constexpr const char* kDescriptionFile = "description.xml";
+
+// SCPD XML content as inline static string literals — written to the web root at
+// start() so libupnp's HTTP server serves them alongside the device XML (Pitfall 2).
 // Content matches the resource files in resources/dlna/ (D-11).
 
 static const char* kAvtScpdContent =
@@ -131,9 +139,10 @@ static const char* kCmScpdContent =
     "</scpd>\n";
 
 void UpnpAdvertiser::writeScpdFiles() const {
-    // Write inline SCPD content to temp directory so libupnp's HTTP server serves them.
+    // Write inline SCPD content to the web root so libupnp's HTTP server serves them.
     // The URLs in MediaRenderer.xml match: /avt-scpd.xml, /rc-scpd.xml, /cm-scpd.xml
-    const std::string tmpDir = QDir::tempPath().toStdString();
+    const std::string tmpDir = webRootDir();
+    QDir().mkpath(QString::fromStdString(tmpDir));
 
     struct ScpdFile { const char* name; const char* content; };
     ScpdFile files[] = {
@@ -167,10 +176,13 @@ bool UpnpAdvertiser::start() {
     QSettings s;
     const QString udnKey = "dlna/udn";
     if (!s.contains(udnKey)) {
-        s.setValue(udnKey, QUuid::createUuid().toString(QUuid::WithBraces));
+        s.setValue(udnKey, QUuid::createUuid().toString(QUuid::WithoutBraces));
         s.sync();
     }
-    const std::string udn  = s.value(udnKey).toString().toStdString();
+    // UPnP requires "uuid:<uuid>"; older builds stored the UUID with braces.
+    QString uuid = s.value(udnKey).toString();
+    uuid.remove(QLatin1Char('{')).remove(QLatin1Char('}'));
+    const std::string udn  = "uuid:" + uuid.toStdString();
     const std::string name = m_settings->receiverName().toStdString();
 
     // Write runtime XML with correct friendlyName and UDN
@@ -181,16 +193,33 @@ bool UpnpAdvertiser::start() {
         return false;
     }
 
-    // Write SCPD XML files to temp dir BEFORE UpnpRegisterRootDevice (Pitfall 2).
-    // libupnp's built-in HTTP server serves all files in the same directory as the
-    // device XML. The SCPD URLs (/avt-scpd.xml etc.) must exist before registration.
+    // Write SCPD XML files to the web root BEFORE UpnpRegisterRootDevice (Pitfall 2):
+    // the SCPD URLs (/avt-scpd.xml etc.) must be servable once we advertise.
     writeScpdFiles();
 
-    // Register device description. libupnp starts an HTTP server to serve the XML.
+    ret = UpnpSetWebServerRootDir(webRootDir().c_str());
+    if (ret != UPNP_E_SUCCESS) {
+        g_critical("UpnpAdvertiser: UpnpSetWebServerRootDir failed: %s (%d)",
+                   UpnpGetErrorMessage(ret), ret);
+        UpnpFinish();
+        return false;
+    }
+
+    // UpnpRegisterRootDevice takes the description's HTTP URL (not a file path) —
+    // controllers fetch it from libupnp's web server at this address.
+    const char* serverIp = UpnpGetServerIpAddress();
+    if (!serverIp || !*serverIp) {
+        g_critical("UpnpAdvertiser: libupnp has no IPv4 address to serve from");
+        UpnpFinish();
+        return false;
+    }
+    const std::string descUrl = std::string("http://") + serverIp + ":" +
+                                std::to_string(UpnpGetServerPort()) + "/" + kDescriptionFile;
+
     // Pass m_dlnaHandler as cookie so upnpCallback can route SOAP actions to it (D-02).
     ret = UpnpRegisterRootDevice(
-        m_runtimeXmlPath.c_str(),
-        &UpnpAdvertiser::upnpCallback,
+        descUrl.c_str(),
+        &UpnpAdvertiser::upnpCallbackAdapter,
         m_dlnaHandler,
         &m_deviceHandle
     );
@@ -222,16 +251,16 @@ void UpnpAdvertiser::stop() {
     if (m_running) {
         UpnpFinish();
     }
-    // Clean up temp XML file
+    // Clean up the web root (description + SCPD files)
     if (!m_runtimeXmlPath.empty()) {
         std::remove(m_runtimeXmlPath.c_str());
         m_runtimeXmlPath.clear();
     }
-    // Clean up SCPD temp files
-    const std::string tmpDir = QDir::tempPath().toStdString();
+    const std::string tmpDir = webRootDir();
     std::remove((tmpDir + "/avt-scpd.xml").c_str());
     std::remove((tmpDir + "/rc-scpd.xml").c_str());
     std::remove((tmpDir + "/cm-scpd.xml").c_str());
+    QDir().rmdir(QString::fromStdString(tmpDir));
     m_running = false;
 }
 
@@ -283,8 +312,9 @@ std::string UpnpAdvertiser::writeRuntimeXml(const std::string& receiverName,
     replaceAll(xml, "<UDN>uuid:00000000-0000-0000-0000-000000000000</UDN>",
                     "<UDN>" + udn + "</UDN>");
 
-    // Write to temp file in system temp directory
-    std::string tmpPath = QDir::tempPath().toStdString() + "/airshow_dlna.xml";
+    // Write into the web root so libupnp's HTTP server can serve it
+    QDir().mkpath(QString::fromStdString(webRootDir()));
+    std::string tmpPath = webRootDir() + "/" + kDescriptionFile;
     std::ofstream out(tmpPath);
     if (!out.is_open()) {
         g_critical("UpnpAdvertiser: cannot write runtime XML to %s", tmpPath.c_str());

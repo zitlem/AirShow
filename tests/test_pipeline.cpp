@@ -41,7 +41,7 @@ TEST_F(PipelineTest, test_mute_toggle) {
 // FOUND-02: GStreamer pipeline renders videotestsrc frames
 TEST_F(PipelineTest, test_video_pipeline) {
     airshow::MediaPipeline pipeline;
-    // init with nullptr qmlVideoItem — qml6glsink logs a warning but must not crash
+    // No frame callback registered → fakesink video branch (headless test mode)
     bool ok = pipeline.init(nullptr);
     ASSERT_TRUE(ok) << "MediaPipeline::init() failed — check GStreamer plugin availability";
 
@@ -141,7 +141,7 @@ TEST(SmokeTest, required_plugins_available) {
         gst_init(nullptr, nullptr);
     }
     struct { const char* name; const char* pkg; } plugins[] = {
-        {"qml6glsink",    "gstreamer1.0-qt6"},
+        {"appsink",       "gstreamer1.0-plugins-base"},
         {"videotestsrc",  "gstreamer1.0-plugins-base"},
         {"audiotestsrc",  "gstreamer1.0-plugins-base"},
         {"autoaudiosink", "gstreamer1.0-plugins-good"},

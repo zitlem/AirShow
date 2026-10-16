@@ -35,10 +35,17 @@ public:
 
 private:
     // SOAP action callback — routes UPNP_CONTROL_ACTION_REQUEST to DlnaHandler.
-    // Signature matches Upnp_FunPtr exactly (libupnp/Callback.h).
     static int upnpCallback(Upnp_EventType_e eventType,
                             const void* event,
                             void* cookie);
+
+    // Passed to UpnpRegisterRootDevice. Upnp_FunPtr's event parameter is
+    // `const void*` in pupnp 1.14 and `void*` in newer releases; EventPtr is
+    // deduced from whichever the installed header declares.
+    template <typename EventPtr>
+    static int upnpCallbackAdapter(Upnp_EventType_e eventType, EventPtr event, void* cookie) {
+        return upnpCallback(eventType, event, cookie);
+    }
 
     // Write device XML with substituted friendlyName and UDN to a temp file.
     // Returns path to the temp file, or empty string on failure.

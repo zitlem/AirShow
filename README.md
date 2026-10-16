@@ -121,14 +121,14 @@ qml/
 | Language | C++17 |
 | GUI | Qt 6.8+ / Qt Quick / QML |
 | Media Pipeline | GStreamer 1.26.x |
-| Video Rendering | qml6glsink (zero-copy GL) |
+| Video Rendering | GStreamer appsink → Qt `VideoFrameSink` |
 | AirPlay | UxPlay (embedded) |
 | DLNA | libupnp (pupnp) |
 | Google Cast | protobuf + OpenSSL TLS |
 | Miracast | MS-MICE (TCP/RTSP) |
 | Discovery | Avahi (Linux), Bonjour (macOS/Windows) |
 | Build | CMake + Ninja |
-| Crypto | OpenSSL 3.x |
+| Crypto | OpenSSL 3.x / 4.x |
 
 ## Security
 

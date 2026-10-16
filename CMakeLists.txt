@@ -34,10 +34,16 @@ find_package(spdlog QUIET)
 # OpenSSL — link now to avoid header-change task in future phases (per RESEARCH.md Standard Stack)
 find_package(OpenSSL REQUIRED)
 
-# Protobuf — system package 3.21.12 (NOT CONFIG mode — per Pitfall 5 in RESEARCH.md)
+# Protobuf — prefer protobuf's own CMake package: protobuf >= 22 depends on Abseil,
+# which only the CONFIG package links. Fall back to CMake's FindProtobuf for older
+# distro packages (e.g. Ubuntu's 3.21) that ship no CMake config.
 # Headers are vendored to /tmp/protobuf-dev when libprotobuf-dev is not system-installed.
 list(APPEND CMAKE_PREFIX_PATH "/tmp/protobuf-dev/usr")
-find_package(Protobuf REQUIRED)
+set(protobuf_MODULE_COMPATIBLE ON)  # provides protobuf_generate_cpp in CONFIG mode
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+  find_package(Protobuf REQUIRED)
+endif()
 message(STATUS "Protobuf version: ${Protobuf_VERSION}")
 message(STATUS "Protobuf include dirs: ${Protobuf_INCLUDE_DIRS}")
 
@@ -95,9 +101,15 @@ qt_add_executable(airshow
   src/platform/WindowsFirewall.cpp
 )
 
+# QML lives under Qt's standard :/qt/qml/ resource prefix (on the default import
+# path, so the binary doesn't depend on a qmldir next to it), and the module's
+# build output goes to qml/AirShow — a top-level AirShow/ dir would collide with
+# the airshow executable on case-insensitive filesystems (macOS, Windows).
+qt_policy(SET QTP0001 NEW)
 qt_add_qml_module(airshow
   URI AirShow
   VERSION 1.0
+  OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qml/AirShow
   QML_FILES
     qml/main.qml
     qml/HudOverlay.qml
@@ -125,7 +137,7 @@ target_link_libraries(airshow PRIVATE
   OpenSSL::Crypto
   airplay
   PkgConfig::PLIST
-  ${Protobuf_LIBRARIES}
+  protobuf::libprotobuf
 )
 
 if(GST_WEBRTC_FOUND)

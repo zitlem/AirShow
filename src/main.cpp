@@ -22,7 +22,7 @@
 
 static void checkRequiredPlugins() {
     struct { const char* name; const char* pkg; } required[] = {
-        {"qml6glsink",    "gstreamer1.0-qt6"},
+        {"appsink",       "gstreamer1.0-plugins-base"},
         {"videotestsrc",  "gstreamer1.0-plugins-base"},
         {"audiotestsrc",  "gstreamer1.0-plugins-base"},
         {"autoaudiosink", "gstreamer1.0-plugins-good"},
