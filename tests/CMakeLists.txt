@@ -224,7 +224,7 @@ target_include_directories(test_security PRIVATE
 )
 
 target_link_libraries(test_security PRIVATE
-  GTest::gtest_main
+  GTest::gtest   # test_security.cpp has its own main()
   GTest::gmock
   Qt6::Core
   Qt6::Network

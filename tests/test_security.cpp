@@ -40,11 +40,8 @@ private:
     QCoreApplication* app = nullptr;
 };
 
-// QCoreApplication needs a real argv[0] — argc=0/argv=nullptr crashes on Windows.
-static char  s_appName[] = "test_security";
-static char* s_argv[]    = {s_appName, nullptr};
-int    SecurityTestEnvironment::argc   = 1;
-char** SecurityTestEnvironment::argv   = s_argv;
+int    SecurityTestEnvironment::argc   = 0;
+char** SecurityTestEnvironment::argv   = nullptr;
 
 // Helper: clear test-scoped QSettings before each test
 static void clearTestSettings() {
@@ -272,9 +269,12 @@ TEST_F(SecurityManagerCheckTest, ResolveApprovalGrants) {
 // Main — register environment (provides QCoreApplication)
 // ---------------------------------------------------------------------------
 int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    // Capture argc/argv only after InitGoogleTest has removed its own flags:
+    // QCoreApplication keeps a reference to argc and reads argv[0..argc-1], so a
+    // stale count past the compacted argv crashes it (seen on Windows).
     SecurityTestEnvironment::argc = argc;
     SecurityTestEnvironment::argv = argv;
-    ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new SecurityTestEnvironment);
     return RUN_ALL_TESTS();
 }
