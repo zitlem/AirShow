@@ -35,8 +35,7 @@ std::vector<uint8_t> BonjourAdvertiser::buildTxtData(const std::vector<TxtRecord
 BonjourAdvertiser::BonjourAdvertiser() {
 #ifdef _WIN32
     if (!loadBonjourDll()) {
-        g_warning("BonjourAdvertiser: dnssd.dll not found. "
-                  "Install iTunes, iCloud, or Bonjour Print Services to enable mDNS discovery.");
+        g_message("BonjourAdvertiser: Bonjour (dnssd.dll) is not installed");
         return;
     }
 

@@ -20,6 +20,7 @@
 #include <QMetaObject>
 
 // C++ stdlib
+#include <cstdio>
 #include <iomanip>
 #include <sstream>
 
@@ -171,15 +172,25 @@ bool AirPlayHandler::start() {
     }, nullptr);
     raop_set_log_level(m_raop, 6);  // LOGGER_INFO — captures conn lifecycle messages
 
-    // 2c. Initialize UxPlay's dnssd object — the /info handler reads features and
-    //     TXT records from raop->dnssd. We don't use UxPlay's mDNS (our DiscoveryManager
-    //     handles that), but dnssd_t must exist for the HTTP handler to work.
+    // 2c. Initialize UxPlay's dnssd object — the /info handler reads the name,
+    //     device ID, features and TXT records from raop->dnssd. It advertises
+    //     nothing (AirShow builds src/airplay/airshow_dnssd.c in place of UxPlay's
+    //     Bonjour-based dnssd.c); DiscoveryManager does the mDNS.
     {
+        // dnssd wants the raw 6-byte hardware address; m_deviceId is "AA:BB:CC:DD:EE:FF".
+        unsigned int mac[6] = {};
+        const int macLen = std::sscanf(m_deviceId.c_str(), "%x:%x:%x:%x:%x:%x",
+                                       &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+        std::string hwAddr;
+        for (int i = 0; i < macLen; ++i) hwAddr.push_back(static_cast<char>(mac[i]));
+        const std::string name = m_discoveryManager ? m_discoveryManager->receiverName()
+                                                    : std::string("AirShow");
+
         int dnssd_err = 0;
-        dnssd_t* dnssd = dnssd_init(m_deviceId.c_str(),
-                                     static_cast<int>(m_deviceId.size()),
-                                     m_deviceId.c_str(),
-                                     static_cast<int>(m_deviceId.size()),
+        dnssd_t* dnssd = dnssd_init(name.c_str(),
+                                     static_cast<int>(name.size()),
+                                     hwAddr.data(),
+                                     static_cast<int>(hwAddr.size()),
                                      &dnssd_err, 0);
         if (!dnssd) {
             g_warning("AirPlayHandler::start — dnssd_init failed (err=%d)", dnssd_err);

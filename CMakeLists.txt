@@ -93,8 +93,9 @@ pkg_check_modules(PLIST REQUIRED IMPORTED_TARGET libplist-2.0)
 # (mirrors the order in vendor/uxplay/CMakeLists.txt: llhttp, playfair, lib)
 # Pre-set OPENSSL_FOUND so UxPlay's find_package(OpenSSL 1.1.1) uses already-found OpenSSL
 set(OPENSSL_FOUND TRUE)
-# Windows: UxPlay's dnssd.c loads dnssd.dll at runtime, so only dns_sd.h is needed
-# to build — use the vendored copy instead of requiring the Bonjour SDK.
+# Windows: UxPlay's CMake insists on finding dns_sd.h even though AirShow doesn't
+# build the file that uses it (see below) — point it at the vendored copy
+# instead of requiring the Bonjour SDK.
 if(WIN32)
   set(DNSSD_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/avahi/include/avahi-compat-libdns_sd"
       CACHE PATH "Directory containing dns_sd.h")
@@ -112,6 +113,14 @@ if(WIN32)
     endif()
   endforeach()
 endif()
+# Swap UxPlay's dnssd.c (registers through Bonjour/Avahi and, on Windows, fails
+# without Bonjour's dnssd.dll) for AirShow's, which only keeps the data the RAOP
+# server reads back. DiscoveryManager does all mDNS advertising.
+get_target_property(_airplay_srcs airplay SOURCES)
+list(FILTER _airplay_srcs EXCLUDE REGEX "(^|/)dnssd\\.c$")
+set_property(TARGET airplay PROPERTY SOURCES ${_airplay_srcs})
+target_sources(airplay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/airplay/airshow_dnssd.c)
+target_include_directories(airplay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/uxplay/lib)
 
 # Main executable
 qt_add_executable(airshow
@@ -137,6 +146,8 @@ qt_add_executable(airshow
   src/discovery/ServiceAdvertiser.cpp
   src/discovery/AvahiAdvertiser.cpp
   src/discovery/BonjourAdvertiser.cpp
+  src/discovery/DnsMessage.cpp
+  src/discovery/MdnsResponder.cpp
   src/discovery/DiscoveryManager.cpp
   src/discovery/UpnpAdvertiser.cpp
   src/web/WebInterface.cpp

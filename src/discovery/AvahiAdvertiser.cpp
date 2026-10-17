@@ -31,6 +31,14 @@ AvahiAdvertiser::~AvahiAdvertiser() {
     stop();
 }
 
+bool AvahiAdvertiser::isAvailable() const {
+    if (!m_poll || !m_client) return false;
+    avahi_threaded_poll_lock(m_poll);
+    const AvahiClientState state = avahi_client_get_state(m_client);
+    avahi_threaded_poll_unlock(m_poll);
+    return state != AVAHI_CLIENT_CONNECTING && state != AVAHI_CLIENT_FAILURE;
+}
+
 bool AvahiAdvertiser::advertise(const std::string& serviceType,
                                 const std::string& name,
                                 uint16_t port,

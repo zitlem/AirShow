@@ -43,6 +43,9 @@ public:
     // passed to AirPlayHandler so iOS pairing succeeds.
     std::string deviceId() const;
 
+    // The receiver name services are advertised under.
+    std::string receiverName() const;
+
 private:
     AppSettings*                     m_settings;
     std::unique_ptr<ServiceAdvertiser> m_advertiser;

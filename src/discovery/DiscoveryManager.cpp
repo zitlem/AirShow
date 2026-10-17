@@ -171,6 +171,10 @@ std::string DiscoveryManager::deviceId() const {
     return readMacAddress();
 }
 
+std::string DiscoveryManager::receiverName() const {
+    return m_settings->receiverName().toStdString();
+}
+
 // static
 std::string DiscoveryManager::readMacAddress() {
 #ifdef __linux__

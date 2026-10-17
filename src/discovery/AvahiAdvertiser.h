@@ -28,6 +28,9 @@ public:
                          const std::string& key,
                          const std::string& value) override;
 
+    // False when avahi-daemon isn't running (the client is still waiting to connect).
+    bool isAvailable() const;
+
 private:
     // Avahi client callback — static, dispatches to instance methods.
     static void clientCallback(AvahiClient* client, AvahiClientState state,

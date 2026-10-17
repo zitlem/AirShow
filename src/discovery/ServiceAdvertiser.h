@@ -12,9 +12,9 @@ struct TxtRecord {
 };
 
 // Platform-agnostic mDNS/DNS-SD service advertisement interface.
-// Concrete implementations: AvahiAdvertiser (Linux), DnsSdAdvertiser (macOS),
-// BonjourAdvertiser (Windows). Use ServiceAdvertiser::create() to get the
-// correct backend for the current platform.
+// Concrete implementations: AvahiAdvertiser (Linux), BonjourAdvertiser (macOS,
+// and Windows with Bonjour installed) and MdnsResponder (AirShow's own, used
+// when the system has no mDNS service). Use ServiceAdvertiser::create().
 class ServiceAdvertiser {
 public:
     virtual ~ServiceAdvertiser() = default;
@@ -43,8 +43,9 @@ public:
                                  const std::string& key,
                                  const std::string& value) = 0;
 
-    // Factory: returns the correct backend for the current platform.
-    // Linux: AvahiAdvertiser, macOS: DnsSdAdvertiser, Windows: BonjourAdvertiser
+    // Factory: the system's mDNS service (Avahi on Linux, Bonjour on macOS and
+    // Windows) when it is running, else AirShow's built-in MdnsResponder.
+    // Returns nullptr only if neither can be used.
     static std::unique_ptr<ServiceAdvertiser> create();
 };
 

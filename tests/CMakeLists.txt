@@ -50,6 +50,28 @@ gtest_discover_tests(test_discovery
   PROPERTIES TIMEOUT 30
 )
 
+add_executable(test_mdns
+  test_mdns.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/DnsMessage.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/MdnsResponder.cpp
+)
+
+target_include_directories(test_mdns PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_mdns PRIVATE
+  GTest::gtest
+  Qt6::Core
+  Qt6::Network
+  PkgConfig::GST   # MdnsResponder logs through GLib
+)
+
+gtest_discover_tests(test_mdns
+  TEST_SUFFIX ""
+  PROPERTIES TIMEOUT 60
+)
+
 add_executable(test_display
   test_display.cpp
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
@@ -81,6 +103,8 @@ add_executable(test_airplay
   ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/AvahiAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/BonjourAdvertiser.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/DnsMessage.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/MdnsResponder.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
   ${CMAKE_SOURCE_DIR}/src/security/SecurityManager.cpp
 )
