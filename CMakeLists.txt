@@ -25,8 +25,29 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   )
 endif()
 
-# libupnp (pupnp) — DLNA SSDP advertisement (DISC-03)
-pkg_check_modules(UPNP REQUIRED IMPORTED_TARGET libupnp)
+# libupnp (pupnp) — DLNA SSDP advertisement (DISC-03).
+# Use the system package when present; otherwise (e.g. MSYS2, which has no
+# libupnp package) build pupnp from source as a static library.
+pkg_check_modules(UPNP IMPORTED_TARGET libupnp)
+if(UPNP_FOUND)
+  set(AIRSHOW_UPNP_TARGET PkgConfig::UPNP)
+else()
+  message(STATUS "libupnp not found — building pupnp from source")
+  include(FetchContent)
+  set(UPNP_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+  set(UPNP_BUILD_STATIC ON CACHE BOOL "" FORCE)
+  set(UPNP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+  set(UPNP_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+  set(UPNP_ENABLE_TESTING_INTEGRATION OFF CACHE BOOL "" FORCE)
+  set(UPNP_ENABLE_BACKTRACE OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(pupnp
+    URL https://github.com/pupnp/pupnp/archive/refs/tags/release-22.1.8.tar.gz
+    URL_HASH SHA256=abc191bd8f083c9ae73c93d9fa6ba051d54e086430da426c97ff7d989d581fec)
+  FetchContent_MakeAvailable(pupnp)
+  # Consumers of the static lib must not see dllimport declarations on Windows.
+  target_compile_definitions(upnp_static INTERFACE UPNP_STATIC_LIB)
+  set(AIRSHOW_UPNP_TARGET UPNP::Static)
+endif()
 
 # spdlog — optional, fall back to GLib logging if absent
 find_package(spdlog QUIET)
@@ -144,7 +165,7 @@ target_link_libraries(airshow PRIVATE
   Qt6::Qml
   Qt6::Network
   PkgConfig::GST
-  PkgConfig::UPNP
+  ${AIRSHOW_UPNP_TARGET}
   OpenSSL::SSL
   OpenSSL::Crypto
   airplay

@@ -125,7 +125,10 @@ bool MediaPipeline::initDecoderPipeline() {
                   "Decoder detection will report software fallback.");
 
         DecoderInfo fallback{"avdec_h264", DecoderType::Software};
-        m_activeDecoder = fallback;
+        {
+            std::lock_guard<std::mutex> lock(m_decoderMutex);
+            m_activeDecoder = fallback;
+        }
         g_warning("Software H.264 decoder selected: avdec_h264 (hardware unavailable)");
         if (m_decoderCallback) m_decoderCallback(fallback);
 
@@ -211,6 +214,7 @@ bool MediaPipeline::isMuted() const {
 }
 
 std::optional<DecoderInfo> MediaPipeline::activeDecoder() const {
+    std::lock_guard<std::mutex> lock(m_decoderMutex);
     return m_activeDecoder;
 }
 
@@ -751,6 +755,7 @@ void MediaPipeline::onElementAdded(GstBin* /*bin*/, GstElement* element, gpointe
 
     const bool isHardware =
         g_str_has_prefix(name, "vaapi")    ||  // Linux VAAPI (D-11)
+        g_str_has_prefix(name, "vah")      ||  // Linux va plugin (vah264dec)
         g_str_has_prefix(name, "nv")       ||  // NVIDIA NVDEC (D-11)
         g_str_has_prefix(name, "vtdec")    ||  // macOS VideoToolbox (D-11)
         g_str_has_prefix(name, "d3d11")    ||  // Windows D3D11 (D-11)
@@ -765,7 +770,10 @@ void MediaPipeline::onElementAdded(GstBin* /*bin*/, GstElement* element, gpointe
         g_warning("Software H.264 decoder selected: %s (hardware unavailable)", name);
     }
 
-    self->m_activeDecoder = info;
+    {
+        std::lock_guard<std::mutex> lock(self->m_decoderMutex);
+        self->m_activeDecoder = info;
+    }
     if (self->m_decoderCallback) {
         self->m_decoderCallback(info);
     }

@@ -6,6 +6,7 @@
 #include <functional>
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <QImage>
@@ -33,7 +34,8 @@ public:
     // Returns the decoder selected by decodebin (populated after pipeline starts)
     std::optional<DecoderInfo> activeDecoder() const;
 
-    // Callback invoked when decodebin selects a decoder
+    // Callback invoked when decodebin selects a decoder — on GStreamer's
+    // streaming thread, possibly more than once (fallback between decoders).
     using DecoderSelectedCallback = std::function<void(const DecoderInfo&)>;
     void setDecoderSelectedCallback(DecoderSelectedCallback cb);
 
@@ -125,6 +127,9 @@ private:
     GstElement* m_audioAppsrc     = nullptr;
     bool        m_muted           = false;
     bool        m_needsPlay       = false;
+    // Written from GStreamer's streaming thread (decodebin element-added), read
+    // from the caller's thread; decodebin may try several decoders in turn.
+    mutable std::mutex         m_decoderMutex;
     std::optional<DecoderInfo> m_activeDecoder;
     DecoderSelectedCallback    m_decoderCallback;
 

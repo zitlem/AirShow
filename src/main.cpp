@@ -20,31 +20,62 @@
 #include "protocol/ProtocolManager.h"
 #include "web/WebInterface.h"
 
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+
 #ifdef _WIN32
 #  ifndef NOMINMAX
 #    define NOMINMAX
 #  endif
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
-#  include <filesystem>
-#  include <cstdlib>
+#elif defined(__APPLE__)
+#  include <mach-o/dyld.h>
 #endif
 
-// Packaged Windows build: use the GStreamer plugins shipped next to airshow.exe
-// (lib/gstreamer-1.0) rather than a system-wide GStreamer install. Must run
-// before gst_init(). No-op when the bundled directory isn't there (dev builds).
-static void useBundledGStreamer() {
+// Directory containing the running executable ("" if unknown).
+static std::filesystem::path executableDir() {
 #ifdef _WIN32
     wchar_t exe[MAX_PATH];
     const DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
-    if (n == 0 || n == MAX_PATH) return;
-    const std::filesystem::path dir = std::filesystem::path(exe).parent_path();
+    if (n == 0 || n == MAX_PATH) return {};
+    return std::filesystem::path(exe).parent_path();
+#elif defined(__APPLE__)
+    char exe[4096];
+    uint32_t size = sizeof(exe);
+    if (_NSGetExecutablePath(exe, &size) != 0) return {};
+    std::error_code ec;
+    return std::filesystem::canonical(exe, ec).parent_path();
+#else
+    std::error_code ec;
+    return std::filesystem::read_symlink("/proc/self/exe", ec).parent_path();
+#endif
+}
+
+// Packaged builds (Windows zip, macOS .app) ship their own GStreamer plugins;
+// point GStreamer at them instead of a system-wide install. Must run before
+// gst_init(). No-op for dev builds, where the bundled directory doesn't exist.
+// (The Linux AppImage sets these variables in its own launcher hook.)
+static void useBundledGStreamer() {
+    const std::filesystem::path dir = executableDir();
+    if (dir.empty()) return;
+#ifdef _WIN32
     const std::filesystem::path plugins = dir / "lib" / "gstreamer-1.0";
-    if (!std::filesystem::is_directory(plugins)) return;
+#else
+    const std::filesystem::path plugins = dir / ".." / "PlugIns" / "gstreamer";  // AirShow.app
+#endif
+    std::error_code ec;
+    if (!std::filesystem::is_directory(plugins, ec)) return;
+
+    // Scan plugins in-process: a separate gst-plugin-scanner wouldn't be able to
+    // find the bundled libraries.
+#ifdef _WIN32
     _wputenv_s(L"GST_PLUGIN_SYSTEM_PATH_1_0", plugins.wstring().c_str());
-    // Scan plugins in-process: the bundled DLLs live next to airshow.exe, where a
-    // separate gst-plugin-scanner.exe couldn't find them.
     _wputenv_s(L"GST_REGISTRY_FORK", L"no");
+#else
+    setenv("GST_PLUGIN_SYSTEM_PATH_1_0", plugins.lexically_normal().c_str(), 1);
+    setenv("GST_REGISTRY_FORK", "no", 1);
 #endif
 }
 

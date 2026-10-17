@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <upnp/upnp.h>
+#include <upnp.h>
 
 namespace airshow {
 

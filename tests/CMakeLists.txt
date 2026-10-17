@@ -125,7 +125,7 @@ add_executable(test_dlna
 target_include_directories(test_dlna PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_dlna PRIVATE
   GTest::gtest_main GTest::gmock
-  Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST PkgConfig::UPNP
+  Qt6::Core Qt6::Gui Qt6::Network PkgConfig::GST ${AIRSHOW_UPNP_TARGET}
 )
 gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 

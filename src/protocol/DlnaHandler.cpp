@@ -4,11 +4,11 @@
 #include "security/SecurityManager.h"
 
 // libupnp headers
-#include <upnp/upnp.h>
-#include <upnp/upnptools.h>
-#include <upnp/UpnpActionRequest.h>
-#include <upnp/UpnpString.h>
-#include <upnp/ixml.h>
+#include <upnp.h>
+#include <upnptools.h>
+#include <UpnpActionRequest.h>
+#include <UpnpString.h>
+#include <ixml.h>
 
 // GStreamer
 #include <gst/gst.h>

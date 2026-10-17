@@ -8,9 +8,13 @@ on:
     branches: [master]
   workflow_dispatch:
 
+env:
+  # v1.2.3 for tag builds, otherwise 0.0.0-<short sha>
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.0.0-{0}', github.sha) }}
+
 jobs:
   linux:
-    name: Linux (Ubuntu 24.04)
+    name: Linux tests (Ubuntu 24.04)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -48,8 +52,50 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure -j1
 
+  linux-appimage:
+    name: Linux AppImage (Ubuntu 22.04)
+    # Oldest supported glibc: the AppImage runs on distros at least this new.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build pkg-config file \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
+            libavahi-client-dev libavahi-compat-libdnssd-dev \
+            libupnp-dev libplist-dev libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libgtest-dev libgmock-dev \
+            libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0
+
+      - name: Install Qt 6.8
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target airshow
+
+      - name: Package
+        run: packaging/linux/package.sh build dist "$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AirShow-linux-x86_64
+          path: dist/AirShow-linux-x86_64.AppImage
+
   macos:
-    name: macOS (Homebrew)
+    name: macOS (Homebrew, Apple Silicon)
     runs-on: macos-15
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -63,15 +109,23 @@ jobs:
         run: brew install ninja pkgconf qt gstreamer protobuf googletest libplist libupnp spdlog
 
       - name: Configure
-        run: cmake --preset macos-debug
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix)"
 
       - name: Build
-        run: cmake --build build/macos-debug
+        run: cmake --build build
 
       - name: Test
         env:
           QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build/macos-debug --output-on-failure -j1
+        run: ctest --test-dir build --output-on-failure -j1
+
+      - name: Package
+        run: packaging/macos/package.sh build dist "${VERSION#v}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AirShow-macos-arm64
+          path: dist/AirShow-macos-arm64.dmg
 
   windows:
     name: Windows (MSYS2 UCRT64)
@@ -94,9 +148,10 @@ jobs:
             qt6-base:p qt6-declarative:p qt6-tools:p
             gstreamer:p gst-plugins-base:p gst-plugins-good:p
             gst-plugins-bad:p gst-plugins-ugly:p gst-libav:p
-            openssl:p libupnp:p libplist:p protobuf:p gtest:p spdlog:p
+            openssl:p libplist:p protobuf:p gtest:p spdlog:p
 
       - name: Configure
+        # MSYS2 has no libupnp package; CMake builds pupnp from source.
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -122,15 +177,18 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, macos, windows]
+    needs: [linux, linux-appimage, macos, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: AirShow-windows-x64
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: AirShow-windows-x64.zip
+          files: |
+            AirShow-windows-x64.zip
+            AirShow-macos-arm64.dmg
+            AirShow-linux-x86_64.AppImage
           generate_release_notes: true

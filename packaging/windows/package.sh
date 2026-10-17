@@ -30,7 +30,7 @@ PLUGINS=(
   libav openh264 vpx opus dav1d d3d11 d3d12 mediafoundation
   videoparsersbad audioparsers dvdlpcmdec
   mpegtsdemux rtp rtpmanager udp tcp
-  isomp4 matroska ogg vorbis flac wavparse id3demux icydemux mpg123 soup
+  isomp4 matroska ogg vorbis flac wavparse id3demux icydemux mpg123 soup curl
 )
 for p in "${PLUGINS[@]}"; do
   f="$PREFIX/lib/gstreamer-1.0/libgst$p.dll"
@@ -39,6 +39,12 @@ for p in "${PLUGINS[@]}"; do
   else
     echo "note: GStreamer plugin '$p' not installed — skipped"
   fi
+done
+
+# The soup plugin (HTTP for DLNA) dlopen()s libsoup instead of linking it, so
+# ldd can't see it; ship it explicitly (Windows searches the exe's directory).
+for soup in "$PREFIX"/bin/libsoup-3.0-*.dll; do
+  if [[ -f "$soup" ]]; then cp "$soup" "$OUT/"; fi
 done
 
 # Copy every MSYS2 DLL that the exe, Qt plugins or GStreamer plugins load,

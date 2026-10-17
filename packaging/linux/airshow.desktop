@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AirShow
+GenericName=Screen Mirroring Receiver
+Comment=Receive screen mirroring via AirPlay, Google Cast, Miracast and DLNA
+Exec=airshow
+Icon=airshow
+Categories=AudioVideo;Video;Network;
+Terminal=false

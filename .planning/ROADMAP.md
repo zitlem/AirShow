@@ -60,10 +60,14 @@ Chrome tab/desktop mirroring uses **Cast Streaming**, not WebRTC: plain RTP over
 
 The AirShow sender is the long-term path for Chrome/Android users because Cast auth has a hard expiry and can be revoked by Google at any time.
 
-### 6. Release hardening
-- GitHub Actions matrix builds for Linux, macOS, Windows
-- Packaging per platform (bundle Bonjour on Windows)
-- Repeat step 2 on each platform
+### 6. Release hardening — in progress (issue #1: Windows build / binaries)
+- GitHub Actions: Linux tests (Ubuntu 24.04), macOS build+tests, Windows (MSYS2 UCRT64) build+tests
+- No-install downloads built by CI, attached to GitHub releases on `v*` tags:
+  - Windows: portable zip (`packaging/windows/package.sh`: windeployqt + GStreamer plugins + DLLs)
+  - macOS: `AirShow.app` in a .dmg (`packaging/macos/package.sh`: macdeployqt, GStreamer plugins, rpath rewrite, ad-hoc signed; Apple Silicon only; not notarized)
+  - Linux: AppImage built on Ubuntu 22.04 (`packaging/linux/package.sh`: linuxdeploy + Qt/GStreamer plugins)
+- Windows builds without the Bonjour SDK; pupnp is built from source where no libupnp package exists (MSYS2)
+- Still to do: Windows Bonjour dependency (bundle or built-in mDNS responder), Intel macOS build, notarization/signing, repeat step 2 on each platform
 
 ## Known external risks
 

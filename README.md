@@ -28,48 +28,57 @@ A free, open-source, cross-platform screen mirroring receiver. Turn any computer
 
 ## Quick Start
 
+### Download (no install)
+
+Prebuilt builds are on the [Releases](https://github.com/zitlem/AirShow/releases) page. Nothing is installed — each one runs in place:
+
+| Platform | Download | Run |
+|----------|----------|-----|
+| Windows 10/11 (x64) | `AirShow-windows-x64.zip` | Unzip anywhere, run `AirShow\airshow.exe` |
+| macOS 13+ (Apple Silicon) | `AirShow-macos-arm64.dmg` | Open the .dmg and run AirShow (or drag it anywhere). It isn't notarized: the first time, right-click → **Open**. |
+| Linux (x86_64, glibc 2.35+) | `AirShow-linux-x86_64.AppImage` | `chmod +x AirShow-*.AppImage && ./AirShow-*.AppImage` |
+
+Device discovery (AirPlay, Google Cast) uses each OS's mDNS service: built in on macOS, Avahi on Linux (installed on most desktops). **Windows** needs Apple's Bonjour — if AirShow doesn't show up on your devices, install [Bonjour Print Services for Windows](https://support.apple.com/kb/DL999) (or iTunes / iCloud).
+
+## Build from source
+
 ### Linux (Ubuntu/Debian)
 
-Install dependencies:
+AirShow needs **Qt 6.8 or newer**. Ubuntu 25.04+ / Debian 13 ship it (`qt6-base-dev qt6-declarative-dev`); on Ubuntu 24.04 install Qt 6.8 with the [Qt online installer](https://www.qt.io/download-qt-installer) or [aqtinstall](https://github.com/miurahr/aqtinstall) and pass `-DCMAKE_PREFIX_PATH=<qt>/gcc_64`.
 
 ```bash
 sudo apt install \
-  qt6-base-dev qt6-declarative-dev qt6-multimedia-dev \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-qt6 \
-  libgstreamer-plugins-bad1.0-dev \
-  libssl-dev libavahi-client-dev libupnp-dev libplist-dev \
-  libprotobuf-dev protobuf-compiler \
-  ninja-build cmake pkg-config
-```
-
-Build and run:
-
-```bash
-./build-and-run.sh
-```
-
-Or with windowed mode:
-
-```bash
-./build-and-run.sh --windowed
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
+  libssl-dev libavahi-client-dev libavahi-compat-libdnssd-dev \
+  libupnp-dev libplist-dev libprotobuf-dev protobuf-compiler \
+  libgtest-dev libgmock-dev ninja-build cmake pkg-config
+git submodule update --init
+./build-and-run.sh            # add --windowed for a normal window
 ```
 
 ### macOS (Homebrew)
 
 ```bash
-brew install qt@6 gstreamer openssl libplist libupnp protobuf ninja cmake
+brew install qt gstreamer openssl libplist libupnp protobuf googletest ninja cmake pkgconf
+git submodule update --init
 ./build-and-run.sh
 ```
 
-### Windows (MSYS2 MinGW-64)
+### Windows — build from source (MSYS2)
 
-```cmd
-build-and-run.bat
+Install [MSYS2](https://www.msys2.org/), open the **UCRT64** shell and run:
+
+```bash
+pacman -S --needed git mingw-w64-ucrt-x86_64-{toolchain,cmake,ninja,pkgconf,qt6-base,qt6-declarative,qt6-tools,gstreamer,gst-plugins-base,gst-plugins-good,gst-plugins-bad,gst-plugins-ugly,gst-libav,openssl,libupnp,libplist,protobuf,gtest}
+git clone --recursive https://github.com/zitlem/AirShow.git && cd AirShow
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+packaging/windows/package.sh build dist/AirShow   # optional: self-contained folder
 ```
 
-The script will tell you which MSYS2 packages to install if missing.
+The Bonjour SDK is not needed to build; Bonjour is only needed at runtime for discovery.
 
 ## Manual Build
 

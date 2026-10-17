@@ -3,8 +3,8 @@
 #include "settings/AppSettings.h"
 
 // libupnp headers (upnp.h includes Callback.h transitively)
-#include <upnp/upnp.h>
-#include <upnp/upnptools.h>
+#include <upnp.h>
+#include <upnptools.h>
 
 #include <QSettings>
 #include <QUuid>

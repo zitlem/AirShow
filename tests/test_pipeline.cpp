@@ -82,17 +82,11 @@ TEST_F(PipelineTest, test_audio_pipeline) {
 TEST_F(PipelineTest, test_decoder_detection) {
     airshow::MediaPipeline pipeline;
 
-    // Register callback to capture decoder name
-    std::string capturedDecoderName;
-    airshow::DecoderType capturedType = airshow::DecoderType::Software;
-    bool callbackFired = false;
-
+    // The callback runs on GStreamer's streaming thread, possibly more than once
+    // (decodebin can try a hardware decoder, then fall back).
+    std::atomic<bool> callbackFired{false};
     pipeline.setDecoderSelectedCallback(
-        [&](const airshow::DecoderInfo& info) {
-            capturedDecoderName = info.elementName;
-            capturedType        = info.type;
-            callbackFired       = true;
-        });
+        [&callbackFired](const airshow::DecoderInfo&) { callbackFired = true; });
 
     bool ok = pipeline.initDecoderPipeline();
     ASSERT_TRUE(ok) << "initDecoderPipeline() failed — check x264enc and decodebin availability";
@@ -109,13 +103,15 @@ TEST_F(PipelineTest, test_decoder_detection) {
     ASSERT_TRUE(pipeline.activeDecoder().has_value())
         << "activeDecoder() is empty — decodebin did not select a decoder within 3s";
 
-    const std::string& name = pipeline.activeDecoder()->elementName;
+    // Copy: activeDecoder() returns by value, so a reference would dangle.
+    const std::string name = pipeline.activeDecoder()->elementName;
     EXPECT_FALSE(name.empty()) << "Decoder element name must not be empty";
 
     // Verify the name is a known decoder (D-11 list + software fallback D-12)
     static const std::set<std::string> knownDecoders = {
         "vaapih264dec",   // Linux VAAPI
         "vaaph264dec",    // alternative VAAPI name
+        "vah264dec",      // GStreamer va plugin (replaces vaapi)
         "nvh264dec",      // NVIDIA NVDEC
         "nvdec",          // NVIDIA NVDEC (generic)
         "vtdec",          // macOS VideoToolbox
