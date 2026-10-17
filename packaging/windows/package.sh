@@ -19,6 +19,15 @@ cp -r "$BUILD_DIR/resources" "$OUT/"
 WINDEPLOYQT=$(command -v windeployqt6 || command -v windeployqt-qt6 || command -v windeployqt)
 "$WINDEPLOYQT" --release --qmldir qml --no-translations "$OUT/airshow.exe"
 
+# MSYS2's Qt resolves QML imports relative to its install prefix
+# (../share/qt6/qml); point it at windeployqt's layout next to the exe instead.
+cat > "$OUT/qt.conf" <<'EOF'
+[Paths]
+Prefix = .
+Plugins = .
+QmlImports = qml
+EOF
+
 # GStreamer plugins used by the AirPlay, Cast, DLNA and Miracast pipelines
 # (decodebin picks decoders from whatever is present). Missing ones are skipped
 # with a note so a GStreamer package split doesn't break the build.
