@@ -92,6 +92,17 @@ jobs:
       - name: Package
         run: packaging/linux/package.sh build dist "$VERSION"
 
+      - name: Smoke test AppImage
+        # The packaged app must start and open its receivers using only what's bundled.
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          timeout 20 dist/AirShow-linux-x86_64.AppImage > smoke.log 2>&1 || true
+          cat smoke.log
+          grep -q "CastHandler: listening on port 8009" smoke.log
+          grep -q "AirShowHandler: listening on port 7400" smoke.log
+
       - uses: actions/upload-artifact@v4
         with:
           name: AirShow-linux-x86_64
@@ -170,6 +181,22 @@ jobs:
         run: |
           packaging/windows/package.sh build dist/AirShow
           (cd dist && zip -qr AirShow-windows-x64.zip AirShow)
+
+      - name: Smoke test package
+        # Run from the zip's folder with MSYS2 off PATH: the app must start and
+        # open its receivers using only the bundled DLLs and GStreamer plugins.
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Windows\System32;C:\Windows"
+          $env:QT_FORCE_STDERR_LOGGING = "1"
+          $p = Start-Process dist\AirShow\airshow.exe -ArgumentList '--windowed' -PassThru `
+                 -RedirectStandardOutput smoke-out.log -RedirectStandardError smoke-err.log
+          Start-Sleep -Seconds 20
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          Get-Content smoke-out.log, smoke-err.log
+          $log = "$(Get-Content smoke-out.log -Raw)$(Get-Content smoke-err.log -Raw)"
+          if ($log -notmatch 'CastHandler: listening on port 8009' -or
+              $log -notmatch 'AirShowHandler: listening on port 7400') { exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:
