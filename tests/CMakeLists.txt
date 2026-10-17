@@ -42,6 +42,7 @@ target_link_libraries(test_discovery PRIVATE
   GTest::gtest_main
   GTest::gmock
   Qt6::Core
+  PkgConfig::GST   # WindowsFirewall.cpp logs through GLib
 )
 
 gtest_discover_tests(test_discovery

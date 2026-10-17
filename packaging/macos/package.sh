@@ -15,7 +15,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/PlugIns/gstreamer"
 
 cp "$BUILD_DIR/airshow" "$APP/Contents/MacOS/"
-cp -R "$BUILD_DIR/resources" "$APP/Contents/MacOS/"     # looked up next to the binary
+# Data files go in Contents/Resources (codesign rejects non-code in Contents/MacOS).
+cp -R "$BUILD_DIR/resources/" "$APP/Contents/Resources/"
 cp resources/icons/airshow.icns "$APP/Contents/Resources/"
 sed "s/@VERSION@/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 

@@ -174,9 +174,13 @@ int main(int argc, char* argv[]) {
     }
 
     // DLNA SSDP advertisement (DISC-03) — construct only, start AFTER DlnaHandler wired
-    const std::string dlnaXmlPath =
-        QCoreApplication::applicationDirPath().toStdString()
-        + "/resources/dlna/MediaRenderer.xml";
+    // Data files sit in resources/ next to the binary (dev builds, Windows zip,
+    // AppImage) or in Contents/Resources inside the macOS app bundle.
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString resourceDir = QDir(appDir + "/../Resources/dlna").exists()
+        ? QDir::cleanPath(appDir + "/../Resources")
+        : appDir + "/resources";
+    const std::string dlnaXmlPath = (resourceDir + "/dlna/MediaRenderer.xml").toStdString();
     airshow::UpnpAdvertiser upnpAdvertiser(&settings, dlnaXmlPath);
 
     airshow::MediaPipeline pipeline;

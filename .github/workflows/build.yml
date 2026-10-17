@@ -64,6 +64,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+          # The runner's preinstalled libunwind-14-dev blocks libunwind-dev,
+          # which libgstreamer1.0-dev depends on.
+          sudo apt-get remove -y libunwind-14-dev || true
           sudo apt-get install -y --no-install-recommends \
             ninja-build pkg-config file \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
@@ -155,7 +158,8 @@ jobs:
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build
+        # -k 0: report every compile error in one run
+        run: cmake --build build -- -k 0
 
       - name: Test
         # Windows test results are reported but don't block the download yet.
