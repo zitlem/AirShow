@@ -16,7 +16,7 @@
 typedef struct _DNSServiceRef_t* DNSServiceRef;
 typedef uint32_t DNSServiceFlags;
 typedef int32_t  DNSServiceErrorType;
-typedef uint32_t DNSRecordRef;
+typedef struct _DNSRecordRef_t* DNSRecordRef;  // opaque pointer, as in Apple's dns_sd.h
 
 // Minimal TXTRecord helpers (re-implemented inline, no SDK needed)
 struct TXTRecordRefInternal {

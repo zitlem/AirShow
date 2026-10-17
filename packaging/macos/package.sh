@@ -68,6 +68,37 @@ done
 # ...and the Resources/qml symlinks that pointed at them (codesign rejects dangling links).
 find "$APP" -type l ! -exec test -e {} \; -print -delete
 
+# macdeployqt occasionally leaves a dependency pointing into Homebrew (seen with
+# brotli on CI runners). Copy any such library into Frameworks and point every
+# reference at the bundled copy, repeating until nothing changes.
+BREW_PREFIX=$(brew --prefix)
+FW="$APP/Contents/Frameworks"
+while true; do
+  changed=0
+  machos=$(mktemp)
+  find "$APP/Contents" -type f -exec sh -c 'file -b "$1" | grep -q Mach-O' _ {} \; -print > "$machos"
+  while IFS= read -r f <&3; do
+    own_id=$(otool -D "$f" | tail -n +2)
+    for dep in $(otool -L "$f" | tail -n +2 | awk '{print $1}' | grep "^$BREW_PREFIX/" || true); do
+      name=$(basename "$dep")
+      if [[ "$dep" == "$own_id" ]]; then
+        install_name_tool -id "@executable_path/../Frameworks/$name" "$f" 2>/dev/null
+        continue
+      fi
+      if [[ ! -f "$FW/$name" ]]; then
+        cp "$dep" "$FW/$name"
+        chmod u+w "$FW/$name"
+        install_name_tool -id "@executable_path/../Frameworks/$name" "$FW/$name" 2>/dev/null
+        echo "bundled missed dependency $name"
+      fi
+      install_name_tool -change "$dep" "@executable_path/../Frameworks/$name" "$f" 2>/dev/null
+      changed=1
+    done
+  done 3< "$machos"
+  rm -f "$machos"
+  [[ $changed -eq 0 ]] && break
+done
+
 # Homebrew binaries also locate libraries through absolute LC_RPATH entries
 # (e.g. Rust GStreamer plugins -> @rpath/libgstreamer, libupnp -> @rpath/libixml).
 # Left in place, the loader picks up a second copy from Homebrew when it's
