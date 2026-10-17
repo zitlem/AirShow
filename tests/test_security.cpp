@@ -40,8 +40,11 @@ private:
     QCoreApplication* app = nullptr;
 };
 
-int    SecurityTestEnvironment::argc   = 0;
-char** SecurityTestEnvironment::argv   = nullptr;
+// QCoreApplication needs a real argv[0] — argc=0/argv=nullptr crashes on Windows.
+static char  s_appName[] = "test_security";
+static char* s_argv[]    = {s_appName, nullptr};
+int    SecurityTestEnvironment::argc   = 1;
+char** SecurityTestEnvironment::argv   = s_argv;
 
 // Helper: clear test-scoped QSettings before each test
 static void clearTestSettings() {

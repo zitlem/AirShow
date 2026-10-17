@@ -162,8 +162,6 @@ jobs:
         run: cmake --build build -- -k 0
 
       - name: Test
-        # Windows test results are reported but don't block the download yet.
-        continue-on-error: true
         env:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure -j1

@@ -20,6 +20,24 @@
 #include "pipeline/MediaPipeline.h"
 #include "pipeline/DecoderInfo.h"
 
+// Headless CI machines (e.g. the Windows runner) have no audio output device, so
+// autoaudiosink can't open one. Tests that need real audio output skip there.
+static bool audioOutputAvailable() {
+    GstElement* p = gst_parse_launch("audiotestsrc num-buffers=1 ! autoaudiosink", nullptr);
+    if (!p) return false;
+    bool ok = gst_element_set_state(p, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE &&
+              gst_element_get_state(p, nullptr, nullptr, 2 * GST_SECOND) != GST_STATE_CHANGE_FAILURE;
+    if (ok) {
+        GstBus* bus = gst_element_get_bus(p);
+        GstMessage* err = gst_bus_pop_filtered(bus, GST_MESSAGE_ERROR);
+        if (err) { ok = false; gst_message_unref(err); }
+        gst_object_unref(bus);
+    }
+    gst_element_set_state(p, GST_STATE_NULL);
+    gst_object_unref(p);
+    return ok;
+}
+
 class PipelineTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -45,6 +63,7 @@ TEST_F(PipelineTest, test_mute_toggle) {
 
 // FOUND-02: GStreamer pipeline renders videotestsrc frames
 TEST_F(PipelineTest, test_video_pipeline) {
+    if (!audioOutputAvailable()) GTEST_SKIP() << "no audio output device";
     airshow::MediaPipeline pipeline;
     // No frame callback registered → fakesink video branch (headless test mode)
     bool ok = pipeline.init(nullptr);
@@ -215,6 +234,7 @@ TEST_F(PipelineTest, test_cast_vp8_frames_render) {
 
 // Opus audio frames are accepted by the Cast audio branch without errors.
 TEST_F(PipelineTest, test_cast_opus_audio_branch) {
+    if (!audioOutputAvailable()) GTEST_SKIP() << "no audio output device";
     auto frames = encodeFrames(
         "audiotestsrc num-buffers=20 ! audio/x-raw,rate=48000,channels=2 "
         "! opusenc ! appsink name=out sync=false");
