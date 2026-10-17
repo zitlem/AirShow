@@ -98,10 +98,18 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           QT_QPA_PLATFORM: offscreen
         run: |
-          timeout 20 dist/AirShow-linux-x86_64.AppImage > smoke.log 2>&1 || true
+          dist/AirShow-linux-x86_64.AppImage > smoke.log 2>&1 &
+          app=$!
+          sleep 10
+          # The receiver must be discoverable: browse for it over mDNS.
+          mdns=0
+          python3 -I tests/tools/mdns_query.py _airplay._tcp 15 || mdns=$?
+          kill $app || true
+          wait $app || true
           cat smoke.log
           grep -q "CastHandler: listening on port 8009" smoke.log
           grep -q "AirShowHandler: listening on port 7400" smoke.log
+          test $mdns -eq 0
 
       - uses: actions/upload-artifact@v4
         with:
@@ -185,18 +193,26 @@ jobs:
       - name: Smoke test package
         # Run from the zip's folder with MSYS2 off PATH: the app must start and
         # open its receivers using only the bundled DLLs and GStreamer plugins.
+        # The runner has no Bonjour, so discovery must come from AirShow's own
+        # mDNS responder: browse for the receiver over the network.
         shell: pwsh
         run: |
+          $python = (Get-Command python).Source
           $env:PATH = "C:\Windows\System32;C:\Windows"
           $env:QT_FORCE_STDERR_LOGGING = "1"
           $p = Start-Process dist\AirShow\airshow.exe -ArgumentList '--windowed' -PassThru `
                  -RedirectStandardOutput smoke-out.log -RedirectStandardError smoke-err.log
-          Start-Sleep -Seconds 20
+          Start-Sleep -Seconds 12
+          & $python -I tests/tools/mdns_query.py _airplay._tcp 15
+          $mdnsOk = $LASTEXITCODE -eq 0
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
           Get-Content smoke-out.log, smoke-err.log
           $log = "$(Get-Content smoke-out.log -Raw)$(Get-Content smoke-err.log -Raw)"
           if ($log -notmatch 'CastHandler: listening on port 8009' -or
-              $log -notmatch 'AirShowHandler: listening on port 7400') { exit 1 }
+              $log -notmatch 'AirShowHandler: listening on port 7400' -or
+              $log -notmatch 'MdnsResponder: built-in mDNS responder on port 5353' -or
+              $log -match 'dnssd_init failed' -or
+              -not $mdnsOk) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:

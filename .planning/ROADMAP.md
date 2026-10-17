@@ -67,7 +67,8 @@ The AirShow sender is the long-term path for Chrome/Android users because Cast a
   - macOS: `AirShow.app` in a .dmg (`packaging/macos/package.sh`: macdeployqt, GStreamer plugins, rpath rewrite, ad-hoc signed; Apple Silicon only; not notarized)
   - Linux: AppImage built on Ubuntu 22.04 (`packaging/linux/package.sh`: linuxdeploy + Qt/GStreamer plugins)
 - Windows builds without the Bonjour SDK; pupnp is built from source where no libupnp package exists (MSYS2)
-- Still to do: Windows Bonjour dependency (bundle or built-in mDNS responder), Intel macOS build, notarization/signing, repeat step 2 on each platform
+- No Bonjour needed at runtime either: `MdnsResponder` (src/discovery) is AirShow's own mDNS/DNS-SD responder (RFC 6762/6763: probing with conflict rename, announcements, goodbyes, known-answer suppression, legacy unicast, IPv4), used when the system has no mDNS service — Windows without Bonjour, Linux without avahi-daemon. `AIRSHOW_MDNS=builtin` forces it. UxPlay's Bonjour-based `dnssd.c` is replaced by `src/airplay/airshow_dnssd.c`, so AirPlay starts without dnssd.dll. CI smoke tests browse for `_airplay._tcp` over mDNS
+- Still to do: Intel macOS build, notarization/signing, repeat step 2 on each platform
 
 ## Known external risks
 

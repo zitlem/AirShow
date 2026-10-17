@@ -38,7 +38,7 @@ Prebuilt builds are on the [Releases](https://github.com/zitlem/AirShow/releases
 | macOS 13+ (Apple Silicon) | `AirShow-macos-arm64.dmg` | Open the .dmg and run AirShow (or drag it anywhere). It isn't notarized: the first time, right-click → **Open**. |
 | Linux (x86_64, glibc 2.35+) | `AirShow-linux-x86_64.AppImage` | `chmod +x AirShow-*.AppImage && ./AirShow-*.AppImage` |
 
-Device discovery (AirPlay, Google Cast) uses each OS's mDNS service: built in on macOS, Avahi on Linux (installed on most desktops). **Windows** needs Apple's Bonjour — if AirShow doesn't show up on your devices, install [Bonjour Print Services for Windows](https://support.apple.com/kb/DL999) (or iTunes / iCloud).
+Device discovery (AirPlay, Google Cast, Miracast) needs nothing extra: AirShow uses the system's mDNS service where there is one (macOS, Avahi on Linux, Bonjour on Windows if installed) and otherwise answers mDNS itself with its built-in responder. On Windows, allow AirShow through the firewall on private networks when asked.
 
 ## Build from source
 
@@ -78,7 +78,7 @@ cmake --build build
 packaging/windows/package.sh build dist/AirShow   # optional: self-contained folder
 ```
 
-The Bonjour SDK is not needed to build; Bonjour is only needed at runtime for discovery.
+Neither the Bonjour SDK nor Bonjour itself is needed: without Bonjour, AirShow's built-in mDNS responder handles discovery.
 
 ## Manual Build
 
@@ -135,7 +135,7 @@ qml/
 | DLNA | libupnp (pupnp) |
 | Google Cast | protobuf + OpenSSL (TLS, AES-CTR) + Cast Streaming over UDP |
 | Miracast | MS-MICE (TCP/RTSP) |
-| Discovery | Avahi (Linux), Bonjour (macOS/Windows) |
+| Discovery | Avahi (Linux), Bonjour (macOS, Windows if installed), built-in mDNS responder otherwise |
 | Build | CMake + Ninja |
 | Crypto | OpenSSL 3.x / 4.x |
 

@@ -79,10 +79,10 @@ AirShow for Windows
 
 Run airshow.exe. Allow it through Windows Firewall when asked (private networks).
 
-Device discovery (AirPlay, Google Cast) needs Apple's Bonjour service. If your
-phone or browser doesn't see AirShow, install "Bonjour Print Services for
-Windows" from https://support.apple.com/kb/DL999 (or iTunes / iCloud), then
-restart AirShow.
+Nothing else is needed for discovery: AirShow answers mDNS itself (or uses
+Apple's Bonjour if it is installed). If your phone or browser doesn't see
+AirShow, check that the PC's network is set to Private and that AirShow is
+allowed through Windows Firewall.
 
 Project page: https://github.com/zitlem/AirShow
 EOF
