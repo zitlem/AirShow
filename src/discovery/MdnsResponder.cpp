@@ -345,7 +345,7 @@ private:
         const qint64 now = m_clock.elapsed();
         bool probing = false;
         const auto step = [&](Group& g, const std::function<void()>& probe,
-                              const std::function<void()>& announce) {
+                              const std::function<void()>& announce, bool canAnnounce) {
             if (g.announced) return;
             probing = true;
             if (now < g.nextProbeAt) return;
@@ -353,12 +353,13 @@ private:
                 probe();
                 ++g.probesSent;
                 g.nextProbeAt = now + kProbeIntervalMs;
-            } else {
+            } else if (canAnnounce) {
                 g.announced = true;
                 announce();
             }
         };
-        step(m_host, [this] { sendHostProbe(); }, [this] { announceHost(); });
+        step(m_host, [this] { sendHostProbe(); }, [this] { announceHost(); }, true);
+        // A service only goes live once its SRV target (our host name) answers.
         for (size_t i = 0; i < m_services.size(); ++i) {
             const int id = m_services[i].id;
             step(m_services[i].group,
@@ -368,7 +369,8 @@ private:
                      g_message("MdnsResponder: advertising '%s' (%s)",
                                instanceLabel(*s).c_str(), s->type.c_str());
                      announceService(id);
-                 });
+                 },
+                 m_host.announced);
         }
         if (!probing) m_probeTimer->stop();
     }
