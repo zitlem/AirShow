@@ -100,6 +100,10 @@ if(WIN32)
   set(DNSSD_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/avahi/include/avahi-compat-libdns_sd"
       CACHE PATH "Directory containing dns_sd.h")
 endif()
+# UxPlay's lib/ adds -march=native on x86 unless told not to, which targets the
+# build machine's CPU: CI runners have AVX-512, so released binaries crashed with
+# STATUS_ILLEGAL_INSTRUCTION (0xC000001D) on CPUs without it (issue #2).
+set(NO_MARCH_NATIVE ON CACHE BOOL "Do not build UxPlay with -march=native" FORCE)
 add_subdirectory(vendor/uxplay/lib/llhttp)
 add_subdirectory(vendor/uxplay/lib/playfair)
 add_subdirectory(vendor/uxplay/lib)
