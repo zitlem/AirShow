@@ -1,8 +1,6 @@
-#include "protocol/CastSession.h"
-#include "ui/ConnectionBridge.h"
-#include "pipeline/MediaPipeline.h"
-#include "security/SecurityManager.h"
-#include "cast/cast_auth_sigs.h"
+#include "cast/CastSession.h"
+#include "cast/CastAuth.h"
+#include "cast/CastReceiverHost.h"
 #include "cast/CastStreamingOffer.h"
 #include "cast/CastStreamingReceiver.h"
 
@@ -17,7 +15,6 @@
 #include <QByteArray>
 #include <QUuid>
 #include <QDateTime>
-#include <QMetaObject>
 #include <QPointer>
 #include <QSslCertificate>
 #include <QSslConfiguration>
@@ -31,7 +28,7 @@ using extensions::api::cast_channel::CastMessage;
 using extensions::api::cast_channel::DeviceAuthMessage;
 using extensions::api::cast_channel::AuthResponse;
 
-namespace airshow {
+namespace airshow::cast {
 
 // ── Namespace constants ────────────────────────────────────────────────────────
 
@@ -50,16 +47,14 @@ static constexpr const char* kAppIdAudioMirror  = "85CDB22F";  // audio-only mir
 // ── CastSession ───────────────────────────────────────────────────────────────
 
 CastSession::CastSession(QSslSocket* socket,
-                          ConnectionBridge* connectionBridge,
-                          MediaPipeline* pipeline,
-                          SecurityManager* securityManager,
-                          QObject* parent)
+                         CastReceiverHost* host,
+                         const CastAuthCredentials* credentials,
+                         QObject* parent)
     : QObject(parent)
     , m_socket(socket)
-    , m_connectionBridge(connectionBridge)
-    , m_pipeline(pipeline)
-    , m_securityManager(securityManager)
-    , m_approved(securityManager == nullptr)
+    , m_host(host)
+    , m_credentials(credentials)
+    , m_approved(host == nullptr)
 {
     // Session owns the socket
     m_socket->setParent(this);
@@ -179,12 +174,11 @@ void CastSession::requestApproval() {
     m_approvalPending = true;
 
     const QString name = m_senderName.isEmpty() ? QStringLiteral("Cast Sender") : m_senderName;
-    const QString peerIp = m_socket ? m_socket->peerAddress().toString()
-                                    : QStringLiteral("unknown");
+    const QHostAddress peer = m_socket ? m_socket->peerAddress() : QHostAddress();
     // The session can be destroyed (sender disconnects) while the prompt is open.
     QPointer<CastSession> self(this);
-    m_securityManager->checkConnectionAsync(
-        name, QStringLiteral("Cast"), peerIp,
+    m_host->requestApproval(
+        name, peer,
         [self](bool approved) {
             if (self) self->onApprovalResolved(approved);
         });
@@ -193,7 +187,7 @@ void CastSession::requestApproval() {
 void CastSession::onApprovalResolved(bool approved) {
     m_approvalPending = false;
     if (!approved) {
-        qDebug("CastSession: Cast session denied by security manager");
+        qDebug("CastSession: Cast session denied by host");
         m_rejected = true;
         m_heldMessages.clear();
         emit finished();
@@ -239,26 +233,19 @@ void CastSession::onDeviceAuth(const CastMessage& msg) {
     const uint64_t windowSecs = localCert.isNull()
         ? static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch())
         : static_cast<uint64_t>(localCert.effectiveDate().toSecsSinceEpoch());
-    const uint8_t* sig = cast::getSignatureForTime(windowSecs);
-    if (!sig) {
-        qWarning("CastSession: no Cast auth signature for this time (table expired) — "
+    const QByteArray sig = m_credentials ? m_credentials->signatureForTime(windowSecs)
+                                         : QByteArray();
+    if (sig.isEmpty()) {
+        qWarning("CastSession: no Cast auth signature for this time — "
                  "cannot authenticate sender");
         return;
     }
 
-    // Build AuthResponse with real certificates from shanocast/AirReceiver
     AuthResponse authResponse;
-    authResponse.set_signature(
-        reinterpret_cast<const char*>(sig),
-        cast::kCastAuthSignatureSize);
-    // Device auth certificate (signed by Google "Eureka Gen1 ICA")
-    authResponse.set_client_auth_certificate(
-        reinterpret_cast<const char*>(cast::auth_crt),
-        cast::auth_crt_len);
-    // Intermediate CA certificate (chain link to Google root)
-    authResponse.add_intermediate_certificate(
-        std::string(reinterpret_cast<const char*>(cast::intermediate_crt),
-                    cast::intermediate_crt_len));
+    authResponse.set_signature(sig.toStdString());
+    authResponse.set_client_auth_certificate(m_credentials->deviceCertificate.toStdString());
+    for (const QByteArray& der : m_credentials->intermediateCertificates)
+        authResponse.add_intermediate_certificate(der.toStdString());
     authResponse.set_signature_algorithm(
         extensions::api::cast_channel::RSASSA_PKCS1v15);
     // SHA256 — confirmed by RSA-decrypting the precomputed signatures: the DigestInfo
@@ -266,8 +253,8 @@ void CastSession::onDeviceAuth(const CastMessage& msg) {
     // whatever hash_algorithm we declare, so this must match the actual signing algorithm.
     authResponse.set_hash_algorithm(
         extensions::api::cast_channel::SHA256);
-    // Do NOT set sender_nonce — AirReceiver omits it, and Chrome's
-    // enforce_nonce_checking is false.
+    // Do NOT set sender_nonce — the precomputed signature can't cover it, and
+    // Chrome's enforce_nonce_checking is false.
 
     // Wrap in DeviceAuthMessage
     DeviceAuthMessage responseMsg;
@@ -314,12 +301,7 @@ void CastSession::onConnection(const CastMessage& msg) {
             qDebug("CastSession: CONNECT to transportId from '%s'",
                    qPrintable(m_senderName));
             m_didConnect = true;
-            if (m_connectionBridge) {
-                QMetaObject::invokeMethod(m_connectionBridge, [this]() {
-                    m_connectionBridge->setConnected(true, m_senderName,
-                                                     QStringLiteral("Cast"));
-                }, Qt::QueuedConnection);
-            }
+            if (m_host) m_host->senderConnected(m_senderName);
         } else {
             qDebug("CastSession: CONNECT from '%s' to receiver-0",
                    qPrintable(m_senderName));
@@ -327,10 +309,9 @@ void CastSession::onConnection(const CastMessage& msg) {
     } else if (type == QStringLiteral("CLOSE")) {
         qDebug("CastSession: received CLOSE, ending session");
         stopStreaming();
-        if (m_didConnect && m_connectionBridge) {
-            QMetaObject::invokeMethod(m_connectionBridge, [this]() {
-                m_connectionBridge->setConnected(false);
-            }, Qt::QueuedConnection);
+        if (m_didConnect && m_host) {
+            m_didConnect = false;
+            m_host->senderDisconnected();
         }
         emit finished();
     }
@@ -473,21 +454,8 @@ void CastSession::onMedia(const CastMessage& msg) {
 
         qDebug("CastSession: LOAD contentId='%s'", qPrintable(contentId));
 
-        // Initiate URI pipeline (same pattern as DLNA, per D-10)
-        if (m_pipeline) {
-            // initUriPipeline initializes the pipeline structure;
-            // setUri configures the source URL; playUri starts playback.
-            if (m_pipeline->initUriPipeline(nullptr)) {
-                m_pipeline->setUri(contentId.toStdString());
-                m_pipeline->playUri();
-                qDebug("CastSession: URI pipeline started for '%s'", qPrintable(contentId));
-            } else {
-                qWarning("CastSession: initUriPipeline failed for '%s'", qPrintable(contentId));
-            }
-        } else {
-            qWarning("CastSession: no MediaPipeline set — cannot play '%s'",
-                     qPrintable(contentId));
-        }
+        if (!m_host || !m_host->playUrl(contentId))
+            qWarning("CastSession: host could not play '%s'", qPrintable(contentId));
 
         // Reply with MEDIA_STATUS: BUFFERING state
         int mediaSessionId = static_cast<int>(QDateTime::currentMSecsSinceEpoch() & 0x7FFFFFFF);
@@ -514,19 +482,6 @@ void CastSession::onMedia(const CastMessage& msg) {
 
 // ── Cast Streaming (OFFER / ANSWER) ───────────────────────────────────────────
 
-// Whether GStreamer has a decoder for a Cast codec on this machine.
-static bool gstCanDecode(const std::string& codec) {
-    auto has = [](const char* f) {
-        return gst_registry_check_feature_version(gst_registry_get(), f, 1, 0, 0);
-    };
-    if (codec == "vp8")  return has("vp8dec") || has("avdec_vp8");
-    if (codec == "vp9")  return has("vp9dec") || has("avdec_vp9");
-    if (codec == "h264") return has("avdec_h264") || has("vtdec") || has("vaapih264dec") ||
-                                has("d3d11h264dec");
-    if (codec == "opus") return has("opusdec");
-    return false;
-}
-
 void CastSession::onWebrtc(const CastMessage& msg) {
     if (msg.payload_type() != CastMessage::STRING) return;
 
@@ -544,7 +499,7 @@ void CastSession::onWebrtc(const CastMessage& msg) {
 
     if (type == QStringLiteral("GET_CAPABILITIES")) {
         // We don't implement remoting; Chrome treats this as "mirroring only".
-        reply(cast::buildErrorReply(QStringLiteral("CAPABILITIES_RESPONSE"), seqNum, -1,
+        reply(buildErrorReply(QStringLiteral("CAPABILITIES_RESPONSE"), seqNum, -1,
                                     QStringLiteral("Remoting is not supported")));
         return;
     }
@@ -553,18 +508,20 @@ void CastSession::onWebrtc(const CastMessage& msg) {
         return;
     }
 
-    const auto offer = cast::parseOffer(json);
+    const auto offer = parseOffer(json);
     if (!offer) {
         qWarning("CastSession: malformed OFFER");
         return;
     }
-    const cast::CastSelection selection = cast::selectStreams(*offer, gstCanDecode);
+    const CastSelection selection = m_host
+        ? selectStreams(*offer, [this](const std::string& c) { return m_host->canDecode(c); })
+        : CastSelection{};
     qDebug("CastSession: OFFER seqNum=%d with %zu stream(s); selected video=%s audio=%s",
            offer->seqNum, offer->streams.size(),
            selection.video ? selection.video->codec.c_str() : "none",
            selection.audio ? selection.audio->codec.c_str() : "none");
-    if (selection.empty() || !m_pipeline) {
-        reply(cast::buildErrorReply(QStringLiteral("ANSWER"), offer->seqNum, -1,
+    if (selection.empty()) {
+        reply(buildErrorReply(QStringLiteral("ANSWER"), offer->seqNum, -1,
                                     QStringLiteral("No supported streams")));
         return;
     }
@@ -572,37 +529,37 @@ void CastSession::onWebrtc(const CastMessage& msg) {
     // A new OFFER (e.g. resolution change) replaces the current stream.
     stopStreaming();
 
-    std::vector<cast::CastStream> streams;
+    std::vector<CastStream> streams;
     if (selection.audio) streams.push_back(*selection.audio);
     if (selection.video) streams.push_back(*selection.video);
 
-    m_streaming = std::make_unique<cast::CastStreamingReceiver>();
+    m_streaming = std::make_unique<CastStreamingReceiver>();
     if (m_socket) m_streaming->setExpectedSender(m_socket->peerAddress());
-    MediaPipeline* pipeline = m_pipeline;
+    CastReceiverHost* host = m_host;
     m_streaming->setFrameCallback(
-        [pipeline](cast::CastStream::Kind kind, const uint8_t* data, size_t size, bool key) {
-            if (kind == cast::CastStream::Kind::Video) pipeline->pushCastVideoFrame(data, size, key);
-            else                                       pipeline->pushCastAudioFrame(data, size);
+        [host](CastStream::Kind kind, const uint8_t* data, size_t size, bool key) {
+            if (kind == CastStream::Kind::Video) host->pushVideoFrame(data, size, key);
+            else                                 host->pushAudioFrame(data, size);
         });
 
     if (!m_streaming->start(streams) ||
-        !m_pipeline->initCastPipeline(selection.video ? selection.video->gstCaps() : std::string(),
-                                      selection.audio ? selection.audio->gstCaps() : std::string())) {
-        qWarning("CastSession: could not start Cast Streaming receiver/pipeline");
+        !m_host->startStream(selection.video ? selection.video->gstCaps() : std::string(),
+                             selection.audio ? selection.audio->gstCaps() : std::string())) {
+        qWarning("CastSession: could not start Cast Streaming receiver/playback");
         stopStreaming();
-        reply(cast::buildErrorReply(QStringLiteral("ANSWER"), offer->seqNum, -1,
+        reply(buildErrorReply(QStringLiteral("ANSWER"), offer->seqNum, -1,
                                     QStringLiteral("Receiver failed to start")));
         return;
     }
 
-    reply(cast::buildAnswer(offer->seqNum, m_streaming->localPort(), selection));
+    reply(buildAnswer(offer->seqNum, m_streaming->localPort(), selection));
     qDebug("CastSession: sent ANSWER (udpPort=%u)", m_streaming->localPort());
 }
 
 void CastSession::stopStreaming() {
     if (!m_streaming) return;
     m_streaming.reset();
-    if (m_pipeline) m_pipeline->stopCast();
+    if (m_host) m_host->stopStream();
 }
 
 // ── Session teardown ──────────────────────────────────────────────────────────
@@ -612,11 +569,10 @@ void CastSession::onDisconnected() {
     stopStreaming();
     // Only clear connected state if this session was the one that set it.
     // Probe sessions (auth challenge only, no CONNECT to transportId) must not
-    // wipe another protocol's active connection (e.g. AirPlay).
-    if (m_didConnect && m_connectionBridge) {
-        QMetaObject::invokeMethod(m_connectionBridge, [this]() {
-            m_connectionBridge->setConnected(false);
-        }, Qt::QueuedConnection);
+    // wipe another protocol's active connection in the host.
+    if (m_didConnect && m_host) {
+        m_didConnect = false;
+        m_host->senderDisconnected();
     }
     emit finished();
 }
@@ -703,4 +659,4 @@ QByteArray CastSession::buildReceiverStatus(int requestId) const {
     return QJsonDocument(status).toJson(QJsonDocument::Compact);
 }
 
-} // namespace airshow
+} // namespace airshow::cast

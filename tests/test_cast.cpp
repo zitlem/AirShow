@@ -17,6 +17,7 @@
 #include <QTimer>
 #include <QUdpSocket>
 #include <QElapsedTimer>
+#include <QFile>
 
 #include <cstring>
 #include <optional>
@@ -28,10 +29,12 @@
 
 // Project headers
 #include "protocol/CastHandler.h"
-#include "protocol/CastSession.h"
+#include "protocol/CastCredentials.h"
 #include "pipeline/MediaPipeline.h"
 #include "ui/ConnectionBridge.h"
-#include "cast/cast_auth_sigs.h"
+#include "cast/CastAuth.h"
+#include "cast/CastReceiver.h"
+#include "cast/CastReceiverHost.h"
 #include "cast/CastStreamingOffer.h"
 #include "cast/CastStreamingReceiver.h"
 
@@ -149,86 +152,102 @@ TEST(CastMessageFramingTest, RoundTrip) {
     EXPECT_EQ(parsed.payload_utf8(), R"({"type":"PING"})");
 }
 
-// ── Test 3: AuthResponse_Structure ───────────────────────────────────────────
-// Build an AuthResponse, set signature and cert, serialize and re-parse.
-// Verifies the protobuf structure matches the CASTV2 spec.
+// ── Cast auth credentials ────────────────────────────────────────────────────
 
+static const airshow::cast::CastAuthCredentials& creds() {
+    const auto& c = airshow::castCredentials();
+    if (!c) ADD_FAILURE() << "built-in cast-auth.json failed to load";
+    static const airshow::cast::CastAuthCredentials empty;
+    return c ? *c : empty;
+}
+
+TEST(CastAuthTest, LoadsBuiltInCredentials) {
+    const auto& c = creds();
+    EXPECT_EQ(c.signatureCount(), 795u);
+    EXPECT_EQ(c.signatureSize, 256);
+    EXPECT_EQ(c.signatureStart, 1692057600u);
+    EXPECT_EQ(c.signatureWindowSeconds, 172800u);
+    EXPECT_EQ(c.deviceCertificate.size(), 943);
+    ASSERT_EQ(c.intermediateCertificates.size(), 1);
+    EXPECT_EQ(c.intermediateCertificates[0].size(), 907);
+    EXPECT_EQ(c.peerKey.size(), 1190);
+    EXPECT_FALSE(c.peerCertCommonName.isEmpty());
+}
+
+// Build an AuthResponse from the credentials, serialize and re-parse.
 TEST(CastAuthTest, AuthResponseStructure) {
-    // Build AuthResponse with placeholder signature from index 0
+    const auto& c = creds();
     AuthResponse resp;
-    resp.set_signature(
-        reinterpret_cast<const char*>(
-            airshow::cast::getSignatureForTime(airshow::cast::kCastAuthStartEpoch)),
-        airshow::cast::kCastAuthSignatureSize);
-    resp.set_client_auth_certificate(
-        reinterpret_cast<const char*>(airshow::cast::auth_crt),
-        airshow::cast::auth_crt_len);
+    resp.set_signature(c.signatureForTime(c.signatureStart).toStdString());
+    resp.set_client_auth_certificate(c.deviceCertificate.toStdString());
     resp.set_signature_algorithm(extensions::api::cast_channel::RSASSA_PKCS1v15);
     resp.set_hash_algorithm(extensions::api::cast_channel::SHA256);
 
-    // Wrap in DeviceAuthMessage
     DeviceAuthMessage authMsg;
     *authMsg.mutable_response() = resp;
-
-    // Serialize
     std::string bytes;
     ASSERT_TRUE(authMsg.SerializeToString(&bytes));
 
-    // Re-parse
     DeviceAuthMessage parsed;
     ASSERT_TRUE(parsed.ParseFromString(bytes));
-
     ASSERT_TRUE(parsed.has_response());
-    const AuthResponse& parsedResp = parsed.response();
-
-    // Signature must be exactly 256 bytes
-    EXPECT_EQ(parsedResp.signature().size(),
-              static_cast<size_t>(airshow::cast::kCastAuthSignatureSize));
-    EXPECT_EQ(parsedResp.signature().size(), 256u);
-
-    // Certificate is present
-    EXPECT_GT(parsedResp.client_auth_certificate().size(), 0u);
-
-    // Algorithms match
-    EXPECT_EQ(parsedResp.signature_algorithm(),
+    EXPECT_EQ(parsed.response().signature().size(), 256u);
+    EXPECT_GT(parsed.response().client_auth_certificate().size(), 0u);
+    EXPECT_EQ(parsed.response().signature_algorithm(),
               extensions::api::cast_channel::RSASSA_PKCS1v15);
-    EXPECT_EQ(parsedResp.hash_algorithm(),
-              extensions::api::cast_channel::SHA256);
+    EXPECT_EQ(parsed.response().hash_algorithm(), extensions::api::cast_channel::SHA256);
 }
 
-// ── Test 4: AuthSignature_IndexRotation ──────────────────────────────────────
-// Signatures rotate every 2-day window starting at kCastAuthStartEpoch, and
-// there is no signature outside the table (no wrap-around).
-
+// Signatures rotate every window starting at signatureStart, and there is no
+// signature outside the table (no wrap-around).
 TEST(CastAuthTest, AuthSignatureIndexRotation) {
-    using namespace airshow::cast;
+    const auto& c = creds();
+    const auto sigAt = [&](int64_t i) {
+        return c.signatures.mid(qsizetype(i) * c.signatureSize, c.signatureSize);
+    };
 
-    const uint64_t t1 = kCastAuthStartEpoch + 10 * kCastAuthWindowSeconds + 5;
-    const uint8_t* s1 = getSignatureForTime(t1);
-    ASSERT_NE(s1, nullptr);
+    const uint64_t t1 = c.signatureStart + 10 * c.signatureWindowSeconds + 5;
+    EXPECT_EQ(c.windowIndex(t1), 10);
+    EXPECT_EQ(c.signatureForTime(t1), sigAt(10));
+    EXPECT_EQ(c.signatureForTime(t1 + 100), sigAt(10));                       // same window
+    EXPECT_EQ(c.signatureForTime(c.windowStart(10)), sigAt(10));
+    EXPECT_EQ(c.signatureForTime(t1 + c.signatureWindowSeconds), sigAt(11));  // next window
+    EXPECT_NE(sigAt(10), sigAt(11));
+    EXPECT_EQ(c.windowStart(11) - c.windowStart(10), c.signatureWindowSeconds);
 
-    // Same window → same signature
-    EXPECT_EQ(getSignatureForTime(t1 + 100), s1);
-    EXPECT_EQ(getSignatureForTime(castAuthWindowStart(10)), s1);
-
-    // Next window → next table entry
-    EXPECT_EQ(getSignatureForTime(t1 + kCastAuthWindowSeconds), s1 + kCastAuthSignatureSize);
-
-    // Window bounds line up with the index
-    EXPECT_EQ(castAuthWindowIndex(t1), 10);
-    EXPECT_EQ(castAuthWindowStart(11) - castAuthWindowStart(10), kCastAuthWindowSeconds);
-
-    // Last window is valid; anything outside the table has no signature
-    EXPECT_NE(getSignatureForTime(kCastAuthEndEpoch - 1), nullptr);
-    EXPECT_EQ(getSignatureForTime(kCastAuthEndEpoch), nullptr);
-    EXPECT_EQ(getSignatureForTime(kCastAuthStartEpoch - 1), nullptr);
-    EXPECT_FALSE(isCastAuthAvailable(kCastAuthEndEpoch));
-    EXPECT_TRUE(isCastAuthAvailable(kCastAuthStartEpoch));
+    EXPECT_EQ(c.signatureForTime(c.endEpoch() - 1), sigAt(794));
+    EXPECT_TRUE(c.signatureForTime(c.endEpoch()).isEmpty());
+    EXPECT_TRUE(c.signatureForTime(c.signatureStart - 1).isEmpty());
+    EXPECT_FALSE(c.isAvailableAt(c.endEpoch()));
+    EXPECT_TRUE(c.isAvailableAt(c.signatureStart));
 }
 
-// ── Test 5: CastHandler_StartsOnPort8009 ──────────────────────────────────────
-// start() returns true, isRunning() becomes true, name() returns "cast",
-// stop() makes isRunning() false.
+TEST(CastAuthTest, RejectsMalformedCredentials) {
+    using airshow::cast::CastAuthCredentials;
+    QString error;
+    EXPECT_FALSE(CastAuthCredentials::fromJson("not json", &error));
+    EXPECT_FALSE(error.isEmpty());
+
+    // Start from a valid document and break one field at a time.
+    QFile f(QStringLiteral(":/cast/cast-auth.json"));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    const QJsonObject good = QJsonDocument::fromJson(f.readAll()).object();
+    ASSERT_TRUE(CastAuthCredentials::fromJson(QJsonDocument(good).toJson()));
+
+    auto broken = [&](const char* key, const QJsonValue& v) {
+        QJsonObject o = good;
+        if (v.isUndefined()) o.remove(key); else o[key] = v;
+        return CastAuthCredentials::fromJson(QJsonDocument(o).toJson()).has_value();
+    };
+    EXPECT_FALSE(broken("format", 2));
+    EXPECT_FALSE(broken("deviceCertificate", QJsonValue::Undefined));
+    EXPECT_FALSE(broken("peerKey", "!!not base64!!"));
+    EXPECT_FALSE(broken("signatureSize", 300));          // table not a multiple of 300
+    EXPECT_FALSE(broken("signatureWindowSeconds", 0));
+    EXPECT_FALSE(broken("peerCertificate", QJsonObject{}));
+}
+
+// ── CastHandler (AirShow adapter) ────────────────────────────────────────────
 
 TEST(CastHandlerTest, StartsOnPort8009) {
     airshow::ConnectionBridge bridge;
@@ -246,42 +265,17 @@ TEST(CastHandlerTest, StartsOnPort8009) {
     }
 }
 
-// ── Test 6: CastHandler_SelfSignedCertGeneration ─────────────────────────────
 // Calling start() twice is idempotent; the server does not crash on the second call.
-
 TEST(CastHandlerTest, SelfSignedCertIdempotentStart) {
     airshow::ConnectionBridge bridge;
     airshow::CastHandler handler(&bridge);
 
     bool first = handler.start();
-    // Second start() on a running handler should return true without crashing
     bool second = handler.start();
     EXPECT_TRUE(first);
     EXPECT_TRUE(second);
     EXPECT_TRUE(handler.isRunning());
     handler.stop();
-}
-
-// ── Test 7: ReceiverStatus_JsonStructure ──────────────────────────────────────
-// Verify that the RECEIVER_STATUS JSON can be built by testing auth signature
-// table constants that CastSession relies on.
-
-TEST(CastHandlerTest, SignatureTableHasCorrectConstants) {
-    // Verify the signature table constants are consistent
-    EXPECT_EQ(airshow::cast::kCastAuthSignatureCount, 795u);
-    EXPECT_EQ(airshow::cast::kCastAuthSignatureSize, 256u);
-
-    // Verify that getCastAuthSignature returns a valid pointer within the table
-    uint64_t now = 1774757446ULL;  // fixed test timestamp
-    const uint8_t* sig = airshow::cast::getSignatureForTime(now);
-    ASSERT_NE(sig, nullptr);
-
-    // The returned pointer must point within the signature table
-    const uint8_t* tableStart = airshow::cast::getSignatureForTime(airshow::cast::kCastAuthStartEpoch);
-    const uint8_t* tableEnd   = tableStart +
-        airshow::cast::kCastAuthSignatureCount * airshow::cast::kCastAuthSignatureSize;
-    EXPECT_GE(sig, tableStart);
-    EXPECT_LT(sig, tableEnd);
 }
 
 // ── Cast Streaming: OFFER parsing, stream selection, ANSWER ──────────────────
@@ -624,7 +618,7 @@ TEST(CastHandlerIntegrationTest, CastHandler_RejectsDoubleStart) {
 // ── PeerCertMatchesPrecomputedSignature ──────────────────────────────────────
 // The check Chrome performs during device auth: the precomputed signature for
 // the TLS certificate's window must verify (RSA PKCS#1 v1.5, SHA-256) against
-// the DER of the certificate the receiver actually presents, using auth_crt's
+// the DER of the certificate the receiver actually presents, using the device certificate's
 // public key. Any change to the peer cert (serial, CN, validity, key, signing
 // digest) breaks this and makes every Cast sender reject the receiver.
 
@@ -647,12 +641,13 @@ TEST(CastHandlerIntegrationTest, PeerCertMatchesPrecomputedSignature) {
     ASSERT_FALSE(peer.isNull());
     const QByteArray peerDer = peer.toDer();
 
-    const uint8_t* sig = airshow::cast::getSignatureForTime(
+    const auto& c = creds();
+    const QByteArray sig = c.signatureForTime(
         static_cast<uint64_t>(peer.effectiveDate().toSecsSinceEpoch()));
-    ASSERT_NE(sig, nullptr) << "no signature for the certificate's window";
+    ASSERT_FALSE(sig.isEmpty()) << "no signature for the certificate's window";
 
-    const unsigned char* crtPtr = airshow::cast::auth_crt;
-    X509* authCrt = d2i_X509(nullptr, &crtPtr, airshow::cast::auth_crt_len);
+    const auto* crtPtr = reinterpret_cast<const unsigned char*>(c.deviceCertificate.constData());
+    X509* authCrt = d2i_X509(nullptr, &crtPtr, long(c.deviceCertificate.size()));
     ASSERT_NE(authCrt, nullptr);
     EVP_PKEY* authKey = X509_get_pubkey(authCrt);
     ASSERT_NE(authKey, nullptr);
@@ -660,7 +655,7 @@ TEST(CastHandlerIntegrationTest, PeerCertMatchesPrecomputedSignature) {
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     ASSERT_EQ(EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, authKey), 1);
     const int verified = EVP_DigestVerify(
-        ctx, sig, airshow::cast::kCastAuthSignatureSize,
+        ctx, reinterpret_cast<const unsigned char*>(sig.constData()), size_t(sig.size()),
         reinterpret_cast<const unsigned char*>(peerDer.constData()),
         static_cast<size_t>(peerDer.size()));
     EVP_MD_CTX_free(ctx);
@@ -701,4 +696,157 @@ TEST(CastStreamingReceiverTest, FrameIdsExpandAcrossWrap) {
     }
     ASSERT_TRUE(spinUntil([&] { return delivered == 300; }));
     EXPECT_TRUE(allMatch);
+}
+
+// ── CastReceiver standalone (no AirShow classes) ─────────────────────────────
+// Runs the Cast module against a minimal host: device auth must produce a
+// signature that verifies against the presented TLS cert, and casting
+// messages must wait for the host's approval.
+
+namespace {
+
+class FakeHost : public airshow::cast::CastReceiverHost {
+public:
+    std::vector<QString> approvalRequests;
+    std::function<void(bool)> pendingApproval;
+    int connected = 0;
+
+    void requestApproval(const QString& name, const QHostAddress&,
+                         std::function<void(bool)> done) override {
+        approvalRequests.push_back(name);
+        pendingApproval = std::move(done);  // resolve later, like a UI prompt
+    }
+    void senderConnected(const QString&) override { ++connected; }
+    void senderDisconnected() override { --connected; }
+    bool canDecode(const std::string&) override { return false; }
+    bool playUrl(const QString&) override { return false; }
+    bool startStream(const std::string&, const std::string&) override { return false; }
+    void pushVideoFrame(const uint8_t*, size_t, bool) override {}
+    void pushAudioFrame(const uint8_t*, size_t) override {}
+    void stopStream() override {}
+};
+
+void sendCast(QSslSocket& sock, const CastMessage& msg) {
+    std::string bytes;
+    msg.SerializeToString(&bytes);
+    const uint32_t lenBe = qToBigEndian<uint32_t>(uint32_t(bytes.size()));
+    sock.write(reinterpret_cast<const char*>(&lenBe), 4);
+    sock.write(bytes.data(), qint64(bytes.size()));
+}
+
+CastMessage jsonMsg(const char* dst, const char* ns, const char* json) {
+    CastMessage m;
+    m.set_protocol_version(CastMessage::CASTV2_1_0);
+    m.set_source_id("sender-0");
+    m.set_destination_id(dst);
+    m.set_namespace_(ns);
+    m.set_payload_type(CastMessage::STRING);
+    m.set_payload_utf8(json);
+    return m;
+}
+
+// Pull complete framed messages out of the socket buffer.
+std::vector<CastMessage> readCast(QSslSocket& sock, QByteArray& buf) {
+    buf.append(sock.readAll());
+    std::vector<CastMessage> out;
+    while (buf.size() >= 4) {
+        const uint32_t len = qFromBigEndian<uint32_t>(
+            *reinterpret_cast<const uint32_t*>(buf.constData()));
+        if (uint32_t(buf.size()) < 4 + len) break;
+        CastMessage m;
+        if (m.ParseFromArray(buf.constData() + 4, int(len))) out.push_back(m);
+        buf.remove(0, 4 + qsizetype(len));
+    }
+    return out;
+}
+
+} // namespace
+
+TEST(CastReceiverTest, StandaloneHostAuthAndApproval) {
+    const auto& c = creds();
+    FakeHost host;
+    airshow::cast::CastReceiver receiver(&host, c);
+    constexpr uint16_t kPort = 18009;
+    ASSERT_TRUE(receiver.start(kPort));
+
+    QSslSocket sock;
+    sock.setPeerVerifyMode(QSslSocket::VerifyNone);
+    sock.connectToHostEncrypted(QStringLiteral("127.0.0.1"), kPort);
+    ASSERT_TRUE(spinUntil([&] { return sock.isEncrypted(); }, 5000)) << qPrintable(sock.errorString());
+
+    QByteArray buf;
+    std::vector<CastMessage> got;
+    auto pump = [&] { for (auto& m : readCast(sock, buf)) got.push_back(m); };
+
+    // Device auth: no approval needed, response signs the presented cert.
+    DeviceAuthMessage challenge;
+    challenge.mutable_challenge();
+    CastMessage auth;
+    auth.set_protocol_version(CastMessage::CASTV2_1_0);
+    auth.set_source_id("sender-0");
+    auth.set_destination_id("receiver-0");
+    auth.set_namespace_("urn:x-cast:com.google.cast.tp.deviceauth");
+    auth.set_payload_type(CastMessage::BINARY);
+    auth.set_payload_binary(challenge.SerializeAsString());
+    sendCast(sock, auth);
+    ASSERT_TRUE(spinUntil([&] { pump(); return !got.empty(); }));
+
+    DeviceAuthMessage response;
+    ASSERT_TRUE(response.ParseFromString(got[0].payload_binary()));
+    ASSERT_TRUE(response.has_response());
+    const AuthResponse& r = response.response();
+    EXPECT_EQ(QByteArray::fromStdString(r.client_auth_certificate()), c.deviceCertificate);
+    ASSERT_EQ(r.intermediate_certificate_size(), 1);
+    EXPECT_EQ(QByteArray::fromStdString(r.intermediate_certificate(0)),
+              c.intermediateCertificates[0]);
+
+    const QByteArray peerDer = sock.peerCertificate().toDer();
+    const auto* crtPtr = reinterpret_cast<const unsigned char*>(c.deviceCertificate.constData());
+    X509* authCrt = d2i_X509(nullptr, &crtPtr, long(c.deviceCertificate.size()));
+    ASSERT_NE(authCrt, nullptr);
+    EVP_PKEY* authKey = X509_get_pubkey(authCrt);
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, authKey);
+    EXPECT_EQ(EVP_DigestVerify(ctx,
+                               reinterpret_cast<const unsigned char*>(r.signature().data()),
+                               r.signature().size(),
+                               reinterpret_cast<const unsigned char*>(peerDer.constData()),
+                               size_t(peerDer.size())), 1);
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(authKey);
+    X509_free(authCrt);
+
+    // Status polling is not gated.
+    got.clear();
+    sendCast(sock, jsonMsg("receiver-0", "urn:x-cast:com.google.cast.receiver",
+                           R"({"type":"GET_STATUS","requestId":1})"));
+    ASSERT_TRUE(spinUntil([&] { pump(); return !got.empty(); }));
+    EXPECT_TRUE(host.approvalRequests.empty());
+
+    // LAUNCH waits for the host's approval, then is answered.
+    got.clear();
+    sendCast(sock, jsonMsg("receiver-0", "urn:x-cast:com.google.cast.receiver",
+                           R"({"type":"LAUNCH","appId":"0F5096E8","requestId":2})"));
+    ASSERT_TRUE(spinUntil([&] { return bool(host.pendingApproval); }));
+    spinUntil([&] { pump(); return !got.empty(); }, 200);
+    EXPECT_TRUE(got.empty()) << "LAUNCH answered before approval";
+    EXPECT_EQ(host.approvalRequests.size(), 1u);
+
+    host.pendingApproval(true);
+    ASSERT_TRUE(spinUntil([&] { pump(); return !got.empty(); }));
+    const QJsonObject status = QJsonDocument::fromJson(
+        QByteArray::fromStdString(got[0].payload_utf8())).object();
+    EXPECT_EQ(status["requestId"].toInt(), 2);
+    const QJsonArray apps = status["status"].toObject()["applications"].toArray();
+    ASSERT_EQ(apps.size(), 1);
+    const std::string transportId = apps[0].toObject()["transportId"].toString().toStdString();
+
+    // CONNECT to the app's transport → host told a sender connected; disconnect undoes it.
+    sendCast(sock, jsonMsg(transportId.c_str(), "urn:x-cast:com.google.cast.tp.connection",
+                           R"({"type":"CONNECT"})"));
+    ASSERT_TRUE(spinUntil([&] { return host.connected == 1; }));
+    sock.disconnectFromHost();
+    ASSERT_TRUE(spinUntil([&] { return host.connected == 0; }));
+
+    receiver.stop();
 }

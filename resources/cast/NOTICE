@@ -1,0 +1,18 @@
+cast-auth.json — Google Cast device-authentication credentials
+
+This file is data, not AirShow source code, and is not covered by AirShow's
+license. It contains a Google Cast device certificate, its intermediate
+certificate, an RSA private key, and a table of precomputed signatures. They
+were extracted from the AirReceiver Android app and published by the shanocast
+project (https://github.com/rgerganov/shanocast), which carries no license.
+AirShow's authors did not create this data and cannot grant any rights to it.
+
+Without credentials like these, Chrome and Android refuse to cast to a receiver.
+Redistributing or using them may be restricted by Google's or the AirReceiver
+developers' rights; anyone shipping this file is responsible for checking that
+themselves.
+
+The signature table covers 2023-08-15 to 2027-12-21 (UTC). After that, Cast
+stops working unless a newer cast-auth.json is supplied — via the
+AIRSHOW_CAST_AUTH environment variable or a cast-auth.json in AirShow's app
+data directory (format documented in src/cast/CastAuth.h).

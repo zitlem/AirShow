@@ -139,7 +139,10 @@ qt_add_executable(airshow
   src/protocol/AirPlayHandler.cpp
   src/protocol/DlnaHandler.cpp
   src/protocol/CastHandler.cpp
-  src/protocol/CastSession.cpp
+  src/protocol/CastCredentials.cpp
+  src/cast/CastAuth.cpp
+  src/cast/CastReceiver.cpp
+  src/cast/CastSession.cpp
   src/cast/CastStreamingOffer.cpp
   src/cast/CastStreamingReceiver.cpp
   src/protocol/MiracastHandler.cpp
@@ -172,6 +175,15 @@ qt_add_qml_module(airshow
     qml/HudOverlay.qml
     qml/IdleScreen.qml
     qml/ApprovalDialog.qml
+)
+
+# Cast device-auth credentials: third-party data, not AirShow code (see
+# resources/cast/NOTICE). Built in as a fallback; CastCredentials.cpp prefers a
+# file on disk so the signature table can be replaced without a rebuild.
+qt_add_resources(airshow "cast_auth"
+  PREFIX "/cast"
+  BASE resources/cast
+  FILES resources/cast/cast-auth.json
 )
 
 target_include_directories(airshow PRIVATE

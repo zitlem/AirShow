@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-// Forward declarations
 class QSslSocket;
 
 // Protobuf forward declaration (from cast_channel.pb.h generated at build time)
@@ -16,17 +15,16 @@ namespace extensions::api::cast_channel {
 class CastMessage;
 }
 
-namespace airshow {
+namespace airshow::cast {
 
-namespace cast { class CastStreamingReceiver; }
-class ConnectionBridge;
-class MediaPipeline;
-class SecurityManager;
+class CastStreamingReceiver;
+class CastReceiverHost;
+struct CastAuthCredentials;
 
 // Per-connection CASTV2 session state machine (D-06, D-07, D-13).
 //
 // Lifecycle:
-//   1. CastHandler creates CastSession on TLS connection accept.
+//   1. CastReceiver creates CastSession on TLS connection accept.
 //   2. CastSession owns the QSslSocket for the duration of the session.
 //   3. When socket disconnects or CLOSE message is received, CastSession
 //      emits finished() and schedules self-destruction.
@@ -39,16 +37,16 @@ class SecurityManager;
 //   connection  ->  onConnection()   — CONNECT/CLOSE virtual connections
 //   heartbeat   ->  onHeartbeat()    — PING/PONG keepalive
 //   receiver    ->  onReceiver()     — LAUNCH/GET_STATUS/STOP
-//   media       ->  onMedia()        — GET_STATUS/LOAD (uridecodebin)
+//   media       ->  onMedia()        — GET_STATUS/LOAD (host plays the URL)
 //   webrtc      ->  onWebrtc()       — Cast Streaming OFFER/ANSWER, GET_CAPABILITIES
 class CastSession : public QObject {
     Q_OBJECT
 public:
-    explicit CastSession(QSslSocket* socket,
-                         ConnectionBridge* connectionBridge,
-                         MediaPipeline* pipeline,
-                         SecurityManager* securityManager = nullptr,
-                         QObject* parent = nullptr);
+    // host and credentials are not owned and must outlive the session.
+    CastSession(QSslSocket* socket,
+                CastReceiverHost* host,
+                const CastAuthCredentials* credentials,
+                QObject* parent = nullptr);
     ~CastSession() override;
 
     // Returns true once the sender has sent CONNECT to our transportId — i.e.
@@ -57,7 +55,7 @@ public:
 
 signals:
     // Emitted when the session ends (socket disconnected or CLOSE received).
-    // CastHandler connects this to its onSessionFinished slot.
+    // CastReceiver connects this to its onSessionFinished slot.
     void finished();
 
 private slots:
@@ -72,7 +70,7 @@ private:
     // Messages that start or control a cast are held until approval is granted.
     void dispatchMessage(const extensions::api::cast_channel::CastMessage& msg);
 
-    // Ask SecurityManager once per session; held messages replay on approval.
+    // Ask the host once per session; held messages replay on approval.
     void requestApproval();
     void onApprovalResolved(bool approved);
 
@@ -101,10 +99,9 @@ private:
     // Build a RECEIVER_STATUS JSON payload for the given state.
     QByteArray buildReceiverStatus(int requestId) const;
 
-    QSslSocket*       m_socket           = nullptr;
-    ConnectionBridge* m_connectionBridge = nullptr;
-    MediaPipeline*    m_pipeline         = nullptr;
-    SecurityManager*  m_securityManager  = nullptr;
+    QSslSocket*                m_socket      = nullptr;
+    CastReceiverHost*          m_host        = nullptr;
+    const CastAuthCredentials* m_credentials = nullptr;
 
     // Approval state. Chrome keeps a channel open to every discovered receiver
     // (auth, CONNECT to receiver-0, GET_STATUS polling) just to populate its Cast
@@ -116,10 +113,10 @@ private:
     bool m_rejected        = false;
     std::vector<std::string> m_heldMessages;  // serialized CastMessages
 
-    // Set to true when this session calls setConnected(true) on the ConnectionBridge.
-    // Only sessions that set connected=true should reset it to false on teardown.
-    // Probe sessions (auth-only, no CONNECT to transportId) never set this, so they
-    // cannot accidentally wipe another protocol's connected state.
+    // Set when this session reported senderConnected() to the host. Only such
+    // sessions report senderDisconnected() on teardown; probe sessions (auth-only,
+    // no CONNECT to transportId) never do, so they cannot wipe another
+    // protocol's connected state in the host.
     bool m_didConnect = false;
 
     // TCP accumulation buffer (never blocking — state machine per Pitfall 6)
@@ -134,7 +131,7 @@ private:
     QString    m_senderName;    // populated on CONNECT message
 
     // Active Cast Streaming session (created on OFFER)
-    std::unique_ptr<cast::CastStreamingReceiver> m_streaming;
+    std::unique_ptr<CastStreamingReceiver> m_streaming;
 };
 
-} // namespace airshow
+} // namespace airshow::cast

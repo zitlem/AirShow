@@ -100,6 +100,8 @@ add_executable(test_airplay
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
   ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/DiscoveryManager.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/CastCredentials.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastAuth.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/AvahiAdvertiser.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/BonjourAdvertiser.cpp
@@ -160,7 +162,10 @@ gtest_discover_tests(test_dlna TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 add_executable(test_cast
   test_cast.cpp
   ${CMAKE_SOURCE_DIR}/src/protocol/CastHandler.cpp
-  ${CMAKE_SOURCE_DIR}/src/protocol/CastSession.cpp
+  ${CMAKE_SOURCE_DIR}/src/protocol/CastCredentials.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastAuth.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastReceiver.cpp
+  ${CMAKE_SOURCE_DIR}/src/cast/CastSession.cpp
   ${CMAKE_SOURCE_DIR}/src/cast/CastStreamingOffer.cpp
   ${CMAKE_SOURCE_DIR}/src/cast/CastStreamingReceiver.cpp
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
@@ -188,6 +193,12 @@ target_link_libraries(test_cast PRIVATE
   protobuf::libprotobuf
 )
 
+
+qt_add_resources(test_cast "cast_auth"
+  PREFIX "/cast"
+  BASE ${CMAKE_SOURCE_DIR}/resources/cast
+  FILES ${CMAKE_SOURCE_DIR}/resources/cast/cast-auth.json
+)
 
 gtest_discover_tests(test_cast TEST_SUFFIX "" PROPERTIES TIMEOUT 30)
 

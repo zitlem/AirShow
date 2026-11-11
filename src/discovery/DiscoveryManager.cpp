@@ -1,7 +1,7 @@
 #include "discovery/DiscoveryManager.h"
 #include "discovery/ServiceAdvertiser.h"
 #include "settings/AppSettings.h"
-#include "cast/cast_auth_window.h"
+#include "protocol/CastCredentials.h"
 #include <QDateTime>
 #include <QSettings>
 #include <QUuid>
@@ -108,13 +108,15 @@ bool DiscoveryManager::start() {
         {"st", "0"},
         {"rs", ""},
     };
-    // Don't show up in Cast menus once the auth signature table has run out —
-    // every sender would fail authentication (CastHandler also refuses to start).
+    // Don't show up in Cast menus without usable auth credentials (missing, or
+    // the signature table has run out) — every sender would fail authentication
+    // (CastHandler also refuses to start).
     const auto nowSecs = static_cast<uint64_t>(QDateTime::currentSecsSinceEpoch());
-    if (cast::isCastAuthAvailable(nowSecs)) {
+    const auto& castCreds = castCredentials();
+    if (castCreds && castCreds->isAvailableAt(nowSecs)) {
         m_advertiser->advertise("_googlecast._tcp", name, kCastPort, castTxt);
     } else {
-        g_warning("DiscoveryManager: Cast auth signatures expired — not advertising _googlecast._tcp");
+        g_warning("DiscoveryManager: no valid Cast auth credentials — not advertising _googlecast._tcp");
     }
 
     // --- _display._tcp (MS-MICE Miracast over Infrastructure — DISC-04, D-04) ---
