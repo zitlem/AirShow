@@ -181,4 +181,9 @@ Contributions welcome. The codebase follows these conventions:
 
 ## License
 
-Open source (license TBD).
+AirShow is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0).
+
+You may use, modify and redistribute it, including commercially, provided that
+anything you distribute that includes or is derived from AirShow is also released
+under GPL-3.0 with its complete source code. Bundled third-party code keeps its own
+license (see `vendor/`).
