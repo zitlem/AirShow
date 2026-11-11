@@ -1,3 +1,8 @@
+// Copyright The Chromium Authors
+// SPDX-License-Identifier: BSD-3-Clause
+// Use of this source code is governed by a BSD-style license that can be
+// found in LICENSE.chromium in this directory.
+//
 // Source: Chromium source extensions/common/api/cast_channel/cast_channel.proto
 // CASTV2 wire protocol definition — length-prefixed protobuf over TLS port 8009.
 syntax = "proto2";

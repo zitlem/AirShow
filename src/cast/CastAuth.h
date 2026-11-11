@@ -1,3 +1,6 @@
+// Copyright 2026 zitlem
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 #include <QByteArray>
 #include <QList>
