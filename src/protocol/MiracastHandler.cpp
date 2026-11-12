@@ -7,6 +7,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QHostAddress>
+#include <QPointer>
 #include <QTimer>
 
 // Qt Core
@@ -122,16 +123,33 @@ void MiracastHandler::onMiceConnection() {
     QTcpSocket* socket = m_miceServer->nextPendingConnection();
     if (!socket) return;
 
-    m_sourceAddr = socket->peerAddress();
+    const QHostAddress peer = socket->peerAddress();
     qDebug("MiracastHandler: MS-MICE connection from %s:%d",
-           qPrintable(m_sourceAddr.toString()),
-           socket->peerPort());
+           qPrintable(peer.toString()), socket->peerPort());
 
-    // Single-session model: close any existing connection
+    // Single-session model. While a session is set up or streaming, only its own
+    // source may start over (e.g. Windows reconnecting after a network blip).
+    // Anyone else is turned away: otherwise any host on the network could break
+    // the session, or have an approval meant for another host apply to itself.
+    const bool sessionActive = m_state != State::Idle && m_state != State::WaitingSourceReady;
+    if (sessionActive) {
+        if (!peer.isEqual(m_sourceAddr, QHostAddress::ConvertV4MappedToIPv4)) {
+            qWarning("MiracastHandler: busy with %s — rejecting MS-MICE connection from %s",
+                     qPrintable(m_sourceAddr.toString()), qPrintable(peer.toString()));
+            closeGracefully(socket, this);
+            return;
+        }
+        qDebug("MiracastHandler: source reconnected — restarting the session");
+        teardown();
+    }
+
     if (m_miceClient) {
+        // A connection that hasn't been approved yet: replace it. Its pending
+        // approval (if any) is discarded in handleSourceReady's callback.
         closeGracefully(m_miceClient, this);
     }
 
+    m_sourceAddr = peer;
     m_miceClient = socket;
     m_miceBuffer.clear();
     connect(m_miceClient, &QTcpSocket::readyRead,
@@ -225,18 +243,26 @@ void MiracastHandler::handleSourceReady(const QByteArray& data) {
     // Phase 7 (SEC-01): Require SecurityManager approval before connecting.
     // MiracastHandler runs on the Qt main thread (same as CastHandler) — MUST use async.
     if (m_securityManager) {
+        // The approval is for this connection only: if it was replaced (another
+        // MS-MICE connection arrived while the prompt was open) or a session has
+        // started meanwhile, drop the answer.
+        QPointer<MiracastHandler> self(this);
+        QPointer<QTcpSocket>      client(m_miceClient);
         m_securityManager->checkConnectionAsync(
             m_sourceName, QStringLiteral("miracast"), m_sourceAddr.toString(),
-            [this](bool approved) {
-                if (!approved) {
-                    qDebug("MiracastHandler: connection denied by security manager");
-                    if (m_miceClient) {
-                        m_miceClient->disconnectFromHost();
-                    }
-                    m_state = State::WaitingSourceReady;
+            [self, client](bool approved) {
+                if (!self || !client || client != self->m_miceClient ||
+                    self->m_state != State::WaitingSourceReady) {
+                    qDebug("MiracastHandler: ignoring approval for a connection that is gone");
                     return;
                 }
-                connectToSource();
+                MiracastHandler* const h = self;
+                if (!approved) {
+                    qDebug("MiracastHandler: connection denied by security manager");
+                    client->disconnectFromHost();
+                    return;
+                }
+                h->connectToSource();
             });
     } else {
         // No security manager — connect directly (backward compatible)
