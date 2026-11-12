@@ -31,6 +31,16 @@ public:
     // Mark first-launch as complete. Call after firewall rules are registered.
     void setFirstLaunchComplete();
 
+    // --- Miracast ---------------------------------------------------------
+
+    // Whether to advertise the receiver over Wi-Fi Direct so it appears in
+    // Windows Connect (Win+K) (Linux only, see WifiDirectBeacon). Default: true.
+    // The --no-beacon command-line switch turns it off for one run without
+    // changing this setting.
+    // Key: "miracast/wifiDirectBeacon"
+    bool wifiDirectBeacon() const;
+    void setWifiDirectBeacon(bool v);
+
     // --- Security settings (Phase 7 / D-11) ------------------------------
 
     // Whether incoming connections require explicit user approval (default: true).

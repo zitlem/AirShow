@@ -23,6 +23,11 @@ namespace airshow {
 // in extended listen so Windows' discovery scan gets a response. The station
 // connection is not touched.
 //
+// Privacy: probe responses are unencrypted and readable by any nearby Wi-Fi
+// device, so this broadcasts the receiver name and the machine's host name.
+// It is on by default; turn it off with the "miracast/wifiDirectBeacon"
+// setting or the --no-beacon command-line switch (see main.cpp, README).
+//
 // Restoring wpa_supplicant: the P2P settings in place before start() are
 // saved to QSettings ("miracast/wifiDirectRestore/*") and put back by stop().
 // If AirShow is killed or crashes before stop(), the next run puts them back

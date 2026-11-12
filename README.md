@@ -42,7 +42,7 @@ Device discovery (AirPlay, Google Cast, Miracast) needs nothing extra: AirShow u
 
 ### Miracast discovery (Linux)
 
-Windows only lists a wireless display in **Connect** (Win+K) after it has seen the display over Wi-Fi Direct. The stream itself then runs over your normal network. On Linux, AirShow asks wpa_supplicant to answer Windows' Wi-Fi Direct scans. Your Wi-Fi connection is not touched, and AirShow restores the previous Wi-Fi Direct settings when it exits. This needs:
+Windows only lists a wireless display in **Connect** (Win+K) after it has seen the display over Wi-Fi Direct. The stream itself then runs over your normal network. On Linux, AirShow asks wpa_supplicant to answer Windows' Wi-Fi Direct scans. Your Wi-Fi connection is not touched. This is **on by default** and needs:
 
 - a Wi-Fi adapter with Wi-Fi Direct (P2P) support (`iw list` shows `P2P-device`), managed by wpa_supplicant (the default with NetworkManager);
 - permission to use wpa_supplicant's D-Bus API. On Debian/Ubuntu, add your user to the `netdev` group, then log out and back in:
@@ -51,7 +51,25 @@ Windows only lists a wireless display in **Connect** (Win+K) after it has seen t
   sudo usermod -aG netdev $USER
   ```
 
+  This lets every program you run control wpa_supplicant over D-Bus: for example, change which network you connect to, add or remove saved networks, or disconnect. It does not reveal saved Wi-Fi passwords. If you'd rather not grant that, leave it out: AirShow then logs why Win+K discovery is unavailable and carries on.
+
 At startup AirShow logs either `WifiDirectBeacon: discoverable in Windows Connect (Win+K)` or the reason it can't be. Without it, AirPlay, Cast and DLNA work as usual, but AirShow won't appear in Win+K.
+
+**What it changes, and what others can see.** While AirShow runs, wpa_supplicant's Wi-Fi Direct device uses AirShow's receiver name and advertises this computer's host name (for example `my-laptop`). These Wi-Fi Direct replies are not encrypted: any Wi-Fi device in radio range can read them, including devices that aren't on your network. The adapter also spends half of each second listening for Wi-Fi Direct scans, which can slightly reduce Wi-Fi throughput and battery life on some adapters.
+
+**Putting things back.** AirShow saves the previous Wi-Fi Direct settings and restores them when it exits, including on Ctrl+C, `kill`, or `systemctl stop`. If it is killed with `kill -9` or crashes, the next start restores them (with or without the beacon). Restarting wpa_supplicant also clears them.
+
+**Turning it off.**
+
+- For one run: start AirShow with `--no-beacon`.
+- Permanently: add this to the settings file (`~/.config/AirShow/AirShow.conf`):
+
+  ```ini
+  [miracast]
+  wifiDirectBeacon=false
+  ```
+
+With the beacon off, AirShow does not touch wpa_supplicant, and won't appear in Win+K. AirPlay, Cast and DLNA are unaffected.
 
 ## Build from source
 
@@ -165,7 +183,7 @@ AirShow includes three security layers:
 
 - **Google Cast authentication** uses precomputed RSA signatures from AirReceiver (via shanocast). They cover through ~2027-12-21 and cannot be regenerated; Google may also revoke them at any time. Android "Cast screen" is not expected to work with these credentials.
 - **Google Cast media** uses AirShow's own Cast Streaming receiver (`src/cast/CastStreamingReceiver`): RTP + AES-128-CTR + RTCP feedback, VP8/VP9/H.264 video and Opus audio. Not yet verified against a real Chrome sender.
-- **Miracast** streams over the existing network (MS-MICE). Wi-Fi Direct is used only so Windows can discover the receiver (Linux only, see [Miracast discovery](#miracast-discovery-linux)); Wi-Fi Direct streaming is not supported. On macOS and Windows receivers, AirShow does not appear in Win+K.
+- **Miracast** streams over the existing network (MS-MICE). Wi-Fi Direct is used only so Windows can discover the receiver (Linux only, on by default, `--no-beacon` turns it off; see [Miracast discovery](#miracast-discovery-linux)); Wi-Fi Direct streaming is not supported. On macOS and Windows receivers, AirShow does not appear in Win+K.
 - **Android Miracast** support varies by OEM. Most Android devices use Wi-Fi Direct only and won't connect via MS-MICE.
 - **HDCP content** (Netflix, Disney+, etc.) is blocked at the protocol level by DRM --- this is not a bug.
 

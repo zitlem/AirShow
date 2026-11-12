@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QCommandLineParser>
 #include <QDir>
 #include <QQmlContext>
 #include <QStandardPaths>
@@ -193,6 +194,17 @@ int main(int argc, char* argv[]) {
 
     QGuiApplication app(argc, argv);
 
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("AirShow screen mirroring receiver"));
+    parser.addHelpOption();
+    const QCommandLineOption noBeaconOption(
+        QStringList{QStringLiteral("no-beacon")},
+        QStringLiteral("Don't advertise over Wi-Fi Direct for Windows Connect (Win+K), "
+                       "for this run (Linux). To turn it off permanently, set "
+                       "wifiDirectBeacon=false under [miracast] in the settings file."));
+    parser.addOption(noBeaconOption);
+    parser.process(app);
+
 #ifndef _WIN32
     quitOnSignals(app);
 #endif
@@ -217,6 +229,8 @@ int main(int argc, char* argv[]) {
     }
 
     airshow::DiscoveryManager discovery(&settings);
+    discovery.setWifiDirectBeaconEnabled(settings.wifiDirectBeacon() &&
+                                         !parser.isSet(noBeaconOption));
     if (!discovery.start()) {
         qWarning("Discovery failed to start — receiver will not appear in device pickers");
     }

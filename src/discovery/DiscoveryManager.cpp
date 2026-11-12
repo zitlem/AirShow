@@ -133,7 +133,14 @@ bool DiscoveryManager::start() {
     m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
     // Windows only lists MS-MICE sinks it has seen over Wi-Fi Direct; the mDNS
     // record above is how it then finds our address. Logs why if unavailable.
-    m_wifiDirect->start(QString::fromStdString(name));
+    if (m_wifiDirectEnabled) {
+        m_wifiDirect->start(QString::fromStdString(name));
+    } else {
+        g_message("DiscoveryManager: Wi-Fi Direct beacon disabled — AirShow will not "
+                  "appear in Windows Connect (Win+K)");
+        // Undo what a previous run left behind if it was killed with the beacon on
+        m_wifiDirect->recoverStaleState();
+    }
 
     // --- _airshow._tcp (RECV-02 -- AirShow companion sender discovery) ---
     std::vector<TxtRecord> airshowTxt = {
