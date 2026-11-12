@@ -7,6 +7,11 @@
 #include <QString>
 #include <QStringConverter>
 #include <QtEndian>
+#include <QElapsedTimer>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QThread>
+#include <functional>
 #include <gst/gst.h>
 
 // Project headers
@@ -42,6 +47,18 @@ public:
 
 testing::Environment* const miracastEnv =
     testing::AddGlobalTestEnvironment(new MiracastTestEnvironment);
+
+// Run the Qt event loop until done() is true or timeoutMs passes.
+static bool waitUntil(const std::function<bool()>& done, int timeoutMs = 3000) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!done()) {
+        if (timer.elapsed() > timeoutMs) return false;
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        QThread::msleep(5);
+    }
+    return true;
+}
 
 // ── Test 1: MiracastHandlerConformsToInterface ────────────────────────────────
 // Verify that MiracastHandler implements the ProtocolHandler interface correctly.
@@ -620,11 +637,9 @@ TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
     ASSERT_TRUE(pipeline.playMiracast());
     gst_element_set_state(sender, GST_STATE_PLAYING);
 
-    // Wait up to 5 s; require frames to keep flowing (not just the first one)
-    for (int i = 0; i < 50 && pipeline.miracastFramesDecoded() < 60; ++i) {
-        QCoreApplication::processEvents();
-        g_usleep(100 * 1000);
-    }
+    // Require frames to keep flowing (not just the first one). Generous timeout
+    // for slow CI machines (software x264 + decode); returns as soon as reached.
+    waitUntil([&] { return pipeline.miracastFramesDecoded() >= 60; }, 15000);
 
     gst_element_set_state(sender, GST_STATE_NULL);
     gst_object_unref(sender);
@@ -632,4 +647,196 @@ TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
     EXPECT_GE(pipeline.miracastFramesDecoded(), 60u)
         << "Miracast pipeline decoded " << pipeline.miracastFramesDecoded() << " frames";
     pipeline.stopMiracast();
+}
+
+// ── Test 17: ParseTriggerMethod ───────────────────────────────────────────────
+
+TEST(MiracastHandlerTest, ParseTriggerMethod) {
+    EXPECT_EQ(MiracastHandler::parseTriggerMethod("wfd_trigger_method: SETUP\r\n"),
+              QStringLiteral("SETUP"));
+    EXPECT_EQ(MiracastHandler::parseTriggerMethod("wfd_trigger_method:teardown"),
+              QStringLiteral("TEARDOWN"));
+    EXPECT_EQ(MiracastHandler::parseTriggerMethod(
+                  "wfd_av_format_change_timing: 0 0\r\nwfd_trigger_method: PLAY\r\n"),
+              QStringLiteral("PLAY"));
+    EXPECT_TRUE(MiracastHandler::parseTriggerMethod("wfd_presentation_URL: none none\r\n")
+                    .isEmpty());
+}
+
+// ── Test 18: RtspSessionWithFakeSource ────────────────────────────────────────
+// Drives MiracastHandler through a whole session against a fake Windows source:
+// MS-MICE SOURCE_READY, then M1..M7 over RTSP with a keepalive in the middle of
+// negotiation, SETUP/PLAY on the presentation URL with the Session id, PAUSE and
+// TEARDOWN triggers, and a second host being turned away while streaming.
+
+namespace {
+
+QByteArray buildSourceReady(const QString& name, uint16_t rtspPort) {
+    auto encoder = QStringEncoder(QStringEncoder::Utf16LE);
+    const QByteArray nameBytes = encoder.encode(name);
+    QByteArray tlvs;
+    auto appendTlv = [&](uint8_t type, const QByteArray& value) {
+        tlvs.append(char(type)).append(char(value.size() >> 8)).append(char(value.size() & 0xff));
+        tlvs.append(value);
+    };
+    appendTlv(0x00, nameBytes);
+    appendTlv(0x02, QByteArray().append(char(rtspPort >> 8)).append(char(rtspPort & 0xff)));
+    appendTlv(0x03, QByteArray(16, '\x42'));
+    const int size = 4 + tlvs.size();
+    return QByteArray().append(char(size >> 8)).append(char(size & 0xff))
+                       .append(char(0x01)).append(char(0x01)) + tlvs;
+}
+
+// The source side of the RTSP connection: reads whole RTSP messages.
+struct FakeSource {
+    QTcpSocket* sock = nullptr;
+    QByteArray  buf;
+
+    QByteArray next() {
+        QByteArray msg;
+        waitUntil([&] {
+            buf += sock->readAll();
+            const int end = buf.indexOf("\r\n\r\n");
+            if (end < 0) return false;
+            int contentLength = 0;
+            for (const QByteArray& line : buf.left(end).split('\n')) {
+                if (line.toLower().startsWith("content-length:")) {
+                    contentLength = line.mid(15).trimmed().toInt();
+                }
+            }
+            const int total = end + 4 + contentLength;
+            if (buf.size() < total) return false;
+            msg = buf.left(total);
+            buf.remove(0, total);
+            return true;
+        });
+        return msg;
+    }
+
+    void send(const QByteArray& m) { sock->write(m); sock->flush(); }
+
+    // Request from the source with an optional text/parameters body
+    void request(const QByteArray& method, int cseq, const QByteArray& body = {}) {
+        QByteArray m = method + " rtsp://localhost/wfd1.0 RTSP/1.0\r\nCSeq: " +
+                       QByteArray::number(cseq) + "\r\n";
+        if (!body.isEmpty()) {
+            m += "Content-Type: text/parameters\r\nContent-Length: " +
+                 QByteArray::number(body.size()) + "\r\n";
+        }
+        send(m + "\r\n" + body);
+    }
+};
+
+int cseqOf(const QByteArray& msg) {
+    for (const QByteArray& line : msg.split('\n')) {
+        if (line.toLower().startsWith("cseq:")) return line.mid(5).trimmed().toInt();
+    }
+    return -1;
+}
+
+} // namespace
+
+TEST(MiracastHandlerTest, RtspSessionWithFakeSource) {
+    QTcpServer rtspServer;
+    ASSERT_TRUE(rtspServer.listen(QHostAddress::LocalHost, 0));
+
+    MiracastHandler handler(nullptr);  // no pipeline / security manager: protocol only
+    ASSERT_TRUE(handler.start()) << "port 7250 busy (is AirShow running?)";
+
+    // MS-MICE: SOURCE_READY pointing at our RTSP server
+    QTcpSocket mice;
+    mice.connectToHost(QHostAddress::LocalHost, MiracastHandler::kMicePort);
+    ASSERT_TRUE(waitUntil([&] { return mice.state() == QAbstractSocket::ConnectedState; }));
+    mice.write(buildSourceReady(QStringLiteral("DESKTOP-TEST"), rtspServer.serverPort()));
+    ASSERT_TRUE(waitUntil([&] { return rtspServer.hasPendingConnections(); }));
+
+    FakeSource src;
+    src.sock = rtspServer.nextPendingConnection();
+    ASSERT_NE(src.sock, nullptr);
+
+    // M1 -> 200 with Public, then our M2 OPTIONS
+    src.request("OPTIONS", 1);
+    QByteArray m = src.next();
+    EXPECT_TRUE(m.startsWith("RTSP/1.0 200 OK")) << m.constData();
+    EXPECT_EQ(cseqOf(m), 1);
+    EXPECT_TRUE(m.contains("org.wfa.wfd1.0"));
+    m = src.next();
+    ASSERT_TRUE(m.startsWith("OPTIONS * RTSP/1.0")) << m.constData();
+    src.send("RTSP/1.0 200 OK\r\nCSeq: " + QByteArray::number(cseqOf(m)) +
+             "\r\nPublic: org.wfa.wfd1.0, SETUP, TEARDOWN, PLAY, PAUSE, GET_PARAMETER, "
+             "SET_PARAMETER\r\n\r\n");
+    ASSERT_TRUE(waitUntil([&] { return handler.state() == MiracastHandler::State::NegotiatingM3; }));
+
+    // Keepalive (empty GET_PARAMETER) in the middle of negotiation
+    src.request("GET_PARAMETER", 2);
+    m = src.next();
+    EXPECT_TRUE(m.startsWith("RTSP/1.0 200 OK")) << m.constData();
+    EXPECT_EQ(cseqOf(m), 2);
+    EXPECT_FALSE(m.contains("wfd_video_formats"));
+
+    // M3 capability query
+    src.request("GET_PARAMETER", 3, "wfd_video_formats\r\nwfd_audio_codecs\r\n"
+                                    "wfd_client_rtp_ports\r\n");
+    m = src.next();
+    EXPECT_EQ(cseqOf(m), 3);
+    EXPECT_TRUE(m.contains("wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028")) << m.constData();
+
+    // M4 selected parameters with presentation URL
+    const QByteArray url = "rtsp://127.0.0.1/wfd1.0/streamid=0";
+    src.request("SET_PARAMETER", 4, "wfd_audio_codecs: AAC 00000001 00\r\n"
+                                    "wfd_presentation_URL: " + url + " none\r\n");
+    m = src.next();
+    EXPECT_EQ(cseqOf(m), 4);
+    EXPECT_EQ(handler.state(), MiracastHandler::State::NegotiatingM5);
+
+    // M5 trigger SETUP -> 200, then our M6 SETUP on the presentation URL
+    src.request("SET_PARAMETER", 5, "wfd_trigger_method: SETUP\r\n");
+    m = src.next();
+    EXPECT_EQ(cseqOf(m), 5);
+    m = src.next();
+    ASSERT_TRUE(m.startsWith("SETUP " + url + " RTSP/1.0")) << m.constData();
+    EXPECT_TRUE(m.contains("client_port=1028"));
+    src.send("RTSP/1.0 200 OK\r\nCSeq: " + QByteArray::number(cseqOf(m)) +
+             "\r\nSession: 6B8B4567;timeout=30\r\n"
+             "Transport: RTP/AVP/UDP;unicast;client_port=1028;server_port=5000\r\n\r\n");
+
+    // M7 PLAY carries the Session id
+    m = src.next();
+    ASSERT_TRUE(m.startsWith("PLAY " + url + " RTSP/1.0")) << m.constData();
+    EXPECT_TRUE(m.contains("Session: 6B8B4567\r\n")) << m.constData();
+    src.send("RTSP/1.0 200 OK\r\nCSeq: " + QByteArray::number(cseqOf(m)) +
+             "\r\nSession: 6B8B4567\r\n\r\n");
+    ASSERT_TRUE(waitUntil([&] { return handler.state() == MiracastHandler::State::Streaming; }));
+
+    // PAUSE trigger -> PAUSE request with the session; still streaming
+    src.request("SET_PARAMETER", 6, "wfd_trigger_method: PAUSE\r\n");
+    EXPECT_EQ(cseqOf(src.next()), 6);
+    m = src.next();
+    EXPECT_TRUE(m.startsWith("PAUSE " + url)) << m.constData();
+    EXPECT_TRUE(m.contains("Session: 6B8B4567"));
+    EXPECT_EQ(handler.state(), MiracastHandler::State::Streaming);
+
+#ifdef __linux__
+    // Another host connecting to 7250 while streaming is turned away and the
+    // session is untouched (127.0.0.2 is loopback on Linux).
+    QTcpSocket intruder;
+    if (intruder.bind(QHostAddress(QStringLiteral("127.0.0.2")))) {
+        intruder.connectToHost(QHostAddress::LocalHost, MiracastHandler::kMicePort);
+        EXPECT_TRUE(waitUntil([&] {
+            return intruder.state() == QAbstractSocket::UnconnectedState;
+        })) << "connection from a second host should be closed";
+        EXPECT_EQ(handler.state(), MiracastHandler::State::Streaming);
+    }
+#endif
+
+    // TEARDOWN trigger -> our TEARDOWN, then back to waiting for a source
+    src.request("SET_PARAMETER", 7, "wfd_trigger_method: TEARDOWN\r\n");
+    EXPECT_EQ(cseqOf(src.next()), 7);
+    m = src.next();
+    EXPECT_TRUE(m.startsWith("TEARDOWN " + url)) << m.constData();
+    EXPECT_TRUE(waitUntil([&] {
+        return handler.state() == MiracastHandler::State::WaitingSourceReady;
+    }));
+
+    handler.stop();
 }

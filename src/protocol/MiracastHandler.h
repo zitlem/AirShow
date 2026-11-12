@@ -61,6 +61,7 @@ public:
     void        stop() override;
     std::string name() const override { return "miracast"; }
     bool        isRunning() const override { return m_running; }
+    State       state() const { return m_state; }
     void        setMediaPipeline(MediaPipeline* pipeline) override;
 
     // Security integration (Phase 7 Plan 02 pattern). Call before start().
