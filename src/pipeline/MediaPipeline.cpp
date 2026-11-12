@@ -1136,8 +1136,13 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         }
     };
 
-    auto* padHelper = new MiracastPadHelper{videoQueue, audioQueue};
-    g_signal_connect(tsdemux, "pad-added", G_CALLBACK(MiracastPadHelper::callback), padHelper);
+    // Freed with the signal handler when tsdemux is destroyed
+    g_signal_connect_data(tsdemux, "pad-added", G_CALLBACK(MiracastPadHelper::callback),
+                          new MiracastPadHelper{videoQueue, audioQueue},
+                          [](gpointer data, GClosure*) {
+                              delete static_cast<MiracastPadHelper*>(data);
+                          },
+                          GConnectFlags(0));
 
     m_miracastPipeline = pipeline;
     m_miracastFrames = 0;
@@ -1156,20 +1161,16 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         }, this, nullptr);
     gst_object_unref(sinkPad);
 
-    // Start in PAUSED — MiracastHandler transitions to PLAYING when PLAY is received (M7)
-    GstStateChangeReturn ret = gst_element_set_state(m_miracastPipeline, GST_STATE_PAUSED);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
-        g_warning("MediaPipeline::initMiracastPipeline — GST_STATE_CHANGE_FAILURE on PAUSED");
-        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
-        gst_object_unref(m_miracastPipeline);
-        m_miracastPipeline = nullptr;
-        return false;
-    }
-
     // Log errors/warnings (missing decoder, caps failures, ...) instead of failing
-    // silently. The watch is removed with the pipeline's bus in stopMiracast().
+    // silently, and count them for MiracastHandler's IDR requests.
+    //
+    // A sync handler, not gst_bus_add_watch(): a watch is dispatched by the GLib
+    // main loop, which Qt only runs on Linux, so on Windows/macOS it would never
+    // fire and the bus would queue every message for the whole session. The
+    // handler runs on streaming threads and drops every message (nothing else
+    // reads this bus). It is removed in stopMiracast().
     GstBus* bus = gst_element_get_bus(m_miracastPipeline);
-    gst_bus_add_watch(bus, [](GstBus*, GstMessage* msg, gpointer self) -> gboolean {
+    gst_bus_set_sync_handler(bus, [](GstBus*, GstMessage* msg, gpointer self) -> GstBusSyncReply {
         GError* err = nullptr;
         gchar*  dbg = nullptr;
         switch (GST_MESSAGE_TYPE(msg)) {
@@ -1191,9 +1192,19 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         }
         if (err) g_error_free(err);
         g_free(dbg);
-        return G_SOURCE_CONTINUE;
-    }, this);
+        return GST_BUS_DROP;
+    }, this, nullptr);
     gst_object_unref(bus);
+
+    // Start in PAUSED — MiracastHandler transitions to PLAYING when PLAY is received (M7)
+    GstStateChangeReturn ret = gst_element_set_state(m_miracastPipeline, GST_STATE_PAUSED);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_warning("MediaPipeline::initMiracastPipeline — GST_STATE_CHANGE_FAILURE on PAUSED");
+        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
+        gst_object_unref(m_miracastPipeline);
+        m_miracastPipeline = nullptr;
+        return false;
+    }
 
     g_message("MediaPipeline::initMiracastPipeline — pipeline created and PAUSED (udpPort=%d)", udpPort);
     return true;
@@ -1214,10 +1225,11 @@ bool MediaPipeline::playMiracast() {
 
 void MediaPipeline::stopMiracast() {
     if (m_miracastPipeline) {
-        GstBus* bus = gst_element_get_bus(m_miracastPipeline);
-        gst_bus_remove_watch(bus);
-        gst_object_unref(bus);
+        // NULL first: streaming threads (which call the sync handler) are stopped
         gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
+        GstBus* bus = gst_element_get_bus(m_miracastPipeline);
+        gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
+        gst_object_unref(bus);
         gst_object_unref(m_miracastPipeline);
         m_miracastPipeline = nullptr;
         g_message("MediaPipeline::stopMiracast — pipeline stopped and cleaned up");
