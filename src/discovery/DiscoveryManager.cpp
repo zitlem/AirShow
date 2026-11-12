@@ -120,12 +120,13 @@ bool DiscoveryManager::start() {
     }
 
     // --- _display._tcp (MS-MICE Miracast over Infrastructure — DISC-04, D-04) ---
-    // Windows "Connect" app discovers receivers via this mDNS service type.
-    // TXT records: VerMgmt and VerMin from MS-MICE spec revision 6.0.
-    // Per RESEARCH.md Pitfall 1: without this advertisement Windows "Connect" shows no devices.
+    // Windows resolves a Miracast-over-Infrastructure sink through this mDNS record
+    // once it has seen the sink's Wi-Fi Direct beacon (see WifiDirectBeacon). Per
+    // Microsoft's "Implementing Wireless Projection over an existing Wi-Fi network",
+    // the only required TXT key is container_id: a GUID identifying the receiver.
     std::vector<TxtRecord> miracastTxt = {
-        {"VerMgmt", "0x0202"},  // MS-MICE management version (revision 6.0)
-        {"VerMin",  "0x0100"},  // MS-MICE minimum version
+        {"container_id", QString::fromStdString(getOrCreateUuid("miracast/container_id"))
+                             .toUpper().toStdString()},
     };
     m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
 
