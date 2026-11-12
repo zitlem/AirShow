@@ -6,11 +6,14 @@ namespace airshow {
 
 class ServiceAdvertiser;
 class AppSettings;
+class WifiDirectBeacon;
 
 // Owns the ServiceAdvertiser backend and registers all three service records:
 //   _airplay._tcp    (DISC-01)
 //   _raop._tcp       (DISC-01 — iOS audio/legacy mirroring discovery)
 //   _googlecast._tcp (DISC-02)
+//   _display._tcp    (MS-MICE Miracast), plus the Wi-Fi Direct beacon Windows
+//                    needs to list the receiver at all (WifiDirectBeacon)
 // DLNA/SSDP is handled by UpnpAdvertiser (Plan 03, separate class).
 class DiscoveryManager {
 public:
@@ -49,6 +52,7 @@ public:
 private:
     AppSettings*                     m_settings;
     std::unique_ptr<ServiceAdvertiser> m_advertiser;
+    std::unique_ptr<WifiDirectBeacon>  m_wifiDirect;
     bool                             m_running = false;
 
     // Read device MAC address of first non-loopback NIC for AirPlay deviceid TXT field.

@@ -1,5 +1,6 @@
 #include "discovery/DiscoveryManager.h"
 #include "discovery/ServiceAdvertiser.h"
+#include "discovery/WifiDirectBeacon.h"
 #include "settings/AppSettings.h"
 #include "protocol/CastCredentials.h"
 #include <QDateTime>
@@ -36,7 +37,8 @@ static constexpr uint16_t kAirShowPort   = 7400;  // AirShow custom protocol (RE
 
 DiscoveryManager::DiscoveryManager(AppSettings* settings)
     : m_settings(settings)
-    , m_advertiser(ServiceAdvertiser::create()) {}
+    , m_advertiser(ServiceAdvertiser::create())
+    , m_wifiDirect(std::make_unique<WifiDirectBeacon>()) {}
 
 DiscoveryManager::~DiscoveryManager() {
     stop();
@@ -129,6 +131,9 @@ bool DiscoveryManager::start() {
                              .toUpper().toStdString()},
     };
     m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
+    // Windows only lists MS-MICE sinks it has seen over Wi-Fi Direct; the mDNS
+    // record above is how it then finds our address. Logs why if unavailable.
+    m_wifiDirect->start(QString::fromStdString(name));
 
     // --- _airshow._tcp (RECV-02 -- AirShow companion sender discovery) ---
     std::vector<TxtRecord> airshowTxt = {
@@ -146,12 +151,14 @@ void DiscoveryManager::stop() {
     if (m_advertiser && m_running) {
         m_advertiser->stop();
     }
+    m_wifiDirect->stop();
     m_running = false;
 }
 
 void DiscoveryManager::rename(const std::string& newName) {
     if (m_advertiser && m_running) {
         m_advertiser->rename(newName);
+        m_wifiDirect->rename(QString::fromStdString(newName));
         g_message("DiscoveryManager: re-registered as '%s'", newName.c_str());
     }
 }

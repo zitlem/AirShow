@@ -23,6 +23,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   pkg_check_modules(AVAHI REQUIRED IMPORTED_TARGET
     avahi-client
   )
+  # GDBus: drives wpa_supplicant for Wi-Fi Direct (Miracast) discovery
+  pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 endif()
 
 # libupnp (pupnp) — DLNA SSDP advertisement (DISC-03).
@@ -156,6 +158,7 @@ qt_add_executable(airshow
   src/discovery/DnsMessage.cpp
   src/discovery/MdnsResponder.cpp
   src/discovery/DiscoveryManager.cpp
+  src/discovery/WifiDirectBeacon.cpp
   src/discovery/UpnpAdvertiser.cpp
   src/web/WebInterface.cpp
   src/platform/WindowsFirewall.cpp
@@ -211,7 +214,7 @@ target_link_libraries(airshow PRIVATE
 
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(airshow PRIVATE PkgConfig::AVAHI)
+  target_link_libraries(airshow PRIVATE PkgConfig::AVAHI PkgConfig::GIO)
 endif()
 
 # Windows: iphlpapi for MAC address, ws2_32 for sockets.
