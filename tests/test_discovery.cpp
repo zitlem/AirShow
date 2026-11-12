@@ -95,15 +95,15 @@ TEST_F(DiscoveryTest, test_firewall) {
 
 // MS-MICE Vendor Extension carried in Wi-Fi Direct probe responses. Windows only
 // lists a Miracast-over-Infrastructure sink that sends it ([MS-MICE] 2.2.8).
-// These bytes match the payload verified against a Windows 11 source.
+// Same layout as the payload verified against a Windows 11 source.
 TEST(WifiDirectBeaconTest, MiceVendorExtensionBytes) {
     const QByteArray ext = airshow::WifiDirectBeacon::buildMiceVendorExtension(
-        QStringLiteral("daniel-ZenBook"));
+        QStringLiteral("airshow-host12"));
     EXPECT_EQ(ext.toHex(),
               QByteArray("000137"                 // Microsoft vendor ID
                          "2001" "0001" "05"       // Capability: MICE supported, version 1
                          "2002" "000e") +         // Host Name, 14 bytes
-                  QByteArray("daniel-ZenBook").toHex());
+                  QByteArray("airshow-host12").toHex());
 }
 
 TEST(WifiDirectBeaconTest, WfdIesBytes) {
