@@ -26,6 +26,7 @@ gtest_discover_tests(test_pipeline
 
 add_executable(test_discovery
   test_discovery.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/WifiDirectBeacon.cpp
   ${CMAKE_SOURCE_DIR}/src/settings/AppSettings.cpp
   ${CMAKE_SOURCE_DIR}/src/platform/WindowsFirewall.cpp
 )
@@ -44,6 +45,9 @@ target_link_libraries(test_discovery PRIVATE
   Qt6::Core
   PkgConfig::GST   # WindowsFirewall.cpp logs through GLib
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(test_discovery PRIVATE PkgConfig::GIO)
+endif()
 
 gtest_discover_tests(test_discovery
   TEST_SUFFIX ""
@@ -100,6 +104,7 @@ add_executable(test_airplay
   ${CMAKE_SOURCE_DIR}/src/ui/ConnectionBridge.cpp
   ${CMAKE_SOURCE_DIR}/src/pipeline/MediaPipeline.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/DiscoveryManager.cpp
+  ${CMAKE_SOURCE_DIR}/src/discovery/WifiDirectBeacon.cpp
   ${CMAKE_SOURCE_DIR}/src/protocol/CastCredentials.cpp
   ${CMAKE_SOURCE_DIR}/src/cast/CastAuth.cpp
   ${CMAKE_SOURCE_DIR}/src/discovery/ServiceAdvertiser.cpp
@@ -128,7 +133,7 @@ target_link_libraries(test_airplay PRIVATE
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(test_airplay PRIVATE PkgConfig::AVAHI)
+  target_link_libraries(test_airplay PRIVATE PkgConfig::AVAHI PkgConfig::GIO)
 endif()
 if(WIN32)
   target_link_libraries(test_airplay PRIVATE iphlpapi ws2_32)

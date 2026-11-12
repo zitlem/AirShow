@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QCommandLineParser>
 #include <QDir>
 #include <QQmlContext>
 #include <QStandardPaths>
@@ -32,6 +33,13 @@
 #  include <windows.h>
 #elif defined(__APPLE__)
 #  include <mach-o/dyld.h>
+#endif
+
+#ifndef _WIN32
+#  include <QSocketNotifier>
+#  include <csignal>
+#  include <sys/socket.h>
+#  include <unistd.h>
 #endif
 
 // Directory containing the running executable ("" if unknown).
@@ -112,6 +120,7 @@ static void checkRequiredPlugins() {
     // Fatal: MPEG-TS demux pipeline — required for all Miracast streams
     struct { const char* name; const char* pkg; } miracastRequired[] = {
         {"rtpmp2tdepay", "gstreamer1.0-plugins-good"},
+        {"rtpjitterbuffer", "gstreamer1.0-plugins-good"},
         {"tsparse",      "gstreamer1.0-plugins-bad"},
         {"tsdemux",      "gstreamer1.0-plugins-bad"},
     };
@@ -138,6 +147,42 @@ static void checkRequiredPlugins() {
     }
 }
 
+#ifndef _WIN32
+// Quit the event loop on SIGINT/SIGTERM/SIGHUP (Ctrl+C, `kill`, systemd stop,
+// closing the terminal) so the normal shutdown below runs. Without it the
+// process dies at once and, among other things, WifiDirectBeacon never puts
+// back the user's Wi-Fi Direct settings. Self-pipe: the handler only writes a byte.
+static int s_signalFds[2] = {-1, -1};
+
+static void onQuitSignal(int) {
+    const char c = 1;
+    [[maybe_unused]] ssize_t n = ::write(s_signalFds[0], &c, 1);
+}
+
+static void quitOnSignals(QCoreApplication& app) {
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, s_signalFds) != 0) {
+        qWarning("socketpair failed — AirShow will not shut down cleanly on SIGTERM/SIGINT");
+        return;
+    }
+    auto* notifier = new QSocketNotifier(s_signalFds[1], QSocketNotifier::Read, &app);
+    QObject::connect(notifier, &QSocketNotifier::activated, &app, [notifier, &app] {
+        notifier->setEnabled(false);
+        char c;
+        [[maybe_unused]] ssize_t n = ::read(s_signalFds[1], &c, 1);
+        qInfo("Signal received — shutting down");
+        app.quit();
+    });
+
+    struct sigaction sa {};
+    sa.sa_handler = onQuitSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    for (int sig : {SIGINT, SIGTERM, SIGHUP}) {
+        ::sigaction(sig, &sa, nullptr);
+    }
+}
+#endif
+
 int main(int argc, char* argv[]) {
     useBundledGStreamer();
     gst_init(&argc, &argv);
@@ -148,6 +193,21 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName("AirShow");
 
     QGuiApplication app(argc, argv);
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("AirShow screen mirroring receiver"));
+    parser.addHelpOption();
+    const QCommandLineOption noBeaconOption(
+        QStringList{QStringLiteral("no-beacon")},
+        QStringLiteral("Don't advertise over Wi-Fi Direct for Windows Connect (Win+K), "
+                       "for this run (Linux). To turn it off permanently, set "
+                       "wifiDirectBeacon=false under [miracast] in the settings file."));
+    parser.addOption(noBeaconOption);
+    parser.process(app);
+
+#ifndef _WIN32
+    quitOnSignals(app);
+#endif
 
     airshow::AppSettings settings;
 
@@ -169,6 +229,8 @@ int main(int argc, char* argv[]) {
     }
 
     airshow::DiscoveryManager discovery(&settings);
+    discovery.setWifiDirectBeaconEnabled(settings.wifiDirectBeacon() &&
+                                         !parser.isSet(noBeaconOption));
     if (!discovery.start()) {
         qWarning("Discovery failed to start — receiver will not appear in device pickers");
     }

@@ -2,6 +2,7 @@
 #include "protocol/ProtocolHandler.h"
 #include <QObject>
 #include <QHostAddress>
+#include <QTimer>
 #include <QString>
 #include <string>
 
@@ -60,6 +61,7 @@ public:
     void        stop() override;
     std::string name() const override { return "miracast"; }
     bool        isRunning() const override { return m_running; }
+    State       state() const { return m_state; }
     void        setMediaPipeline(MediaPipeline* pipeline) override;
 
     // Security integration (Phase 7 Plan 02 pattern). Call before start().
@@ -92,14 +94,34 @@ public:
     // (same pattern as DlnaHandler::parseTimeString and CastSession::buildSdpFromOffer).
     static QString buildRtspResponse(int cseq, int statusCode, const QString& body = {});
 
+    // MS-MICE message commands ([MS-MICE] 2.2)
+    static constexpr uint8_t kMiceSourceReady    = 0x01;
+    static constexpr uint8_t kMiceStopProjection = 0x02;
+
     // Parse a MS-MICE SOURCE_READY binary message. Exposed as public static for unit testing.
-    // Fills out: friendlyName, rtspPort, sourceId. Returns true if message is valid.
+    // Fills out: friendlyName, rtspPort, sourceId (hex of the 16-byte Source ID).
+    // Returns true if message is a valid SOURCE_READY.
     struct SourceReadyInfo {
         QString friendlyName;
         uint16_t rtspPort = 0;
         QString sourceId;
     };
     static bool parseSourceReady(const QByteArray& data, SourceReadyInfo& out);
+
+    // If buf starts with one complete MS-MICE message, return its length in bytes
+    // (from the 2-byte Size header); return 0 if more data is needed, -1 if invalid.
+    static int miceMessageLength(const QByteArray& buf);
+
+    // Extract the URL from a "wfd_presentation_URL: <url0> <url1>" line in an
+    // RTSP text/parameters body (WFD M4). Returns empty if absent or "none".
+    static QString parsePresentationUrl(const QByteArray& body);
+
+    // Extract the method from a "wfd_trigger_method: <SETUP|PLAY|PAUSE|TEARDOWN>"
+    // line (WFD M5 and later triggers), upper-cased. Returns empty if absent.
+    static QString parseTriggerMethod(const QByteArray& body);
+
+    // Extract the session id from an RTSP "Session: <id>[;timeout=N]" header value.
+    static QString parseSessionId(const QString& sessionHeader);
 
 private slots:
     void onMiceConnection();
@@ -110,8 +132,18 @@ private slots:
 
 private:
     void parseMiceMessage(const QByteArray& data);
+    void handleSourceReady(const QByteArray& data);
     void connectToSource();
-    void sendRtspRequest(const QString& method, const QString& uri,
+    void sendSetup();
+    void sendPlay();
+    // WFD M13: ask the source for an IDR (key) frame so decoding can (re)start.
+    void sendIdrRequest();
+    // Periodic stream health check while streaming: requests an IDR while no
+    // frame has decoded yet (with backoff), or after packet loss / decode errors.
+    void checkStreamHealth();
+    QString streamUri() const;
+    // Returns the CSeq used for the request.
+    int  sendRtspRequest(const QString& method, const QString& uri,
                          const QString& extraHeaders = {}, const QString& body = {});
     void teardown();
 
@@ -125,10 +157,13 @@ private:
         int     cseq{0};
         QString contentType;
         int     contentLength{0};
+        QString session;      // raw Session header value, if any
         QByteArray body;
         bool    isRequest{false};
     };
     bool parseNextRtspMessage(RtspMessage& msg);
+    void handleRtspRequest(const RtspMessage& msg);
+    void handleRtspResponse(const RtspMessage& msg);
 
     // MS-MICE TCP listener (port 7250) — receives SOURCE_READY from Windows source
     QTcpServer*       m_miceServer     = nullptr;
@@ -151,8 +186,23 @@ private:
     int               m_udpPort        = kDefaultRtpPort; // negotiated RTP receive port
     void*             m_qmlVideoItem   = nullptr;   // stored for initMiracastPipeline()
 
-    // Accumulation buffer for RTSP data (non-blocking async parsing)
+    QString           m_presentationUrl;            // wfd_presentation_URL from M4
+    QString           m_sessionId;                  // Session id from the M6 SETUP response
+    int               m_m2Cseq         = -1;        // CSeq of our M2 OPTIONS
+    int               m_setupCseq      = -1;        // CSeq of our M6 SETUP
+    int               m_playCseq       = -1;        // CSeq of our M7 PLAY
+    QTimer            m_healthTimer;                // drives checkStreamHealth()
+    uint64_t          m_lastStreamErrors = 0;
+    // IDR backoff while no frame has decoded (checkStreamHealth, 1 tick = 1 s)
+    static constexpr int kMaxIdrIntervalSec = 16;
+    static constexpr int kNoVideoWarnSec    = 10;
+    int               m_healthTicks    = 0;
+    int               m_idrInterval    = 1;
+    int               m_nextIdrTick    = 1;
+
+    // Accumulation buffers (TCP is a byte stream; messages may be split or coalesced)
     QByteArray        m_rtspBuffer;
+    QByteArray        m_miceBuffer;
 };
 
 } // namespace airshow

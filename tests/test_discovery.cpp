@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include "platform/WindowsFirewall.h"
+#include "discovery/WifiDirectBeacon.h"
 
 class DiscoveryTest : public ::testing::Test {};
 
@@ -90,4 +91,24 @@ TEST_F(DiscoveryTest, test_firewall) {
     EXPECT_TRUE(airshow::WindowsFirewall::rulesAlreadyRegistered())
         << "WindowsFirewall::rulesAlreadyRegistered() must return true on Linux/macOS (D-14)";
 #endif
+}
+
+// MS-MICE Vendor Extension carried in Wi-Fi Direct probe responses. Windows only
+// lists a Miracast-over-Infrastructure sink that sends it ([MS-MICE] 2.2.8).
+// Same layout as the payload verified against a Windows 11 source.
+TEST(WifiDirectBeaconTest, MiceVendorExtensionBytes) {
+    const QByteArray ext = airshow::WifiDirectBeacon::buildMiceVendorExtension(
+        QStringLiteral("airshow-host12"));
+    EXPECT_EQ(ext.toHex(),
+              QByteArray("000137"                 // Microsoft vendor ID
+                         "2001" "0001" "05"       // Capability: MICE supported, version 1
+                         "2002" "000e") +         // Host Name, 14 bytes
+                  QByteArray("airshow-host12").toHex());
+}
+
+TEST(WifiDirectBeaconTest, WfdIesBytes) {
+    EXPECT_EQ(airshow::WifiDirectBeacon::buildWfdIes(7236).toHex(),
+              QByteArray("00" "0006" "0011" "1c44" "012c"   // device info: primary sink, available
+                         "01" "0006" "000000000000"         // associated BSSID: none
+                         "06" "0007" "00000000000000"));    // coupled sink: none
 }

@@ -1,5 +1,6 @@
 #include "discovery/DiscoveryManager.h"
 #include "discovery/ServiceAdvertiser.h"
+#include "discovery/WifiDirectBeacon.h"
 #include "settings/AppSettings.h"
 #include "protocol/CastCredentials.h"
 #include <QDateTime>
@@ -36,7 +37,8 @@ static constexpr uint16_t kAirShowPort   = 7400;  // AirShow custom protocol (RE
 
 DiscoveryManager::DiscoveryManager(AppSettings* settings)
     : m_settings(settings)
-    , m_advertiser(ServiceAdvertiser::create()) {}
+    , m_advertiser(ServiceAdvertiser::create())
+    , m_wifiDirect(std::make_unique<WifiDirectBeacon>()) {}
 
 DiscoveryManager::~DiscoveryManager() {
     stop();
@@ -120,14 +122,25 @@ bool DiscoveryManager::start() {
     }
 
     // --- _display._tcp (MS-MICE Miracast over Infrastructure — DISC-04, D-04) ---
-    // Windows "Connect" app discovers receivers via this mDNS service type.
-    // TXT records: VerMgmt and VerMin from MS-MICE spec revision 6.0.
-    // Per RESEARCH.md Pitfall 1: without this advertisement Windows "Connect" shows no devices.
+    // Windows resolves a Miracast-over-Infrastructure sink through this mDNS record
+    // once it has seen the sink's Wi-Fi Direct beacon (see WifiDirectBeacon). Per
+    // Microsoft's "Implementing Wireless Projection over an existing Wi-Fi network",
+    // the only required TXT key is container_id: a GUID identifying the receiver.
     std::vector<TxtRecord> miracastTxt = {
-        {"VerMgmt", "0x0202"},  // MS-MICE management version (revision 6.0)
-        {"VerMin",  "0x0100"},  // MS-MICE minimum version
+        {"container_id", QString::fromStdString(getOrCreateUuid("miracast/container_id"))
+                             .toUpper().toStdString()},
     };
     m_advertiser->advertise("_display._tcp", name, kMiracastPort, miracastTxt);
+    // Windows only lists MS-MICE sinks it has seen over Wi-Fi Direct; the mDNS
+    // record above is how it then finds our address. Logs why if unavailable.
+    if (m_wifiDirectEnabled) {
+        m_wifiDirect->start(QString::fromStdString(name));
+    } else {
+        g_message("DiscoveryManager: Wi-Fi Direct beacon disabled — AirShow will not "
+                  "appear in Windows Connect (Win+K)");
+        // Undo what a previous run left behind if it was killed with the beacon on
+        m_wifiDirect->recoverStaleState();
+    }
 
     // --- _airshow._tcp (RECV-02 -- AirShow companion sender discovery) ---
     std::vector<TxtRecord> airshowTxt = {
@@ -145,12 +158,14 @@ void DiscoveryManager::stop() {
     if (m_advertiser && m_running) {
         m_advertiser->stop();
     }
+    m_wifiDirect->stop();
     m_running = false;
 }
 
 void DiscoveryManager::rename(const std::string& newName) {
     if (m_advertiser && m_running) {
         m_advertiser->rename(newName);
+        m_wifiDirect->rename(QString::fromStdString(newName));
         g_message("DiscoveryManager: re-registered as '%s'", newName.c_str());
     }
 }

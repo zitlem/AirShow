@@ -38,6 +38,21 @@ QString AppSettings::defaultReceiverName() {
 }
 
 // ---------------------------------------------------------------------------
+// Miracast
+// ---------------------------------------------------------------------------
+
+bool AppSettings::wifiDirectBeacon() const {
+    QSettings s;
+    return s.value(QStringLiteral("miracast/wifiDirectBeacon"), true).toBool();
+}
+
+void AppSettings::setWifiDirectBeacon(bool v) {
+    QSettings s;
+    s.setValue(QStringLiteral("miracast/wifiDirectBeacon"), v);
+    s.sync();
+}
+
+// ---------------------------------------------------------------------------
 // Security settings (Phase 7 / D-11)
 // ---------------------------------------------------------------------------
 
