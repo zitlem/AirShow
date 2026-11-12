@@ -426,6 +426,7 @@ TEST(MiracastHandlerTest, RequiredGStreamerPluginsAvailable) {
     // All elements required to build the Miracast MPEG-TS/RTP receive pipeline
     struct { const char* name; const char* package; } requiredPlugins[] = {
         {"rtpmp2tdepay", "gstreamer1.0-plugins-good"},
+        {"rtpjitterbuffer", "gstreamer1.0-plugins-good"},
         {"tsparse",      "gstreamer1.0-plugins-bad"},
         {"tsdemux",      "gstreamer1.0-plugins-bad"},
         {"h264parse",    "gstreamer1.0-plugins-bad"},

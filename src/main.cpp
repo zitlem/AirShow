@@ -112,6 +112,7 @@ static void checkRequiredPlugins() {
     // Fatal: MPEG-TS demux pipeline — required for all Miracast streams
     struct { const char* name; const char* pkg; } miracastRequired[] = {
         {"rtpmp2tdepay", "gstreamer1.0-plugins-good"},
+        {"rtpjitterbuffer", "gstreamer1.0-plugins-good"},
         {"tsparse",      "gstreamer1.0-plugins-bad"},
         {"tsdemux",      "gstreamer1.0-plugins-bad"},
     };
