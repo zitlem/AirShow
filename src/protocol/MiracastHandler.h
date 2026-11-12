@@ -115,6 +115,10 @@ public:
     // RTSP text/parameters body (WFD M4). Returns empty if absent or "none".
     static QString parsePresentationUrl(const QByteArray& body);
 
+    // Extract the method from a "wfd_trigger_method: <SETUP|PLAY|PAUSE|TEARDOWN>"
+    // line (WFD M5 and later triggers), upper-cased. Returns empty if absent.
+    static QString parseTriggerMethod(const QByteArray& body);
+
     // Extract the session id from an RTSP "Session: <id>[;timeout=N]" header value.
     static QString parseSessionId(const QString& sessionHeader);
 
@@ -134,7 +138,7 @@ private:
     // WFD M13: ask the source for an IDR (key) frame so decoding can (re)start.
     void sendIdrRequest();
     // Periodic stream health check while streaming: requests an IDR while no
-    // frame has decoded yet, or after packet loss / decode errors.
+    // frame has decoded yet (with backoff), or after packet loss / decode errors.
     void checkStreamHealth();
     QString streamUri() const;
     // Returns the CSeq used for the request.
@@ -188,6 +192,12 @@ private:
     int               m_playCseq       = -1;        // CSeq of our M7 PLAY
     QTimer            m_healthTimer;                // drives checkStreamHealth()
     uint64_t          m_lastStreamErrors = 0;
+    // IDR backoff while no frame has decoded (checkStreamHealth, 1 tick = 1 s)
+    static constexpr int kMaxIdrIntervalSec = 16;
+    static constexpr int kNoVideoWarnSec    = 10;
+    int               m_healthTicks    = 0;
+    int               m_idrInterval    = 1;
+    int               m_nextIdrTick    = 1;
 
     // Accumulation buffers (TCP is a byte stream; messages may be split or coalesced)
     QByteArray        m_rtspBuffer;

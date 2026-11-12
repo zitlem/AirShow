@@ -459,18 +459,18 @@ void MiracastHandler::handleRtspRequest(const RtspMessage& msg) {
         }
 
         // M5 (or later trigger): "wfd_trigger_method: SETUP|PLAY|PAUSE|TEARDOWN"
-        const QByteArray body = msg.body;
-        const int trig = body.indexOf("wfd_trigger_method:");
-        if (trig >= 0) {
-            const int eol = body.indexOf('\n', trig);
-            const QString method = QString::fromUtf8(
-                body.mid(trig + 19, eol < 0 ? -1 : eol - trig - 19)).trimmed().toUpper();
+        const QString method = parseTriggerMethod(msg.body);
+        if (!method.isEmpty()) {
             qDebug("Miracast: trigger %s received", qPrintable(method));
             if (method == QStringLiteral("SETUP")) {
                 sendSetup();
             } else if (method == QStringLiteral("PLAY")) {
                 sendPlay();
             } else if (method == QStringLiteral("PAUSE")) {
+                // Ask the source to pause (WFD M9). The receive pipeline is left
+                // PLAYING on purpose: it is live, simply gets no packets while
+                // paused, and resumes at once on the PLAY trigger that follows.
+                // The PAUSE response needs no handling (logged as unmatched).
                 sendRtspRequest(QStringLiteral("PAUSE"), streamUri(),
                                 QStringLiteral("Session: %1\r\n").arg(m_sessionId));
             } else if (method == QStringLiteral("TEARDOWN")) {
@@ -549,6 +549,9 @@ void MiracastHandler::handleRtspResponse(const RtspMessage& msg) {
 
         m_state = State::Streaming;
         m_lastStreamErrors = 0;
+        m_healthTicks = 0;
+        m_idrInterval = 1;
+        m_nextIdrTick = 1;
         m_healthTimer.start();
         qDebug("Miracast: streaming from '%s'", qPrintable(m_sourceName));
         return;
@@ -584,10 +587,25 @@ void MiracastHandler::checkStreamHealth() {
     }
     const uint64_t frames = m_pipeline->miracastFramesDecoded();
     const uint64_t errors = m_pipeline->miracastStreamErrors();
+    ++m_healthTicks;
+
     if (frames == 0) {
-        qDebug("Miracast: no video frame decoded yet — requesting IDR");
-        sendIdrRequest();
+        // Nothing decoded yet: the first IDR may have been lost. Ask again with
+        // exponential backoff (1, 2, 4, 8, 16, 16, ... s) rather than every second,
+        // since a missing decoder or an audio-only stream will never produce frames.
+        if (m_healthTicks >= m_nextIdrTick) {
+            qDebug("Miracast: no video frame decoded yet — requesting IDR");
+            sendIdrRequest();
+            m_idrInterval = qMin(m_idrInterval * 2, kMaxIdrIntervalSec);
+            m_nextIdrTick = m_healthTicks + m_idrInterval;
+        }
+        if (m_healthTicks == kNoVideoWarnSec) {
+            qWarning("Miracast: no video decoded after %d s — check the H.264 decoder "
+                     "(avdec_h264 / vaapidecodebin) and the pipeline warnings above",
+                     kNoVideoWarnSec);
+        }
     } else if (errors != m_lastStreamErrors) {
+        // At most one request per tick (1 s), however many errors arrived
         qDebug("Miracast: stream errors (%llu total) — requesting IDR",
                static_cast<unsigned long long>(errors));
         sendIdrRequest();
@@ -623,6 +641,18 @@ QString MiracastHandler::parsePresentationUrl(const QByteArray& body) {
             line.mid(int(sizeof("wfd_presentation_URL:")) - 1).simplified().split(' ');
         if (parts.isEmpty() || parts[0].isEmpty() || parts[0] == "none") return {};
         return QString::fromUtf8(parts[0]);
+    }
+    return {};
+}
+
+// static
+QString MiracastHandler::parseTriggerMethod(const QByteArray& body) {
+    static constexpr char kKey[] = "wfd_trigger_method:";
+    for (const QByteArray& rawLine : body.split('\n')) {
+        const QByteArray line = rawLine.trimmed();
+        if (line.startsWith(kKey)) {
+            return QString::fromUtf8(line.mid(int(sizeof(kKey)) - 1)).trimmed().toUpper();
+        }
     }
     return {};
 }
