@@ -7,6 +7,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QHostAddress>
+#include <QTimer>
 
 // Qt Core
 #include <QDebug>
@@ -14,6 +15,25 @@
 #include <QtEndian>
 
 namespace airshow {
+
+namespace {
+// Close a socket after its queued writes are sent, then delete it; sets it to
+// nullptr. disconnectFromHost() + an immediate deleteLater() would discard the
+// write buffer, losing e.g. the TEARDOWN request and the 200 OK to the
+// source's TEARDOWN. Deleted after at most 3 s if the peer never reads.
+void closeGracefully(QTcpSocket*& socket, QObject* owner) {
+    QTcpSocket* s = socket;
+    socket = nullptr;
+    if (!s) return;
+    s->disconnect(owner);
+    QObject::connect(s, &QAbstractSocket::disconnected, s, &QObject::deleteLater);
+    QTimer::singleShot(3000, s, &QObject::deleteLater);
+    s->disconnectFromHost();
+    if (s->state() == QAbstractSocket::UnconnectedState) {
+        s->deleteLater();
+    }
+}
+} // namespace
 
 // ── MiracastHandler ──────────────────────────────────────────────────────────
 
@@ -61,18 +81,12 @@ void MiracastHandler::stop() {
 
     // Tear down RTSP client connection
     if (m_rtspSocket) {
-        m_rtspSocket->disconnect(this);
-        m_rtspSocket->disconnectFromHost();
-        m_rtspSocket->deleteLater();
-        m_rtspSocket = nullptr;
+        closeGracefully(m_rtspSocket, this);
     }
 
     // Close accepted MS-MICE client connection
     if (m_miceClient) {
-        m_miceClient->disconnect(this);
-        m_miceClient->disconnectFromHost();
-        m_miceClient->deleteLater();
-        m_miceClient = nullptr;
+        closeGracefully(m_miceClient, this);
     }
 
     // Close the listening server
@@ -115,9 +129,7 @@ void MiracastHandler::onMiceConnection() {
 
     // Single-session model: close any existing connection
     if (m_miceClient) {
-        m_miceClient->disconnect(this);
-        m_miceClient->disconnectFromHost();
-        m_miceClient->deleteLater();
+        closeGracefully(m_miceClient, this);
     }
 
     m_miceClient = socket;
@@ -315,10 +327,7 @@ bool MiracastHandler::parseSourceReady(const QByteArray& data, SourceReadyInfo& 
 void MiracastHandler::connectToSource() {
     // Create RTSP client socket and connect to source:7236
     if (m_rtspSocket) {
-        m_rtspSocket->disconnect(this);
-        m_rtspSocket->disconnectFromHost();
-        m_rtspSocket->deleteLater();
-        m_rtspSocket = nullptr;
+        closeGracefully(m_rtspSocket, this);
     }
 
     m_rtspBuffer.clear();
@@ -635,17 +644,11 @@ void MiracastHandler::teardown() {
     }
 
     if (m_rtspSocket) {
-        m_rtspSocket->disconnect(this);
-        m_rtspSocket->disconnectFromHost();
-        m_rtspSocket->deleteLater();
-        m_rtspSocket = nullptr;
+        closeGracefully(m_rtspSocket, this);
     }
 
     if (m_miceClient) {
-        m_miceClient->disconnect(this);
-        m_miceClient->disconnectFromHost();
-        m_miceClient->deleteLater();
-        m_miceClient = nullptr;
+        closeGracefully(m_miceClient, this);
     }
 
     m_rtspBuffer.clear();
