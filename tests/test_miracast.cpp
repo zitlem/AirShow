@@ -72,13 +72,14 @@ TEST(MiracastHandlerTest, ConformsToInterface) {
 // extracts FriendlyName, RTSPPort, and SourceID correctly.
 
 TEST(MiracastHandlerTest, ParseMiceSourceReady) {
-    // Build a SOURCE_READY message according to RESEARCH.md Pattern 1:
+    // Build a SOURCE_READY message per [MS-MICE] 2.2 / 2.2.7:
     //   [2 bytes big-endian: total size]
     //   [1 byte: version=0x01]
     //   [1 byte: command=0x01 SOURCE_READY]
-    //   TLV 0x0001: FriendlyName "TestPC" as UTF-16LE
-    //   TLV 0x0002: RTSPPort 7236 as big-endian uint16
-    //   TLV 0x0003: SourceID "test-source-id-00" as ASCII
+    //   TLVs: [1 byte type][2 bytes big-endian length][value]
+    //   TLV 0x00: FRIENDLY_NAME "TestPC" as UTF-16LE
+    //   TLV 0x02: RTSP_PORT 7236 as big-endian uint16
+    //   TLV 0x03: SOURCE_ID, 16 bytes
 
     QByteArray msg;
 
@@ -92,31 +93,29 @@ TEST(MiracastHandlerTest, ParseMiceSourceReady) {
     portBytes.append(reinterpret_cast<const char*>(&port), 2);
 
     // SourceID TLV: ASCII
-    QByteArray sourceIdBytes = QByteArrayLiteral("test-source-id-00");
+    QByteArray sourceIdBytes = QByteArray::fromHex("00112233445566778899aabbccddeeff");
 
     // Helper: append TLV (type and length as big-endian uint16)
-    auto appendTlv = [&](uint16_t type, const QByteArray& value) {
-        uint16_t typeBe = qToBigEndian<uint16_t>(type);
+    auto appendTlv = [&](uint8_t type, const QByteArray& value) {
         uint16_t lenBe  = qToBigEndian<uint16_t>(static_cast<uint16_t>(value.size()));
-        msg.append(reinterpret_cast<const char*>(&typeBe), 2);
+        msg.append(static_cast<char>(type));
         msg.append(reinterpret_cast<const char*>(&lenBe), 2);
         msg.append(value);
     };
 
     // Build TLV body first (to know the total size)
     QByteArray tlvBody;
-    auto appendTlvToBody = [&](uint16_t type, const QByteArray& value) {
-        uint16_t typeBe = qToBigEndian<uint16_t>(type);
+    auto appendTlvToBody = [&](uint8_t type, const QByteArray& value) {
         uint16_t lenBe  = qToBigEndian<uint16_t>(static_cast<uint16_t>(value.size()));
-        tlvBody.append(reinterpret_cast<const char*>(&typeBe), 2);
+        tlvBody.append(static_cast<char>(type));
         tlvBody.append(reinterpret_cast<const char*>(&lenBe), 2);
         tlvBody.append(value);
     };
     Q_UNUSED(appendTlv)
 
-    appendTlvToBody(0x0001, nameBytes);
-    appendTlvToBody(0x0002, portBytes);
-    appendTlvToBody(0x0003, sourceIdBytes);
+    appendTlvToBody(0x00, nameBytes);
+    appendTlvToBody(0x02, portBytes);
+    appendTlvToBody(0x03, sourceIdBytes);
 
     // Total message size: 4-byte header + TLV body
     const uint16_t totalSize = static_cast<uint16_t>(4 + tlvBody.size());
@@ -134,7 +133,7 @@ TEST(MiracastHandlerTest, ParseMiceSourceReady) {
 
     EXPECT_EQ(info.friendlyName, QStringLiteral("TestPC"));
     EXPECT_EQ(info.rtspPort, static_cast<uint16_t>(7236));
-    EXPECT_EQ(info.sourceId, QStringLiteral("test-source-id-00"));
+    EXPECT_EQ(info.sourceId, QStringLiteral("00112233445566778899aabbccddeeff"));
 }
 
 // ── Test 3: InitMiracastPipelineCreatesElements ───────────────────────────────
@@ -299,20 +298,19 @@ TEST(MiracastHandlerTest, StateTransitionsOnSourceReady) {
     QByteArray portBytes;
     portBytes.append(reinterpret_cast<const char*>(&portBe), 2);
 
-    QByteArray sourceIdBytes = QByteArrayLiteral("mice-source-id-42");
+    QByteArray sourceIdBytes = QByteArray::fromHex("0f0e0d0c0b0a09080706050403020100");
 
     QByteArray tlvBody;
-    auto appendTlv = [&](uint16_t type, const QByteArray& value) {
-        uint16_t typeBe = qToBigEndian<uint16_t>(type);
+    auto appendTlv = [&](uint8_t type, const QByteArray& value) {
         uint16_t lenBe  = qToBigEndian<uint16_t>(static_cast<uint16_t>(value.size()));
-        tlvBody.append(reinterpret_cast<const char*>(&typeBe), 2);
+        tlvBody.append(static_cast<char>(type));
         tlvBody.append(reinterpret_cast<const char*>(&lenBe), 2);
         tlvBody.append(value);
     };
 
-    appendTlv(0x0001, nameBytes);
-    appendTlv(0x0002, portBytes);
-    appendTlv(0x0003, sourceIdBytes);
+    appendTlv(0x00, nameBytes);
+    appendTlv(0x02, portBytes);
+    appendTlv(0x03, sourceIdBytes);
 
     const uint16_t totalSize = static_cast<uint16_t>(4 + tlvBody.size());
     uint16_t sizeBe = qToBigEndian<uint16_t>(totalSize);
@@ -329,7 +327,7 @@ TEST(MiracastHandlerTest, StateTransitionsOnSourceReady) {
 
     EXPECT_EQ(info.friendlyName, QStringLiteral("DESKTOP-WINPC"));
     EXPECT_EQ(info.rtspPort, static_cast<uint16_t>(7236));
-    EXPECT_EQ(info.sourceId, QStringLiteral("mice-source-id-42"));
+    EXPECT_EQ(info.sourceId, QStringLiteral("0f0e0d0c0b0a09080706050403020100"));
 
     // Verify invalid command byte is rejected
     QByteArray badMsg = msg;
@@ -496,10 +494,10 @@ TEST(MiracastHandlerTest, MiracastPipelineStartStopCycle) {
     EXPECT_NE(pipeline.miracastPipeline(), nullptr)
         << "Pipeline must be non-null after successful initMiracastPipeline";
 
-    // Transition to PLAYING
-    pipeline.play();
+    // Transition to PLAYING. (MediaPipeline::play() only drives the main pipeline;
+    // a Miracast pipeline left PAUSED receives nothing and shows no picture.)
+    EXPECT_TRUE(pipeline.playMiracast());
 
-    // Verify pipeline is in PLAYING or PAUSED state (PLAYING transition may be async)
     {
         GstElement* gstPipeline = pipeline.miracastPipeline();
         ASSERT_NE(gstPipeline, nullptr);
@@ -507,9 +505,8 @@ TEST(MiracastHandlerTest, MiracastPipelineStartStopCycle) {
         GstState pending = GST_STATE_NULL;
         // Use a short timeout — we don't want to block indefinitely in a unit test
         gst_element_get_state(gstPipeline, &state, &pending, 500 * GST_MSECOND);
-        EXPECT_TRUE(state == GST_STATE_PLAYING || state == GST_STATE_PAUSED
-                    || pending == GST_STATE_PLAYING)
-            << "Expected PLAYING (or transition), got state=" << state
+        EXPECT_TRUE(state == GST_STATE_PLAYING || pending == GST_STATE_PLAYING)
+            << "Expected PLAYING (or transition to it), got state=" << state
             << " pending=" << pending;
     }
 
@@ -530,4 +527,108 @@ TEST(MiracastHandlerTest, MiracastPipelineStartStopCycle) {
         EXPECT_EQ(pipeline.miracastPipeline(), nullptr)
             << "Pipeline must be null after second stopMiracast()";
     }
+}
+
+// ── Test 13: ParseCapturedWindowsSourceReady ──────────────────────────────────
+// Bytes in the layout a Windows 11 source sends: the FRIENDLY_NAME TLV starts
+// "00 00 20 44 00" (type 0x00, length 32, 'D' in UTF-16LE). The old parser read
+// the type as 2 bytes and failed with "TLV 0x0000 length 8260".
+
+TEST(MiracastHandlerTest, ParseCapturedWindowsSourceReady) {
+    auto encoder = QStringEncoder(QStringEncoder::Utf16LE);
+    const QByteArray name = encoder.encode(QStringLiteral("DESKTOP-ABCD1234"));
+    ASSERT_EQ(name.size(), 32);
+
+    QByteArray tlvs;
+    tlvs.append(char(0x00)).append(char(0x00)).append(char(0x20)).append(name);
+    tlvs.append(QByteArray::fromHex("0200021c44"));                       // RTSP_PORT 7236
+    tlvs.append(QByteArray::fromHex("030010"));                           // SOURCE_ID, 16 bytes
+    tlvs.append(QByteArray::fromHex("a1a2a3a4b1b2c1c2d1d2e1e2e3e4e5e6"));
+
+    QByteArray msg;
+    const int size = 4 + tlvs.size();
+    msg.append(char(size >> 8)).append(char(size & 0xff)).append(char(0x01)).append(char(0x01));
+    msg.append(tlvs);
+    ASSERT_EQ(msg.mid(4, 5), QByteArray::fromHex("0000204400"));
+
+    MiracastHandler::SourceReadyInfo info;
+    ASSERT_TRUE(MiracastHandler::parseSourceReady(msg, info));
+    EXPECT_EQ(info.friendlyName, QStringLiteral("DESKTOP-ABCD1234"));
+    EXPECT_EQ(info.rtspPort, static_cast<uint16_t>(7236));
+    EXPECT_EQ(info.sourceId, QStringLiteral("a1a2a3a4b1b2c1c2d1d2e1e2e3e4e5e6"));
+}
+
+// ── Test 14: MiceMessageFraming ───────────────────────────────────────────────
+// MS-MICE runs over TCP: messages can arrive split or back to back.
+
+TEST(MiracastHandlerTest, MiceMessageFraming) {
+    // STOP_PROJECTION: size 0x000B, version 1, command 2, FRIENDLY_NAME "A"
+    const QByteArray stop = QByteArray::fromHex("000b010200000241000000");
+    EXPECT_EQ(MiracastHandler::miceMessageLength(QByteArray()), 0);
+    EXPECT_EQ(MiracastHandler::miceMessageLength(stop.left(1)), 0);
+    EXPECT_EQ(MiracastHandler::miceMessageLength(stop.left(6)), 0);          // incomplete
+    EXPECT_EQ(MiracastHandler::miceMessageLength(stop), 11);
+    EXPECT_EQ(MiracastHandler::miceMessageLength(stop + stop), 11);          // coalesced
+    EXPECT_EQ(MiracastHandler::miceMessageLength(QByteArray::fromHex("0002")), -1);  // < header
+}
+
+// ── Test 15: PresentationUrlAndSession ────────────────────────────────────────
+// M6 SETUP / M7 PLAY must target wfd_presentation_URL from M4, and PLAY must
+// carry the Session id from the SETUP response (Windows answers 400 otherwise).
+
+TEST(MiracastHandlerTest, PresentationUrlAndSession) {
+    const QByteArray m4 =
+        "wfd_video_formats: 00 00 02 10 00002000 00000000 00000000 00 0000 0000 00 none none\r\n"
+        "wfd_audio_codecs: AAC 00000001 00\r\n"
+        "wfd_presentation_URL: rtsp://192.168.68.76/wfd1.0/streamid=0 none\r\n"
+        "wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n";
+    EXPECT_EQ(MiracastHandler::parsePresentationUrl(m4),
+              QStringLiteral("rtsp://192.168.68.76/wfd1.0/streamid=0"));
+    EXPECT_TRUE(MiracastHandler::parsePresentationUrl("wfd_trigger_method: SETUP\r\n").isEmpty());
+    EXPECT_TRUE(MiracastHandler::parsePresentationUrl("wfd_presentation_URL: none none\r\n").isEmpty());
+
+    EXPECT_EQ(MiracastHandler::parseSessionId(QStringLiteral("6B8B4567;timeout=30")),
+              QStringLiteral("6B8B4567"));
+    EXPECT_EQ(MiracastHandler::parseSessionId(QStringLiteral("12345678")),
+              QStringLiteral("12345678"));
+}
+
+// ── Test 16: MiracastPipelineDecodesRtpMpegTs ─────────────────────────────────
+// End-to-end: feed the receive pipeline the same stream shape a Wi-Fi Display
+// source sends (H.264 + AAC in MPEG-TS in RTP over UDP) and require decoded frames.
+// Catches a pipeline that is created but never plays or never decodes.
+
+TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
+    constexpr int kPort = 15028;  // not 1028, so a running AirShow doesn't collide
+
+    GError* err = nullptr;
+    GstElement* sender = gst_parse_launch(
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=320,height=240,framerate=30/1 "
+        "! x264enc tune=zerolatency key-int-max=15 ! h264parse ! mux. "
+        "audiotestsrc is-live=true wave=sine ! audio/x-raw,rate=48000,channels=2 "
+        "! avenc_aac ! aacparse ! mux. "
+        "mpegtsmux name=mux ! rtpmp2tpay ! udpsink host=127.0.0.1 port=15028", &err);
+    if (!sender) {
+        const std::string msg = err ? err->message : "unknown";
+        if (err) g_error_free(err);
+        GTEST_SKIP() << "cannot build test sender (x264enc/avenc_aac missing?): " << msg;
+    }
+
+    MediaPipeline pipeline;
+    ASSERT_TRUE(pipeline.initMiracastPipeline(nullptr, kPort));
+    ASSERT_TRUE(pipeline.playMiracast());
+    gst_element_set_state(sender, GST_STATE_PLAYING);
+
+    // Wait up to 5 s; require frames to keep flowing (not just the first one)
+    for (int i = 0; i < 50 && pipeline.miracastFramesDecoded() < 60; ++i) {
+        QCoreApplication::processEvents();
+        g_usleep(100 * 1000);
+    }
+
+    gst_element_set_state(sender, GST_STATE_NULL);
+    gst_object_unref(sender);
+
+    EXPECT_GE(pipeline.miracastFramesDecoded(), 60u)
+        << "Miracast pipeline decoded " << pipeline.miracastFramesDecoded() << " frames";
+    pipeline.stopMiracast();
 }

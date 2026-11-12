@@ -2,6 +2,7 @@
 #include "DecoderInfo.h"
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
+#include <atomic>
 #include <optional>
 #include <functional>
 #include <cstdint>
@@ -110,11 +111,22 @@ public:
     //
     // Uses dynamic pads from tsdemux (same pattern as uridecodebin in initUriPipeline).
     // Video goes to the VideoFrameCallback (fakesink if none is set — headless tests).
-    // Pipeline starts in GST_STATE_PAUSED; MiracastHandler calls play() when PLAY received.
+    // Pipeline starts in GST_STATE_PAUSED; MiracastHandler calls playMiracast() when the
+    // source accepts PLAY (M7).
     bool initMiracastPipeline(void* qmlVideoItem, int udpPort);
+
+    // Set the Miracast pipeline to PLAYING. Returns false if none exists or the
+    // state change fails.
+    bool playMiracast();
 
     // Stop and clean up the Miracast pipeline. Safe to call if not started.
     void stopMiracast();
+
+    // Health counters for the current Miracast session (reset by initMiracastPipeline):
+    // decoded video frames, and stream errors (TS continuity breaks / decode errors)
+    // that usually mean a corrupted picture until the next IDR frame.
+    uint64_t miracastFramesDecoded() const { return m_miracastFrames.load(); }
+    uint64_t miracastStreamErrors() const  { return m_miracastErrors.load(); }
 
     // White-box accessor for tests — allows gst_element_get_state on the miracast pipeline.
     GstElement* miracastPipeline() const { return m_miracastPipeline; }
@@ -149,6 +161,8 @@ private:
 
     // Phase 8: Miracast MPEG-TS/RTP pipeline (separate pipeline, same pattern as m_uriPipeline)
     GstElement* m_miracastPipeline = nullptr;
+    std::atomic<uint64_t> m_miracastFrames{0};
+    std::atomic<uint64_t> m_miracastErrors{0};
 
     // Static member callback for decodebin "element-added" signal (Plan 03).
     // Declared here so it has natural access to private members via the

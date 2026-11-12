@@ -246,12 +246,8 @@ void MediaPipeline::stop() {
         m_uriVolume    = nullptr;
     }
     stopCast();
-    // Phase 8: clean up Miracast pipeline
-    if (m_miracastPipeline) {
-        gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
-        gst_object_unref(m_miracastPipeline);
-        m_miracastPipeline = nullptr;
-    }
+    // Phase 8: clean up Miracast pipeline (and its bus watch)
+    stopMiracast();
 }
 
 void MediaPipeline::setVideoFrameCallback(VideoFrameCallback cb)
@@ -298,8 +294,14 @@ GstFlowReturn MediaPipeline::onNewVideoSample(GstAppSink* sink, gpointer userDat
 
 GstElement* MediaPipeline::createVideoSink(const char* name, bool realtime)
 {
-    if (!m_videoFrameCallback)
-        return gst_element_factory_make("fakesink", name);
+    if (!m_videoFrameCallback) {
+        // Headless (tests): same timing behaviour as the appsink below
+        GstElement* fake = gst_element_factory_make("fakesink", name);
+        if (fake && realtime) {
+            g_object_set(fake, "sync", FALSE, "async", FALSE, nullptr);
+        }
+        return fake;
+    }
 
     GstElement* sink = gst_element_factory_make("appsink", name);
     if (!sink) return nullptr;
@@ -964,7 +966,7 @@ void MediaPipeline::stopCast() {
 bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     // D-09, D-10: Miracast MPEG-TS/RTP receive pipeline (RESEARCH.md Pattern 4).
     //
-    // Static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
+    // Static chain: udpsrc ! rtpjitterbuffer ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
     // Video branch (pad-added): queue ! h264parse ! [vaapidecodebin|avdec_h264]
     //                           ! videoconvert ! appsink  (or fakesink)
     // Audio branch (pad-added): queue ! decodebin (AAC or LPCM — we advertise both)
@@ -983,6 +985,8 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
 
     // Static source chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
     GstElement* udpsrc      = gst_element_factory_make("udpsrc",       "mir-udpsrc");
+    // Reorders late/out-of-order RTP packets before MPEG-TS demuxing
+    GstElement* jitterbuf   = gst_element_factory_make("rtpjitterbuffer", "mir-jitterbuffer");
     GstElement* rtpmp2tdepay = gst_element_factory_make("rtpmp2tdepay", "mir-rtpmp2tdepay");
     GstElement* tsparse     = gst_element_factory_make("tsparse",      "mir-tsparse");
     GstElement* tsdemux     = gst_element_factory_make("tsdemux",      "mir-tsdemux");
@@ -1001,9 +1005,9 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
 
     GstElement* videoConvert = gst_element_factory_make("videoconvert", "mir-videoconvert");
 
-    // Keeps clock sync (realtime=false) like the qml6glsink it replaces, so video is
-    // presented at the stream's PTS alongside the audio branch.
-    GstElement* videoSink  = createVideoSink("mir-videosink", /*realtime=*/false);
+    // Screen mirroring: show frames as soon as they decode (same as AirPlay/Cast).
+    // Clock-synced presentation drops or stalls frames from this live source.
+    GstElement* videoSink  = createVideoSink("mir-videosink", /*realtime=*/true);
 
     // Audio branch (pre-created, linked in pad-added)
     GstElement* audioQueue    = gst_element_factory_make("queue",        "mir-audioqueue");
@@ -1013,7 +1017,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     GstElement* audioSink     = gst_element_factory_make("autoaudiosink","mir-audiosink");
 
     // Verify all mandatory elements were created
-    const bool allCreated = pipeline && udpsrc && rtpmp2tdepay && tsparse && tsdemux &&
+    const bool allCreated = pipeline && udpsrc && jitterbuf && rtpmp2tdepay && tsparse && tsdemux &&
                             videoQueue && h264parse && videoDecode && videoConvert && videoSink &&
                             audioQueue && audioDecode && audioConvert &&
                             audioResample && audioSink;
@@ -1023,6 +1027,7 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         // Unref any successfully created elements to avoid leaks
         if (pipeline)      gst_object_unref(pipeline);
         if (udpsrc)        gst_object_unref(udpsrc);
+        if (jitterbuf)     gst_object_unref(jitterbuf);
         if (rtpmp2tdepay)  gst_object_unref(rtpmp2tdepay);
         if (tsparse)       gst_object_unref(tsparse);
         if (tsdemux)       gst_object_unref(tsdemux);
@@ -1048,17 +1053,20 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         "caps", udpCaps,
         nullptr);
     gst_caps_unref(udpCaps);
+    // Larger socket buffer: a 1080p IDR frame is hundreds of packets in one burst
+    g_object_set(udpsrc, "buffer-size", 4 * 1024 * 1024, nullptr);
+    g_object_set(jitterbuf, "latency", 100, nullptr);  // ms
 
     // Add all elements to the pipeline bin before linking
     gst_bin_add_many(GST_BIN(pipeline),
-        udpsrc, rtpmp2tdepay, tsparse, tsdemux,
+        udpsrc, jitterbuf, rtpmp2tdepay, tsparse, tsdemux,
         videoQueue, h264parse, videoDecode, videoConvert, videoSink,
         audioQueue, audioDecode, audioConvert, audioResample, audioSink,
         nullptr);
 
-    // Link the static chain: udpsrc ! rtpmp2tdepay ! tsparse ! tsdemux
+    // Link the static chain: udpsrc ! rtpjitterbuffer ! rtpmp2tdepay ! tsparse ! tsdemux
     // Do NOT link tsdemux output yet — tsdemux pads are dynamic (Pitfall 4)
-    if (!gst_element_link_many(udpsrc, rtpmp2tdepay, tsparse, tsdemux, nullptr)) {
+    if (!gst_element_link_many(udpsrc, jitterbuf, rtpmp2tdepay, tsparse, tsdemux, nullptr)) {
         g_warning("MediaPipeline::initMiracastPipeline — failed to link static source chain");
         gst_object_unref(pipeline);
         return false;
@@ -1132,6 +1140,21 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     g_signal_connect(tsdemux, "pad-added", G_CALLBACK(MiracastPadHelper::callback), padHelper);
 
     m_miracastPipeline = pipeline;
+    m_miracastFrames = 0;
+    m_miracastErrors = 0;
+
+    // Count decoded video frames reaching the sink (drives IDR requests in
+    // MiracastHandler and logs the first frame for diagnostics).
+    GstPad* sinkPad = gst_element_get_static_pad(videoSink, "sink");
+    gst_pad_add_probe(sinkPad, GST_PAD_PROBE_TYPE_BUFFER,
+        [](GstPad*, GstPadProbeInfo*, gpointer self) -> GstPadProbeReturn {
+            auto* mp = static_cast<MediaPipeline*>(self);
+            if (mp->m_miracastFrames.fetch_add(1) == 0) {
+                g_message("MediaPipeline: first Miracast video frame decoded");
+            }
+            return GST_PAD_PROBE_OK;
+        }, this, nullptr);
+    gst_object_unref(sinkPad);
 
     // Start in PAUSED — MiracastHandler transitions to PLAYING when PLAY is received (M7)
     GstStateChangeReturn ret = gst_element_set_state(m_miracastPipeline, GST_STATE_PAUSED);
@@ -1143,12 +1166,57 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         return false;
     }
 
+    // Log errors/warnings (missing decoder, caps failures, ...) instead of failing
+    // silently. The watch is removed with the pipeline's bus in stopMiracast().
+    GstBus* bus = gst_element_get_bus(m_miracastPipeline);
+    gst_bus_add_watch(bus, [](GstBus*, GstMessage* msg, gpointer self) -> gboolean {
+        GError* err = nullptr;
+        gchar*  dbg = nullptr;
+        switch (GST_MESSAGE_TYPE(msg)) {
+        case GST_MESSAGE_ERROR:
+            static_cast<MediaPipeline*>(self)->m_miracastErrors++;
+            gst_message_parse_error(msg, &err, &dbg);
+            g_warning("Miracast pipeline error from %s: %s (%s)",
+                      GST_OBJECT_NAME(msg->src), err->message, dbg ? dbg : "");
+            break;
+        case GST_MESSAGE_WARNING:
+            // tsdemux CONTINUITY / decoder warnings: lost packets, picture corrupt
+            static_cast<MediaPipeline*>(self)->m_miracastErrors++;
+            gst_message_parse_warning(msg, &err, &dbg);
+            g_warning("Miracast pipeline warning from %s: %s (%s)",
+                      GST_OBJECT_NAME(msg->src), err->message, dbg ? dbg : "");
+            break;
+        default:
+            break;
+        }
+        if (err) g_error_free(err);
+        g_free(dbg);
+        return G_SOURCE_CONTINUE;
+    }, this);
+    gst_object_unref(bus);
+
     g_message("MediaPipeline::initMiracastPipeline — pipeline created and PAUSED (udpPort=%d)", udpPort);
+    return true;
+}
+
+bool MediaPipeline::playMiracast() {
+    if (!m_miracastPipeline) {
+        g_warning("MediaPipeline::playMiracast — no Miracast pipeline");
+        return false;
+    }
+    if (gst_element_set_state(m_miracastPipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        g_warning("MediaPipeline::playMiracast — GST_STATE_CHANGE_FAILURE on PLAYING");
+        return false;
+    }
+    g_message("MediaPipeline::playMiracast — pipeline PLAYING");
     return true;
 }
 
 void MediaPipeline::stopMiracast() {
     if (m_miracastPipeline) {
+        GstBus* bus = gst_element_get_bus(m_miracastPipeline);
+        gst_bus_remove_watch(bus);
+        gst_object_unref(bus);
         gst_element_set_state(m_miracastPipeline, GST_STATE_NULL);
         gst_object_unref(m_miracastPipeline);
         m_miracastPipeline = nullptr;
