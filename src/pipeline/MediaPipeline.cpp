@@ -963,7 +963,7 @@ void MediaPipeline::stopCast() {
 
 // ── Phase 8: Miracast MPEG-TS/RTP receive pipeline ────────────────────────────
 
-bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
+bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort, bool ipv6Source) {
     // D-09, D-10: Miracast MPEG-TS/RTP receive pipeline (RESEARCH.md Pattern 4).
     //
     // Static chain: udpsrc ! rtpjitterbuffer ! rtpmp2tdepay ! tsparse ! tsdemux (dynamic pads)
@@ -1048,7 +1048,13 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
     // caps describe the incoming RTP stream: MP2T (MPEG-TS) with 90kHz clock
     GstCaps* udpCaps = gst_caps_from_string(
         "application/x-rtp,media=video,clock-rate=90000,encoding-name=MP2T");
+    // Listen on the source's address family. udpsrc defaults to 0.0.0.0, which is
+    // IPv4 only: when Windows resolves our host name to an IPv6 address, RTSP runs
+    // over IPv6 and so does the RTP stream, which then never arrived. "::" gives
+    // a dual-stack socket (GLib clears IPV6_V6ONLY), so IPv4 packets still arrive
+    // too. IPv4 sources keep 0.0.0.0, which also works where IPv6 is disabled.
     g_object_set(udpsrc,
+        "address", ipv6Source ? "::" : "0.0.0.0",
         "port", udpPort,
         "caps", udpCaps,
         nullptr);
@@ -1206,7 +1212,8 @@ bool MediaPipeline::initMiracastPipeline(void* /*qmlVideoItem*/, int udpPort) {
         return false;
     }
 
-    g_message("MediaPipeline::initMiracastPipeline — pipeline created and PAUSED (udpPort=%d)", udpPort);
+    g_message("MediaPipeline::initMiracastPipeline — pipeline created and PAUSED (udp %s port %d)",
+              ipv6Source ? "[::]" : "0.0.0.0", udpPort);
     return true;
 }
 

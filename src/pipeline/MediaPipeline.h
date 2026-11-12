@@ -111,9 +111,11 @@ public:
     //
     // Uses dynamic pads from tsdemux (same pattern as uridecodebin in initUriPipeline).
     // Video goes to the VideoFrameCallback (fakesink if none is set — headless tests).
+    // ipv6Source: the source reached us over IPv6, so RTP will arrive over IPv6;
+    // the UDP socket is then bound to "::" (dual-stack) instead of 0.0.0.0.
     // Pipeline starts in GST_STATE_PAUSED; MiracastHandler calls playMiracast() when the
     // source accepts PLAY (M7).
-    bool initMiracastPipeline(void* qmlVideoItem, int udpPort);
+    bool initMiracastPipeline(void* qmlVideoItem, int udpPort, bool ipv6Source = false);
 
     // Set the Miracast pipeline to PLAYING. Returns false if none exists or the
     // state change fails.

@@ -520,7 +520,13 @@ void MiracastHandler::handleRtspResponse(const RtspMessage& msg) {
 
         // Initialize the GStreamer MPEG-TS/RTP receive pipeline
         if (m_pipeline) {
-            if (!m_pipeline->initMiracastPipeline(m_qmlVideoItem, m_udpPort)) {
+            // RTP comes from the same address family as the RTSP connection
+            // (an IPv4 source shows up as ::ffff:a.b.c.d on our dual-stack server)
+            bool isV4 = false;
+            m_sourceAddr.toIPv4Address(&isV4);
+            const bool ipv6Source =
+                !isV4 && m_sourceAddr.protocol() == QAbstractSocket::IPv6Protocol;
+            if (!m_pipeline->initMiracastPipeline(m_qmlVideoItem, m_udpPort, ipv6Source)) {
                 qWarning("Miracast: failed to initialize media pipeline");
             }
         }

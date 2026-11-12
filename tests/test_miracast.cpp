@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QUdpSocket>
 #include <QThread>
 #include <functional>
 #include <gst/gst.h>
@@ -616,25 +617,29 @@ TEST(MiracastHandlerTest, PresentationUrlAndSession) {
 // source sends (H.264 + AAC in MPEG-TS in RTP over UDP) and require decoded frames.
 // Catches a pipeline that is created but never plays or never decodes.
 
-TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
-    constexpr int kPort = 15028;  // not 1028, so a running AirShow doesn't collide
+namespace {
 
+// Streams H.264 + AAC in MPEG-TS over RTP/UDP to host:port and returns how many
+// video frames the Miracast pipeline decoded (stops at 60 or after 15 s).
+// Returns -1 (and skips) if the test sender can't be built.
+int decodeFramesFrom(const char* host, int port, bool ipv6Source) {
     GError* err = nullptr;
-    GstElement* sender = gst_parse_launch(
+    const std::string launch =
         "videotestsrc is-live=true pattern=ball ! video/x-raw,width=320,height=240,framerate=30/1 "
         "! x264enc tune=zerolatency key-int-max=15 ! h264parse ! mux. "
         "audiotestsrc is-live=true wave=sine ! audio/x-raw,rate=48000,channels=2 "
         "! avenc_aac ! aacparse ! mux. "
-        "mpegtsmux name=mux ! rtpmp2tpay ! udpsink host=127.0.0.1 port=15028", &err);
+        "mpegtsmux name=mux ! rtpmp2tpay ! udpsink host=" + std::string(host) +
+        " port=" + std::to_string(port);
+    GstElement* sender = gst_parse_launch(launch.c_str(), &err);
     if (!sender) {
-        const std::string msg = err ? err->message : "unknown";
         if (err) g_error_free(err);
-        GTEST_SKIP() << "cannot build test sender (x264enc/avenc_aac missing?): " << msg;
+        return -1;
     }
 
     MediaPipeline pipeline;
-    ASSERT_TRUE(pipeline.initMiracastPipeline(nullptr, kPort));
-    ASSERT_TRUE(pipeline.playMiracast());
+    EXPECT_TRUE(pipeline.initMiracastPipeline(nullptr, port, ipv6Source));
+    EXPECT_TRUE(pipeline.playMiracast());
     gst_element_set_state(sender, GST_STATE_PLAYING);
 
     // Require frames to keep flowing (not just the first one). Generous timeout
@@ -643,10 +648,44 @@ TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
 
     gst_element_set_state(sender, GST_STATE_NULL);
     gst_object_unref(sender);
-
-    EXPECT_GE(pipeline.miracastFramesDecoded(), 60u)
-        << "Miracast pipeline decoded " << pipeline.miracastFramesDecoded() << " frames";
+    const int frames = static_cast<int>(pipeline.miracastFramesDecoded());
     pipeline.stopMiracast();
+    return frames;
+}
+
+bool hasIpv6Loopback() {
+    QUdpSocket probe;
+    return probe.bind(QHostAddress::LocalHostIPv6, 0);
+}
+
+} // namespace
+
+TEST(MiracastHandlerTest, MiracastPipelineDecodesRtpMpegTs) {
+    // Port 15028, not 1028, so a running AirShow doesn't collide
+    const int frames = decodeFramesFrom("127.0.0.1", 15028, /*ipv6Source=*/false);
+    if (frames < 0) GTEST_SKIP() << "cannot build test sender (x264enc/avenc_aac missing?)";
+    EXPECT_GE(frames, 60) << "Miracast pipeline decoded " << frames << " frames";
+}
+
+// ── Test 16b: MiracastPipelineDecodesOverIpv6 ─────────────────────────────────
+// Windows may resolve the receiver's host name to an IPv6 address; the RTSP
+// session then runs over IPv6 and so does the RTP stream. The receive socket
+// must accept it (it was IPv4-only: RTSP succeeded but no frame ever arrived).
+
+TEST(MiracastHandlerTest, MiracastPipelineDecodesOverIpv6) {
+    if (!hasIpv6Loopback()) GTEST_SKIP() << "no IPv6 loopback (::1) on this machine";
+    const int frames = decodeFramesFrom("::1", 15030, /*ipv6Source=*/true);
+    if (frames < 0) GTEST_SKIP() << "cannot build test sender (x264enc/avenc_aac missing?)";
+    EXPECT_GE(frames, 60) << "Miracast pipeline decoded " << frames << " frames over IPv6";
+}
+
+// The IPv6 receive socket is dual-stack, so an IPv4 stream still arrives if
+// the source switches family (e.g. the address resolved differently).
+TEST(MiracastHandlerTest, MiracastIpv6PipelineAcceptsIpv4) {
+    if (!hasIpv6Loopback()) GTEST_SKIP() << "no IPv6 loopback (::1) on this machine";
+    const int frames = decodeFramesFrom("127.0.0.1", 15032, /*ipv6Source=*/true);
+    if (frames < 0) GTEST_SKIP() << "cannot build test sender (x264enc/avenc_aac missing?)";
+    EXPECT_GE(frames, 60) << "Miracast pipeline decoded " << frames << " IPv4 frames";
 }
 
 // ── Test 17: ParseTriggerMethod ───────────────────────────────────────────────
