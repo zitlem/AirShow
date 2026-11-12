@@ -34,6 +34,13 @@
 #  include <mach-o/dyld.h>
 #endif
 
+#ifndef _WIN32
+#  include <QSocketNotifier>
+#  include <csignal>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#endif
+
 // Directory containing the running executable ("" if unknown).
 static std::filesystem::path executableDir() {
 #ifdef _WIN32
@@ -139,6 +146,42 @@ static void checkRequiredPlugins() {
     }
 }
 
+#ifndef _WIN32
+// Quit the event loop on SIGINT/SIGTERM/SIGHUP (Ctrl+C, `kill`, systemd stop,
+// closing the terminal) so the normal shutdown below runs. Without it the
+// process dies at once and, among other things, WifiDirectBeacon never puts
+// back the user's Wi-Fi Direct settings. Self-pipe: the handler only writes a byte.
+static int s_signalFds[2] = {-1, -1};
+
+static void onQuitSignal(int) {
+    const char c = 1;
+    [[maybe_unused]] ssize_t n = ::write(s_signalFds[0], &c, 1);
+}
+
+static void quitOnSignals(QCoreApplication& app) {
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, s_signalFds) != 0) {
+        qWarning("socketpair failed — AirShow will not shut down cleanly on SIGTERM/SIGINT");
+        return;
+    }
+    auto* notifier = new QSocketNotifier(s_signalFds[1], QSocketNotifier::Read, &app);
+    QObject::connect(notifier, &QSocketNotifier::activated, &app, [notifier, &app] {
+        notifier->setEnabled(false);
+        char c;
+        [[maybe_unused]] ssize_t n = ::read(s_signalFds[1], &c, 1);
+        qInfo("Signal received — shutting down");
+        app.quit();
+    });
+
+    struct sigaction sa {};
+    sa.sa_handler = onQuitSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    for (int sig : {SIGINT, SIGTERM, SIGHUP}) {
+        ::sigaction(sig, &sa, nullptr);
+    }
+}
+#endif
+
 int main(int argc, char* argv[]) {
     useBundledGStreamer();
     gst_init(&argc, &argv);
@@ -149,6 +192,10 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName("AirShow");
 
     QGuiApplication app(argc, argv);
+
+#ifndef _WIN32
+    quitOnSignals(app);
+#endif
 
     airshow::AppSettings settings;
 
